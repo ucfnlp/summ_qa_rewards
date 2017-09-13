@@ -32,4 +32,14 @@ def get_args():
                         default=200,
                         help='Size of word vectors')
 
+    parser.add_argument('--sentence_length',
+                        type=int,
+                        default=30,
+                        help='length of single sentence')
+
+    parser.add_argument('--max_sentences',
+                        type=int,
+                        default=10,
+                        help='Size of document in sentences')
+
     return parser.parse_args()
