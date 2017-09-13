@@ -3,10 +3,9 @@ import theano
 import theano.tensor as T
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
-from initialization import sigmoid, create_shared, random_init
-from basic import LSTM
-from advanced import RCNN
-
+from nn import create_optimization_updates, get_activation_by_name, sigmoid, linear
+from nn import EmbeddingLayer, Layer, RecurrentLayer, LSTM, RCNN, apply_dropout, default_rng
+from nn import create_shared, random_init
 
 class ExtRCNN(RCNN):
 
@@ -65,8 +64,7 @@ class ExtLSTM(LSTM):
     def copy_params(self, from_obj):
         self.internal_layers = from_obj.internal_layers
 
-
-class ZLayerWord(object):
+class ZLayer(object):
     def __init__(self, n_in, n_hidden, activation):
         self.n_in, self.n_hidden, self.activation = \
                 n_in, n_hidden, activation
@@ -77,13 +75,11 @@ class ZLayerWord(object):
         n_in, n_hidden = self.n_in, self.n_hidden
         activation = self.activation
 
-        # TODO figure out which weights to keep
         self.w1 = create_shared(random_init((n_in,)), name="w1")
         self.w2 = create_shared(random_init((n_hidden,)), name="w2")
         bias_val = random_init((1,))[0]
         self.bias = theano.shared(np.cast[theano.config.floatX](bias_val))
-
-        rlayer = LSTM((n_in+1), n_hidden, activation=activation)
+        rlayer = RCNN((n_in+1), n_hidden, activation=activation, order=2)
         self.rlayer = rlayer
         self.layers = [ rlayer ]
 
@@ -119,68 +115,6 @@ class ZLayerWord(object):
             )
         assert pz.ndim == 2
         return pz
-
-    def sample(self, x_t, z_tm1):
-
-        print "z_tm1", z_tm1.ndim, type(z_tm1)
-
-        pz_t = sigmoid(T.dot(x_t, self.w1) + self.bias)
-
-        # batch
-        pz_t = pz_t.ravel()
-        z_t = T.cast(self.MRG_rng.binomial(size=pz_t.shape,
-                                        p=pz_t), theano.config.floatX)
-
-        xz_t = T.concatenate([x_t, z_t.reshape((-1,1))], axis=1)
-
-        return z_t
-
-    def sample_all(self, x):
-        z0 = T.zeros((x.shape[1],), dtype=theano.config.floatX)
-        ([ z ], updates) = theano.scan(
-                            fn = self.sample,
-                            sequences = [ x ],
-                            outputs_info = [ z0 ]
-                    )
-        assert z.ndim == 2
-        return z, updates
-
-    @property
-    def params(self):
-        return [ x for layer in self.layers for x in layer.params ] + \
-               [ self.w1, self.w2, self.bias ]
-
-    @params.setter
-    def params(self, param_list):
-        start = 0
-        for layer in self.layers:
-            end = start + len(layer.params)
-            layer.params = param_list[start:end]
-            start = end
-        self.w1.set_value(param_list[-3].get_value())
-        self.w2.set_value(param_list[-2].get_value())
-        self.bias.set_value(param_list[-1].get_value())
-
-
-class ZLayerSent(object):
-    def __init__(self, n_in, n_hidden, activation):
-        self.n_in, self.n_hidden, self.activation = \
-                n_in, n_hidden, activation
-        self.MRG_rng = MRG_RandomStreams()
-        self.create_parameters()
-
-    def create_parameters(self):
-        n_in, n_hidden = self.n_in, self.n_hidden
-        activation = self.activation
-
-        self.w1 = create_shared(random_init((n_in,)), name="w1")
-        self.w2 = create_shared(random_init((n_hidden,)), name="w2")
-        bias_val = random_init((1,))[0]
-        self.bias = theano.shared(np.cast[theano.config.floatX](bias_val))
-        rlayer = RCNN((n_in+1), n_hidden, activation=activation, order=2)
-        self.rlayer = rlayer
-        self.layers = [ rlayer ]
-
 
     def sample(self, x_t, z_tm1, h_tm1):
 

@@ -60,7 +60,8 @@ def split_data(args):
 
 
 def machine_ready(args, highlights, articles, w2v_model):
-    input_seqs = np.zeros((len(articles), args.max_sentences * args.sentence_length, args.embedding_dim), dtype='float64')
+    input_seqs = np.zeros((len(articles), args.max_sentences * args.sentence_length), dtype='float64')
+    embedding_file = open(args.embedding_file, 'w+')
 
     for i in xrange(len(articles)):
 
@@ -77,9 +78,11 @@ def machine_ready(args, highlights, articles, w2v_model):
 
                 if word in w2v_model.vocab:
                     word_idx = w2v_model.vocab[word].index
-                    input_seqs[i, j * args.sentence_length + k, :] = w2v_model.syn0[word_idx]
+                    input_seqs[i, j * args.sentence_length + k ] = word_idx
 
                 k += 1
+
+
 
     return input_seqs
 

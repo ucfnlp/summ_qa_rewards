@@ -27,6 +27,11 @@ def get_args():
                         default='cnn_w2v_tmp.bin',
                         help='w2v model name and path')
 
+    parser.add_argument('--embedding_file',
+                        type=str,
+                        default='cnn_w2v_tmp.txt',
+                        help='w2v model name and path')
+
     parser.add_argument('--small_limit',
                         type=int,
                         default=30,
