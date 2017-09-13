@@ -33,3 +33,16 @@ def load_weights(args):
 def create_w2v_model(args, data_ls):
     model = gensim.models.Word2Vec(data_ls, size=args.embedding_dim, min_count=5)  # Default
     model.wv.save_word2vec_format(fname=args.word_model, binary=True)
+
+    return model
+
+
+def init_dict(w2v_model):
+    idx = 1
+    new_dict = {}
+
+    for key in w2v_model.vocab.keys():
+        new_dict[key] = idx
+        idx += 1
+
+    return new_dict
