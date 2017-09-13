@@ -17,6 +17,7 @@ import myio
 from nn.extended_layers import ExtRCNN, ExtLSTM, ZLayer
 import summarization_args
 
+
 def build_model():
     args = summarization_args.get_args()
 
@@ -34,7 +35,7 @@ def build_model():
     # len*batch
     x = T.imatrix()
 
-    n_d = args.hidden_dimension
+    n_d = args.embedding_dim
     n_e = embedding_layer.n_d
     activation = get_activation_by_name(args.activation)
 
@@ -66,8 +67,6 @@ def build_model():
     h_final = T.concatenate([h1, h2[::-1]], axis=2)
     h_final = apply_dropout(h_final, dropout)
     size = n_d * 2
-
-
 
 
 if __name__ == '__main__':

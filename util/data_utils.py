@@ -46,3 +46,20 @@ def init_dict(w2v_model):
         idx += 1
 
     return new_dict
+
+
+def write_embeddings_to_file(args, w2v_model):
+    embedding_file = open(args.embedding_file, 'w+')
+
+    for word in w2v_model.vocab:
+        embedding_file.write(word + ' ')
+
+        word_idx = w2v_model.vocab[word].index
+
+        for value in w2v_model.syn0[word_idx]:
+            embedding_file.write(str(value))
+            embedding_file.write(' ')
+
+        embedding_file.write('\n')
+
+    embedding_file.close()

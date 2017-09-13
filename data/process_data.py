@@ -60,29 +60,18 @@ def split_data(args):
 
 
 def machine_ready(args, highlights, articles, w2v_model):
-    input_seqs = np.zeros((len(articles), args.max_sentences * args.sentence_length), dtype='float64')
-    embedding_file = open(args.embedding_file, 'w+')
+    input_seqs = []
+    utils.write_embeddings_to_file(args, w2v_model)
 
     for i in xrange(len(articles)):
 
-        for j in xrange(args.max_sentences):
+        single_inp = []
 
-            if j >= len(articles[i]):
-                break
+        for sentence in articles[i]:
+            for word in sentence:
+                single_inp.append(word)
 
-            k = 0
-
-            for word in articles[i][j]:
-                if k == args.sentence_length:
-                    break
-
-                if word in w2v_model.vocab:
-                    word_idx = w2v_model.vocab[word].index
-                    input_seqs[i, j * args.sentence_length + k ] = word_idx
-
-                k += 1
-
-
+        input_seqs.append(single_inp)
 
     return input_seqs
 
