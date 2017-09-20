@@ -97,7 +97,7 @@ class Generator(object):
         self.MRG_rng = MRG_RandomStreams()
         z_pred = self.z_pred_sent = T.cast(self.MRG_rng.binomial(size=probs2.shape, p=probs2), "int8")
 
-        self.z_pred_sent = theano.gradient.disconnected_grad(z_pred)
+        self.z_pred = theano.gradient.disconnected_grad(z_pred)
 
         # SENTENCE LEVEL
 
@@ -117,7 +117,9 @@ class Generator(object):
 
         self.z_pred_sent = theano.gradient.disconnected_grad(z_pred_sent)
 
-        z2 = z.dimshuffle((0,1,"x"))
+        self.z_pred_combined = z_pred * T.repeat(z_pred_sent, args.sentence_length)
+
+        z2 = z.dimshuffle((0, 1, "x"))
         logpz = - T.nnet.binary_crossentropy(probs, z2) * masks
         logpz = self.logpz = logpz.reshape(x.shape)
         probs = self.probs = probs.reshape(x.shape)
@@ -163,6 +165,7 @@ class Generator(object):
 
         self.cost_e = loss * 10 + encoder.l2_cost
 
+
 class Encoder(object):
 
     def __init__(self, args, embedding_layer, nclasses):
@@ -185,7 +188,7 @@ class Encoder(object):
         z = self.z = T.bmatrix()
         z = z.dimshuffle((0,1,"x"))
 
-        # batch*nclasses
+        # max_gs_len * batch
         y = self.y = T.fmatrix()
 
         n_d = args.hidden_dimension
@@ -211,52 +214,49 @@ class Encoder(object):
                     )
             layers.append(l)
 
+        z_y = T.ones_like(y.dimshuffle((0, 1, "x")))
+
         # len * batch * 1
         masks = T.cast(T.neq(x, padding_id).dimshuffle((0,1,"x")) * z, theano.config.floatX)
+        # gs_len * batch * 1
+        masks_y = T.cast(T.neq(y, padding_id).dimshuffle((0, 1, "x")) * z_y, theano.config.floatX)
         # batch * 1
         cnt_non_padding = T.sum(masks, axis=0) + 1e-8
 
         # (len*batch)*n_e
         embs = embedding_layer.forward(x.ravel())
+        embs_y = embedding_layer.forward(y.ravel()).reshape((y.shape[0], y.shape[1], n_e))
+
         # len*batch*n_e
         embs = embs.reshape((x.shape[0], x.shape[1], n_e))
         embs = apply_dropout(embs, dropout)
 
-        pooling = args.pooling
         lst_states = [ ]
+        lst_states_y = []
+
         h_prev = embs
+        h_prev_y = embs_y
+
         for l in layers:
             # len*batch*n_d
-            h_next = l.forward_all(h_prev, z)
-            if pooling:
-                # batch * n_d
-                masked_sum = T.sum(h_next * masks, axis=0)
-                lst_states.append(masked_sum/cnt_non_padding) # mean pooling
-            else:
-                lst_states.append(h_next[-1]) # last state
-            h_prev = apply_dropout(h_next, dropout)
+            h_next = l.forward_all(h_prev, z, return_c=True)
+            # len_gs*batch*n_d
+            h_next_y = l.forward_all(h_prev_y, z_y, return_c=True)
 
-        if args.use_all:
-            size = depth * n_d
-            # batch * size (i.e. n_d*depth)
-            h_final = T.concatenate(lst_states, axis=1)
-        else:
-            size = n_d
-            h_final = lst_states[-1]
+            lst_states.append(h_next[::args.sentence_length])
+            lst_states_y.append(h_next_y[::args.sentence_length])
+
+            h_prev = apply_dropout(h_next, dropout)
+            h_prev_y = h_next_y
+
+
+        h_final = lst_states[-1]
+        h_final_y = lst_states_y[-1]
+
         h_final = apply_dropout(h_final, dropout)
 
-        output_layer = self.output_layer = Layer(
-                n_in = size,
-                n_out = self.nclasses,
-                activation = sigmoid
-            )
 
-        # batch * nclasses
-        preds = self.preds = output_layer.forward(h_final)
-
-        # batch
-        loss_mat = self.loss_mat = (preds-y)**2
-        loss = self.loss = T.mean(loss_mat)
+        loss = self.loss = T.sum()
 
         pred_diff = self.pred_diff = T.mean(T.max(preds, axis=1) - T.min(preds, axis=1))
 
@@ -278,6 +278,7 @@ class Encoder(object):
         self.l2_cost = l2_cost
 
         cost = self.cost = loss * 10 + l2_cost
+
 
 class Model(object):
 
@@ -317,7 +318,6 @@ class Model(object):
                 fout,
                 protocol = pickle.HIGHEST_PROTOCOL
             )
-
 
     def load_model(self, path):
         if not os.path.exists(path):
