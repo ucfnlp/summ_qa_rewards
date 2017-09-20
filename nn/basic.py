@@ -192,6 +192,114 @@ class RecurrentLayer(Layer):
         return h
 
 
+class Encoder(Layer):
+    '''
+        Encoder LSTM implementation.
+    '''
+    def __init__(self, n_in, n_out, activation=tanh,
+            clip_gradients=False):
+
+        self.n_in = n_in
+        self.n_out = n_out
+        self.activation = activation
+        self.clip_gradients = clip_gradients
+
+        self.in_gate = RecurrentLayer(n_in, n_out, sigmoid, clip_gradients)
+        self.forget_gate = RecurrentLayer(n_in, n_out, sigmoid, clip_gradients)
+        self.out_gate = RecurrentLayer(n_in, n_out, sigmoid, clip_gradients)
+        self.input_layer = RecurrentLayer(n_in, n_out, activation, clip_gradients)
+
+
+        self.internal_layers = [ self.input_layer, self.in_gate,
+                                 self.forget_gate , self.out_gate ]
+
+    def forward(self, x, z_w, hc):
+        '''
+            Apply one recurrent step of LSTM
+
+            Inputs
+            ------
+
+                x       : the input vector or matrix
+                hc      : the vector/matrix of [ c_tm1, h_tm1 ], i.e. hidden state and
+                            visible state concatenated together
+
+            Outputs
+            -------
+
+                return [ c_t, h_t ] as a single concatenated vector/matrix
+        '''
+        n_in, n_out, activation = self.n_in, self.n_out, self.activation
+
+        if hc.ndim > 1:
+            c_tm1 = hc[:, :n_out]
+            h_tm1 = hc[:, n_out:]
+        else:
+            c_tm1 = hc[:n_out]
+            h_tm1 = hc[n_out:]
+
+        in_t = self.in_gate.forward(x,h_tm1)
+        forget_t = self.forget_gate.forward(x,h_tm1)
+        out_t = self.out_gate.forward(x, h_tm1)
+
+        c_t = forget_t * c_tm1 + in_t * self.input_layer.forward(x,h_tm1)
+        h_t = out_t * T.tanh(c_t)
+
+        if hc.ndim > 1:
+            return T.concatenate([ c_t, h_t ], axis=1)
+        else:
+            return T.concatenate([ c_t, h_t ])
+
+    def forward_all(self, x, z_w, h0=None, return_c=False):
+        '''
+            Apply recurrent steps of LSTM on all inputs {x_1, ..., x_n}
+
+            Inputs
+            ------
+
+            x           : input as a matrix (n*d) or a tensor (n*batch*d)
+            h0          : the initial states [ c_0, h_0 ] including both hidden and
+                            visible states
+            return_c    : whether to return hidden state {c1, ..., c_n}
+
+
+            Outputs
+            -------
+
+            if return_c is False, return {h_1, ..., h_n}, otherwise return
+                { [c_1,h_1], ... , [c_n,h_n] }. Both represented as a matrix or tensor.
+
+        '''
+        if h0 is None:
+            if x.ndim > 1:
+                h0 = T.zeros((x.shape[1], self.n_out*2), dtype=theano.config.floatX)
+            else:
+                h0 = T.zeros((self.n_out*2,), dtype=theano.config.floatX)
+        h, _ = theano.scan(
+                    fn = self.forward,
+                    sequences = [x, z_w],
+                    outputs_info = [ h0 ]
+                )
+        if return_c:
+            return h
+        elif x.ndim > 1:
+            return h[:,:,self.n_out:]
+        else:
+            return h[:,self.n_out:]
+
+    @property
+    def params(self):
+        return [ x for layer in self.internal_layers for x in layer.params ]
+
+    @params.setter
+    def params(self, param_list):
+        start = 0
+        for layer in self.internal_layers:
+            end = start + len(layer.params)
+            layer.params = param_list[start:end]
+            start = end
+
+
 class EmbeddingLayer(object):
     '''
         Embedding layer that

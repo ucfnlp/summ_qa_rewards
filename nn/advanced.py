@@ -250,6 +250,8 @@ class AttentionLayer(Layer):
 
     This layer is uni-directional and non-recurrent.
 '''
+
+
 class BilinearAttentionLayer(Layer):
     def __init__(self, n_d, activation, weighted_output=True):
         self.n_d = n_d

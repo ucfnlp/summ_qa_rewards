@@ -3,9 +3,10 @@ import theano
 import theano.tensor as T
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
-from nn import create_optimization_updates, get_activation_by_name, sigmoid, linear
-from nn import EmbeddingLayer, Layer, RecurrentLayer, LSTM, RCNN, apply_dropout, default_rng
-from nn import create_shared, random_init
+from nn.advanced import RCNN
+from nn.basic import LSTM
+from nn.initialization import create_shared, random_init, sigmoid
+
 
 class ExtRCNN(RCNN):
 
@@ -36,6 +37,7 @@ class ExtRCNN(RCNN):
         self.internal_layers = from_obj.internal_layers
         self.bias = from_obj.bias
 
+
 class ExtLSTM(LSTM):
 
     def forward(self, x_t, mask_t, hc_tm1):
@@ -63,6 +65,7 @@ class ExtLSTM(LSTM):
 
     def copy_params(self, from_obj):
         self.internal_layers = from_obj.internal_layers
+
 
 class ZLayer(object):
     def __init__(self, n_in, n_hidden, activation):
