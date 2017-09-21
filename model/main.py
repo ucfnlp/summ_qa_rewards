@@ -111,10 +111,10 @@ class Generator(object):
 
         z_pred_sent, sample_updates_sent = output_layer_sent.sample_all(h_final_sent)
 
-        z_pred_sent = self.z_pred_sent = theano.gradient.disconnected_grad(z_pred)
+        z_pred_sent = self.z_pred_sent = theano.gradient.disconnected_grad(z_pred_sent)
         self.sample_updates_sent = sample_updates_sent
 
-        probs = output_layer.forward_all(h_final, z_pred)
+        probs = output_layer_sent.forward_all(h_final, z_pred)
 
         self.z_pred_combined = z_pred * T.repeat(z_pred_sent, args.sentence_length)
 
