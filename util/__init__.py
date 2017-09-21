@@ -8,6 +8,7 @@ def say(s, stream=sys.stdout):
     stream.write("{}".format(s))
     stream.flush()
 
+
 def load_embedding_iterator(path):
     file_open = gzip.open if path.endswith(".gz") else open
     with file_open(path) as fin:

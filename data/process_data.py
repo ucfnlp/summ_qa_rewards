@@ -11,7 +11,7 @@ def process_data(args):
     highlights, articles = split_data(args)
     w2v_model = utils.create_w2v_model(args, [item for sublist in articles for item in sublist])
 
-    input_seqs = machine_ready(args, highlights, articles, w2v_model.wv)
+    machine_ready(args, highlights, articles, w2v_model.wv)
 
 
 def split_data(args):
@@ -48,6 +48,8 @@ def split_data(args):
 
             current_article, current_highlights = tokenize(args, current_article, current_highlights)
 
+            if len(current_article) ==0:
+                continue
             highlights.append(current_highlights)
             articles.append(current_article)
 

@@ -19,6 +19,7 @@ def read_rationales(path):
             data.append(item)
     return data
 
+
 def read_annotations(path):
     data_x, data_y = [ ], [ ]
     fopen = gzip.open if path.endswith(".gz") else open
@@ -37,6 +38,7 @@ def read_annotations(path):
         max(len(x) for x in data_x)
     ))
     return data_x, data_y
+
 
 def create_embedding_layer(path):
     embedding_layer = EmbeddingLayer(
@@ -74,6 +76,7 @@ def create_batches(x, y, batch_size, padding_id, sort=True):
         batches_x = [ batches_x[i] for i in perm2 ]
         batches_y = [ batches_y[i] for i in perm2 ]
     return batches_x, batches_y
+
 
 def create_one_batch(lstx, lsty, padding_id):
     max_len = max(len(x) for x in lstx)

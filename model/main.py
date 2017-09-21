@@ -16,6 +16,7 @@ from util import say
 import myio
 import summarization_args
 from nn.extended_layers import ExtRCNN, ExtLSTM
+from data import process_data
 
 
 class Generator(object):
@@ -101,14 +102,14 @@ class Generator(object):
 
         # SENTENCE LEVEL
 
-        output_layer_sent = self.output_layer = Layer(
+        output_layer_sent = self.output_layer_sent = Layer(
             n_in=size,
             n_out=1,
             activation=sigmoid
         )
 
         # len*batch*1
-        probs_sent = output_layer_sent.forward(h_final)
+        probs_sent = output_layer_sent.forward(h_final_sent)
 
         # len*batch
         probs2_sent = probs_sent.reshape(x.shape)
@@ -220,11 +221,10 @@ class Encoder(object):
         masks = T.cast(T.neq(x, padding_id).dimshuffle((0,1,"x")) * z, theano.config.floatX)
         # gs_len * batch * 1
         masks_y = T.cast(T.neq(y, padding_id).dimshuffle((0, 1, "x")) * z_y, theano.config.floatX)
-        # batch * 1
-        cnt_non_padding = T.sum(masks, axis=0) + 1e-8
 
         # (len*batch)*n_e
         embs = embedding_layer.forward(x.ravel())
+        # (gs_len*batch)*n_e
         embs_y = embedding_layer.forward(y.ravel()).reshape((y.shape[0], y.shape[1], n_e))
 
         # len*batch*n_e
@@ -261,7 +261,7 @@ class Encoder(object):
         pred_diff = self.pred_diff = T.mean(T.max(preds, axis=1) - T.min(preds, axis=1))
 
         params = self.params = [ ]
-        for l in layers + [ output_layer ]:
+        for l in layers:
             for p in l.params:
                 params.append(p)
         nparams = sum(len(x.get_value(borrow=True).ravel()) \
@@ -297,7 +297,7 @@ class Model(object):
         self.x = self.encoder.x
         self.y = self.encoder.y
         self.z = self.encoder.z
-        self.z_pred = self.generator.z_pred
+        self.z_pred = self.generator.z_pred_combined
 
     def save_model(self, path, args):
         # append file suffix
@@ -337,7 +337,6 @@ class Model(object):
             x.set_value(v)
         for x,v in zip(self.generator.params, gparams):
             x.set_value(v)
-
 
     def train(self, train, dev, test, rationale_data):
         args = self.args
@@ -401,7 +400,7 @@ class Model(object):
                 outputs = [ self.z, self.generator.obj, self.generator.loss,
                                 self.encoder.pred_diff ],
                 givens = {
-                    self.z : self.generator.z_pred
+                    self.z : self.generator.z_pred_combined
                 },
                 #updates = self.generator.sample_updates,
                 #no_default_updates = True
@@ -412,7 +411,7 @@ class Model(object):
                 outputs = [ self.generator.obj, self.generator.loss, \
                                 self.generator.sparsity_cost, self.z, gnorm_g, gnorm_e ],
                 givens = {
-                    self.z : self.generator.z_pred
+                    self.z : self.generator.z_pred_combined
                 },
                 #updates = updates_g,
                 updates = updates_g.items() + updates_e.items() #+ self.generator.sample_updates,
@@ -603,14 +602,12 @@ def main():
     print args
     assert args.embedding, "Pre-trained word embeddings required."
 
-    embedding_layer = myio.create_embedding_layer(
-                        args.embedding
-                    )
+    embedding_layer = myio.create_embedding_layer(args.embedding)
 
-    max_len = args.max_len
+    max_len = args.sentence_length*args.max_sentences
 
     if args.train:
-        train_x, train_y = myio.read_annotations(args.train)
+        train_x, train_y = myio.read_docs()
         train_x = [ embedding_layer.map_to_ids(x)[:max_len] for x in train_x ]
 
     if args.dev:
@@ -679,5 +676,5 @@ def main():
 
 
 if __name__=="__main__":
-    args = summarization_args.load_arguments()
+    args = summarization_args.get_args()
     main()
