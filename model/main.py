@@ -15,29 +15,28 @@ from nn.advanced import Layer, RCNN
 from util import say
 import myio
 import summarization_args
-from nn.extended_layers import ExtRCNN, ExtLSTM
+from nn.extended_layers import ExtRCNN, ExtLSTM, ZLayer
 from data import process_data
 
 
 class Generator(object):
 
-    def __init__(self, args, embedding_layer, nclasses, encoder):
+    def __init__(self, args, embedding_layer, nclasses):
         self.args = args
         self.embedding_layer = embedding_layer
         self.nclasses = nclasses
-        self.encoder = encoder
 
     def ready(self):
-        encoder = self.encoder
         embedding_layer = self.embedding_layer
         args = self.args
         padding_id = embedding_layer.vocab_map["<padding>"]
 
-        dropout = self.dropout = encoder.dropout
+        dropout = self.dropout = theano.shared(
+            np.float64(args.dropout).astype(theano.config.floatX)
+        )
 
         # len*batch
-        x = self.x = encoder.x
-        z = self.z = encoder.z
+        x = self.x = T.imatrix()
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -62,8 +61,7 @@ class Generator(object):
             layers.append(l)
 
         # len * batch
-        #masks = T.cast(T.neq(x, padding_id), theano.config.floatX)
-        masks = T.cast(T.neq(x, padding_id), "int8").dimshuffle((0,1,"x"))
+        masks = T.cast(T.neq(x, padding_id), theano.config.floatX)
 
         # (len*batch)*n_e
         embs = embedding_layer.forward(x.ravel())
@@ -84,97 +82,79 @@ class Generator(object):
         h_final_sent = T.concatenate([h1[args.sentence_length - 1::args.sentence_length],
                                       h2[::args.sentence_length]], axis=2)
 
-        output_layer = self.output_layer = Layer(
+        output_layer = self.output_layer = ZLayer(
                 n_in = size,
-                n_out = 1,
-                activation = sigmoid
+                n_hidden = args.hidden_dimension2,
+                activation = activation
             )
 
-        # len*batch*1
-        probs = output_layer.forward(h_final)
+        # sample z given text (i.e. x)
+        z_pred, sample_updates = output_layer.sample_all(h_final)
 
-        # len*batch
-        probs2 = probs.reshape(x.shape)
-        self.MRG_rng = MRG_RandomStreams()
-        z_pred = self.z_pred_sent = T.cast(self.MRG_rng.binomial(size=probs2.shape, p=probs2), "int8")
+        # we are computing approximated gradient by sampling z;
+        # so should mark sampled z not part of the gradient propagation path
+        #
+        z_pred = self.z_pred = theano.gradient.disconnected_grad(z_pred)
+        self.sample_updates = sample_updates
+        print "z_pred", z_pred.ndim
 
-        self.z_pred = theano.gradient.disconnected_grad(z_pred)
+        probs = output_layer.forward_all(h_final, z_pred)
+
 
         # SENTENCE LEVEL
 
-        output_layer_sent = self.output_layer_sent = Layer(
-            n_in=size,
-            n_out=1,
-            activation=sigmoid
-        )
+        output_layer_sent = self.output_layer_sent = ZLayer(
+                n_in = size,
+                n_hidden = args.hidden_dimension2,
+                activation = activation
+            )
 
-        # len*batch*1
-        probs_sent = output_layer_sent.forward(h_final_sent)
+        z_pred_sent, sample_updates_sent = output_layer_sent.sample_all(h_final_sent)
 
-        # len*batch
-        probs2_sent = probs_sent.reshape(x.shape)
+        z_pred_sent = self.z_pred_sent = theano.gradient.disconnected_grad(z_pred)
+        self.sample_updates_sent = sample_updates_sent
 
-        z_pred_sent = self.z_pred_sent = T.cast(self.MRG_rng.binomial(size=probs2_sent.shape, p=probs2_sent), "int8")
-
-        self.z_pred_sent = theano.gradient.disconnected_grad(z_pred_sent)
+        probs = output_layer.forward_all(h_final, z_pred)
 
         self.z_pred_combined = z_pred * T.repeat(z_pred_sent, args.sentence_length)
 
-        z2 = z.dimshuffle((0, 1, "x"))
-        logpz = - T.nnet.binary_crossentropy(probs, z2) * masks
+        logpz = - T.nnet.binary_crossentropy(probs, z_pred) * masks
         logpz = self.logpz = logpz.reshape(x.shape)
         probs = self.probs = probs.reshape(x.shape)
 
         # batch
-        zsum = T.sum(z, axis=0, dtype=theano.config.floatX)
-        zdiff = T.sum(T.abs_(z[1:]-z[:-1]), axis=0, dtype=theano.config.floatX)
+        z = z_pred
+        self.zsum = T.sum(z, axis=0, dtype=theano.config.floatX)
+        self.zdiff = T.sum(T.abs_(z[1:] - z[:-1]), axis=0, dtype=theano.config.floatX)
 
-        loss_mat = encoder.loss_mat
-        if args.aspect < 0:
-            loss_vec = T.mean(loss_mat, axis=1)
-        else:
-            assert args.aspect < self.nclasses
-            loss_vec = loss_mat[:,args.aspect]
-        self.loss_vec = loss_vec
-
-        coherent_factor = args.sparsity * args.coherent
-        loss = self.loss = T.mean(loss_vec)
-        sparsity_cost = self.sparsity_cost = T.mean(zsum) * args.sparsity + \
-                                             T.mean(zdiff) * coherent_factor
-        cost_vec = loss_vec + zsum * args.sparsity + zdiff * coherent_factor
-        cost_logpz = T.mean(cost_vec * T.sum(logpz, axis=0))
-        self.obj = T.mean(cost_vec)
-
-        params = self.params = [ ]
-        for l in layers + [ output_layer ]:
+        params = self.params = []
+        for l in layers + [output_layer]:
             for p in l.params:
                 params.append(p)
         nparams = sum(len(x.get_value(borrow=True).ravel()) \
-                                        for x in params)
+                      for x in params)
         say("total # parameters: {}\n".format(nparams))
 
         l2_cost = None
         for p in params:
             if l2_cost is None:
-                l2_cost = T.sum(p**2)
+                l2_cost = T.sum(p ** 2)
             else:
-                l2_cost = l2_cost + T.sum(p**2)
+                l2_cost = l2_cost + T.sum(p ** 2)
         l2_cost = l2_cost * args.l2_reg
-
-        cost = self.cost = cost_logpz * 10 + l2_cost
-        print "cost.dtype", cost.dtype
-
-        self.cost_e = loss * 10 + encoder.l2_cost
+        self.l2_cost = l2_cost
 
 
 class Encoder(object):
 
-    def __init__(self, args, embedding_layer, nclasses):
+    def __init__(self, args, embedding_layer, nclasses, generator):
         self.args = args
         self.embedding_layer = embedding_layer
         self.nclasses = nclasses
+        self.generator = generator
 
     def ready(self):
+        generator = self.generator
         embedding_layer = self.embedding_layer
         args = self.args
         padding_id = embedding_layer.vocab_map["<padding>"]
@@ -186,7 +166,8 @@ class Encoder(object):
         # len*batch
         x = self.x = T.imatrix()
 
-        z = self.z = T.bmatrix()
+        z = generator.z_pred_combined
+
         z = z.dimshuffle((0,1,"x"))
 
         # max_gs_len * batch
@@ -258,7 +239,7 @@ class Encoder(object):
 
         loss = self.loss = T.sum()
 
-        pred_diff = self.pred_diff = T.mean(T.max(preds, axis=1) - T.min(preds, axis=1))
+
 
         params = self.params = [ ]
         for l in layers:
@@ -289,15 +270,15 @@ class Model(object):
 
     def ready(self):
         args, embedding_layer, nclasses = self.args, self.embedding_layer, self.nclasses
-        self.encoder = Encoder(args, embedding_layer, nclasses)
-        self.generator = Generator(args, embedding_layer, nclasses, self.encoder)
-        self.encoder.ready()
+        self.generator = Generator(args, embedding_layer, nclasses)
+        self.encoder = Encoder(args, embedding_layer, nclasses, self.generator)
         self.generator.ready()
-        self.dropout = self.encoder.dropout
-        self.x = self.encoder.x
+        self.encoder.ready()
+        self.dropout = self.generator.dropout
+        self.x = self.generator.x
         self.y = self.encoder.y
-        self.z = self.encoder.z
-        self.z_pred = self.generator.z_pred_combined
+        self.z = self.generator.z_pred_combined
+        self.params = self.encoder.params + self.generator.params
 
     def save_model(self, path, args):
         # append file suffix
