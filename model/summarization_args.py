@@ -51,7 +51,7 @@ def get_args():
                            )
     parser.add_argument("--train",
                            type=str,
-                           default="true",
+                           default="../data/training_x.json",
                            help="path to training data"
                            )
     parser.add_argument("--dev",

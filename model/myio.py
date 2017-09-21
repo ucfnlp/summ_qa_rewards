@@ -20,23 +20,17 @@ def read_rationales(path):
     return data
 
 
-def read_annotations(path):
-    data_x, data_y = [ ], [ ]
-    fopen = gzip.open if path.endswith(".gz") else open
-    with fopen(path) as fin:
-        for line in fin:
-            y, sep, x = line.partition("\t")
-            x, y = x.split(), y.split()
-            if len(x) == 0: continue
-            y = np.asarray([ float(v) for v in y ], dtype = theano.config.floatX)
-            data_x.append(x)
-            data_y.append(y)
-    say("{} examples loaded from {}\n".format(
-            len(data_x), path
-        ))
-    say("max text length: {}\n".format(
-        max(len(x) for x in data_x)
-    ))
+def read_docs(args):
+    data_x, data_y = [], []
+
+    with open(args.train, 'r') as data_file:
+        data = json.load(data_file)
+
+    data_x = data['x']
+    data_y = data['y']
+
+    data_file.close()
+
     return data_x, data_y
 
 

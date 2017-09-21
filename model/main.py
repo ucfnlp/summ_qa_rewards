@@ -607,7 +607,7 @@ def main():
     max_len = args.sentence_length*args.max_sentences
 
     if args.train:
-        train_x, train_y = myio.read_docs()
+        train_x, train_y = myio.read_docs(args)
         train_x = [ embedding_layer.map_to_ids(x)[:max_len] for x in train_x ]
 
     if args.dev:

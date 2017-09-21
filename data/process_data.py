@@ -1,6 +1,7 @@
 import os
 import nltk.data
 import numpy as np
+import json
 
 from util import data_utils as utils
 import data_args
@@ -63,19 +64,47 @@ def split_data(args):
 
 def machine_ready(args, highlights, articles, w2v_model):
     input_seqs = []
+    input_seqs_hl = []
     utils.write_embeddings_to_file(args, w2v_model)
 
     for i in xrange(len(articles)):
 
         single_inp = []
 
-        for sentence in articles[i]:
-            for word in sentence:
-                single_inp.append(word)
+        for j in xrange(args.max_sentences):
+            for k in xrange(args.sentence_length):
+
+                if j < len(articles[i]) and k < len(articles[i][j]):
+                    single_inp.append(articles[i][j][k])
+                else:
+                    single_inp.append('<padding>')
 
         input_seqs.append(single_inp)
 
-    return input_seqs
+    for i in xrange(len(highlights)):
+
+        single_inp = []
+
+        for j in xrange(args.max_sentences_hl):
+            for k in xrange(args.sentence_length_hl):
+
+                if j < len(highlights[i]) and k < len(highlights[i][j]):
+                    single_inp.append(highlights[i][j][k])
+                else:
+                    single_inp.append('<padding>')
+
+        input_seqs_hl.append(single_inp)
+
+    filename = "small" + args.train if args.full_test else args.train
+    ofp = open(filename, 'w+')
+
+    final_json = dict()
+
+    final_json['x'] = input_seqs
+    final_json['y'] = input_seqs_hl
+
+    json.dump(final_json, ofp)
+    ofp.close()
 
 
 def tokenize(args, current_article, current_highlights):
