@@ -13,10 +13,12 @@ from util import say, load_embedding_iterator
 def read_rationales(path):
     data = [ ]
     fopen = gzip.open if path.endswith(".gz") else open
+
     with fopen(path) as fin:
         for line in fin:
             item = json.loads(line)
             data.append(item)
+
     return data
 
 

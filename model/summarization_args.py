@@ -121,7 +121,7 @@ def get_args():
                            )
     parser.add_argument("--layer",
                            type=str,
-                           default="rcnn",
+                           default="lstm",
                            help="type of recurrent layer"
                            )
     parser.add_argument("--depth",
