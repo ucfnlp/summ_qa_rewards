@@ -15,7 +15,7 @@ from nn.initialization import get_activation_by_name
 from util import say
 import myio
 import summarization_args
-from nn.extended_layers import ExtRCNN, ExtLSTM, ZLayer
+from nn.extended_layers import ExtRCNN, ExtLSTM, ZLayer, LossComponent
 
 
 class Generator(object):
@@ -207,8 +207,6 @@ class Encoder(object):
         cnt_non_padding = T.sum(masks, axis=0) + 1e-8
 
         # len*batch*n_e
-
-        pooling = args.pooling
         lst_states = [ ]
         lst_states_y = []
 
@@ -230,21 +228,13 @@ class Encoder(object):
         h_final = lst_states[-1]
         h_final_y = lst_states_y[-1]
 
-        h_final = apply_dropout(h_final, dropout)
-
-        # batch * nclasses
-        preds = self.preds = output_layer.forward(h_final)
 
         # batch
-        loss_mat = self.loss_mat = (preds-y)**2
+        loss_layer = LossComponent(h_final_y)
+        loss_mat = self.loss_mat = loss_layer.outer_sum(h_final)
 
-        pred_diff = self.pred_diff = T.mean(T.max(preds, axis=1) - T.min(preds, axis=1))
+        loss_vec = T.mean(loss_mat, axis=1)
 
-        if args.aspect < 0:
-            loss_vec = T.mean(loss_mat, axis=1)
-        else:
-            assert args.aspect < self.nclasses
-            loss_vec = loss_mat[:,args.aspect]
         self.loss_vec = loss_vec
 
         zsum = generator.zsum
@@ -260,7 +250,7 @@ class Encoder(object):
         self.obj = T.mean(cost_vec)
 
         params = self.params = [ ]
-        for l in layers + [ output_layer ]:
+        for l in layers:
             for p in l.params:
                 params.append(p)
         nparams = sum(len(x.get_value(borrow=True).ravel()) \

@@ -1,6 +1,7 @@
 import numpy as np
 import theano
 import theano.tensor as T
+from theano.ifelse import ifelse
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 from nn.advanced import RCNN
@@ -65,6 +66,22 @@ class ExtLSTM(LSTM):
 
     def copy_params(self, from_obj):
         self.internal_layers = from_obj.internal_layers
+
+
+class LossComponent(object):
+    def __init__(self, h_final_y):
+        self.h_final_y = h_final_y
+
+    def inner_argmin(self, gs, sys, min_prev):
+        return ifelse(T.lt(min_prev, sys-gs), min_prev, sys-gs)
+
+    def outer_sum(self, h_final, s):
+        min_prev = T.zeros(h_final.shape, dtype=theano.config.floatX)
+        return s + theano.scan(fn=self.inner_argmin, sequences=[self.h_final_y], non_sequences=[min_prev, h_final])
+
+    def get_loss(self, h_final):
+        h_diff = T.zeros(h_final.shape, dtype=theano.config.floatX)
+        (s, _) = theano.scan(fn=self.outer_sum, sequences=[h_final])
 
 
 class ZLayer(object):
