@@ -77,8 +77,9 @@ class Generator(object):
         h_final = apply_dropout(h_final, dropout)
         size = n_d * 2
 
-        h_final_sent = T.concatenate([h1[args.sentence_length - 1::args.sentence_length],
-                                      h2[::args.sentence_length]], axis=2)
+        h1_sent = h1[args.sentence_length-1::args.sentence_length]
+        h2_sent = h2[args.sentence_length-1::args.sentence_length]
+        h_final_sent = T.concatenate([h1_sent,h2_sent[::-1]], axis=2)
         h_final_sent = apply_dropout(h_final_sent, dropout)
 
         output_layer = self.output_layer = ZLayer(
@@ -103,7 +104,7 @@ class Generator(object):
 
         output_layer_sent = self.output_layer_sent = ZLayer(
             n_in=size,
-            n_hidden=args.hidden_dimension3,
+            n_hidden=args.hidden_dimension2,
             activation=activation
         )
 
@@ -114,15 +115,18 @@ class Generator(object):
 
         probs_sent = output_layer_sent.forward_all(h_final, z_pred)
 
-        self.z_pred_combined = z_pred * T.repeat(z_pred_sent, args.sentence_length)
-        probs = probs_word * T.repeat(probs_sent, args.sentence_length)
+        z_pred_sent = T.repeat(z_pred_sent, args.sentence_length, axis=0)
+        self.z_pred_combined = z_pred * z_pred_sent
+
+        probs_sent = T.repeat(probs_sent, args.sentence_length, axis=0)
+        probs = probs_word * probs_sent
 
         logpz = - T.nnet.binary_crossentropy(probs, self.z_pred_combined) * masks
         logpz = self.logpz = logpz.reshape(x.shape)
         probs = self.probs = probs.reshape(x.shape)
 
         # batch
-        z = z_pred
+        z = self.z_pred_combined
         self.zsum = T.sum(z, axis=0, dtype=theano.config.floatX)
         self.zdiff = T.sum(T.abs_(z[1:] - z[:-1]), axis=0, dtype=theano.config.floatX)
 
@@ -617,15 +621,17 @@ def main():
 
     embedding_layer = myio.create_embedding_layer(args.embedding)
 
-    max_len = args.max_len
+    max_len_x = args.sentence_length * args.max_sentences
+    max_len_y = args.sentence_length_hl * args.max_sentences_hl
 
     if args.train:
         train_x, train_y = myio.read_docs(args)
-        train_x = [embedding_layer.map_to_ids(x)[:max_len] for x in train_x]
+        train_x = [embedding_layer.map_to_ids(x)[:max_len_x] for x in train_x]
+        train_y = [embedding_layer.map_to_ids(y)[:max_len_y] for y in train_y]
 
     if args.dev:
         dev_x, dev_y = myio.read_annotations(args.dev)
-        dev_x = [embedding_layer.map_to_ids(x)[:max_len] for x in dev_x]
+        dev_x = [embedding_layer.map_to_ids(x)[:max_len_x] for x in dev_x]
 
     if args.load_rationale:
         rationale_data = myio.read_rationales(args.load_rationale)
