@@ -389,6 +389,7 @@ class Model(object):
         tolerance = 0.10 + 1e-3
         dropout_prob = np.float64(args.dropout).astype(theano.config.floatX)
 
+        read_output = open(args.train_output_readable, 'w+')
         for epoch in xrange(args.max_epochs):
             unchanged += 1
             if unchanged > 20: return
@@ -418,7 +419,8 @@ class Model(object):
                     mask = bx != padding_id
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by)
-
+                    if epoch == args.max_epochs - 1:
+                        myio.write_train_results(bz, bx, by, self.embedding_layer, read_output)
                     k = len(by)
                     processed += k
                     train_cost += cost

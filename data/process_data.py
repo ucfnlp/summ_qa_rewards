@@ -1,10 +1,14 @@
 import json
 import os
+import sys
 
 import nltk.data
 
 import data_args
 from util import data_utils as utils
+
+reload(sys)
+sys.setdefaultencoding('utf8')
 
 
 def process_data(args):
@@ -110,13 +114,15 @@ def tokenize(args, current_article, current_highlights):
     highlights = []
 
     for item in current_article:
-        sentences = nltk.sent_tokenize(item)
+        item_strip = str(item.encode('utf-8'))
+        sentences = nltk.sent_tokenize(item_strip.decode("utf8"))
 
         for sentence in sentences:
             article.append([w.lower() for w in nltk.word_tokenize(sentence)])
 
     for item in current_highlights:
-        sentences = nltk.sent_tokenize(item)
+        item_strip = str(item.encode('utf-8'))
+        sentences = nltk.sent_tokenize(item_strip.decode("utf8"))
 
         for sentence in sentences:
             highlights.append([w.lower() for w in nltk.word_tokenize(sentence)])

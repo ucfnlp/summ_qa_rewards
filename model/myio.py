@@ -83,3 +83,29 @@ def create_one_batch(lstx, lsty, padding_id):
     by = np.column_stack([np.pad(y, (max_len_y - len(y), 0), "constant",
                                  constant_values=padding_id) for y in lsty])
     return bx, by
+
+
+def write_train_results(bz, bx, by, emb_layer, ofp):
+    ofp.write("BULLEIT POINTS :\n")
+    for b in xrange(15):
+        for i in xrange(60):
+            if i % 30 == 0:
+                ofp.write("\n")
+
+            if bz[i,b] == 1:
+                ofp.write(emb_layer.lst_words[by[i,b]])
+                ofp.write(" ")
+
+    for b in xrange(15):
+        for i in xrange(300):
+            if i % 30 == 0:
+                ofp.write("\n")
+                if np.mean(bz[i:i+30,b]) > 0:
+                    ofp.write("SUMMARY SENTENCE :\n")
+
+            if bz[i,b] == 1:
+                ofp.write(emb_layer.lst_words[bx[i,b]])
+                ofp.write(" ")
+
+    return ''
+

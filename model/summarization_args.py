@@ -43,6 +43,11 @@ def get_args():
                         default=4,
                         help='Number of total sentences for highlights')
 
+    parser.add_argument("--train_output_readable",
+                        type=str,
+                        default="../data/results.out",
+                        help="path to annotated train results"
+                        )
     parser.add_argument("--load_rationale",
                         type=str,
                         default="",
@@ -81,7 +86,7 @@ def get_args():
                         )
     parser.add_argument("--max_epochs",
                         type=int,
-                        default=100,
+                        default=30,
                         help="maximum # of epochs"
                         )
     parser.add_argument("--eval_period",
@@ -91,7 +96,7 @@ def get_args():
                         )
     parser.add_argument("--batch",
                         type=int,
-                        default=10,
+                        default=15,
                         help="mini-batch size"
                         )
     parser.add_argument("--learning",
