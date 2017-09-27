@@ -49,7 +49,7 @@ class ExtLSTM(LSTM):
     def forward_all(self, x, mask, h0=None, return_c=False):
         if h0 is None:
             if x.ndim > 1:
-                h0 = T.zeros((x.shape[1], self.n_out*(self.order+1)), dtype=theano.config.floatX)
+                h0 = T.zeros((x.shape[1], self.n_out), dtype=theano.config.floatX)
             else:
                 h0 = T.zeros((self.n_out*(self.order+1),), dtype=theano.config.floatX)
         h, _ = theano.scan(
@@ -77,11 +77,12 @@ class LossComponent(object):
 
     def outer_sum(self, h_final, s):
         min_prev = T.zeros(h_final.shape, dtype=theano.config.floatX)
-        return s + theano.scan(fn=self.inner_argmin, sequences=[self.h_final_y], non_sequences=[min_prev, h_final])
+        return s + theano.scan(fn=self.inner_argmin, sequences=[self.h_final_y], non_sequences=[h_final, min_prev])
 
     def get_loss(self, h_final):
-        h_diff = T.zeros(h_final.shape, dtype=theano.config.floatX)
-        (s, _) = theano.scan(fn=self.outer_sum, sequences=[h_final])
+        sum_set = T.zeros(h_final.shape, dtype=theano.config.floatX)
+        (s, _) = theano.scan(fn=self.outer_sum, sequences=[h_final], non_sequences=[sum_set])
+        return s
 
 
 class ZLayer(object):

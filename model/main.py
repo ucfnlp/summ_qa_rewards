@@ -163,13 +163,16 @@ class Encoder(object):
 
         # len*batch
         x = generator.x
+        y = self.y = T.imatrix()
+
         z = generator.z_pred_combined
 
         z = z.dimshuffle((0,1,"x"))
+
         z_y = T.ones_like(y.dimshuffle((0, 1, "x")))
 
         # batch*nclasses
-        y = self.y = T.imatrix()
+
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -203,11 +206,9 @@ class Encoder(object):
         embs = embedding_layer.forward(x.ravel())
         # (gs_len*batch)*n_e
         embs_y = embedding_layer.forward(y.ravel())
-        # batch * 1
-        cnt_non_padding = T.sum(masks, axis=0) + 1e-8
 
         # len*batch*n_e
-        lst_states = [ ]
+        lst_states = []
         lst_states_y = []
 
         h_prev = embs
@@ -228,10 +229,12 @@ class Encoder(object):
         h_final = lst_states[-1]
         h_final_y = lst_states_y[-1]
 
+        h_final_y = h_final_y.dimshuffle(0,2,1)
 
+        similarity = T.dot(h_final, h_final_y * -1)
         # batch
-        loss_layer = LossComponent(h_final_y)
-        loss_mat = self.loss_mat = loss_layer.outer_sum(h_final)
+
+        loss_mat = self.loss_mat = T.min(similarity, axis=2)
 
         loss_vec = T.mean(loss_mat, axis=1)
 
@@ -385,14 +388,13 @@ class Model(object):
 
         get_loss_and_pred = theano.function(
                 inputs = [ self.x, self.y ],
-                outputs = [ self.encoder.loss_vec, self.encoder.preds, self.z ],
+                outputs = [ self.encoder.loss_vec, self.z ],
                 updates = self.generator.sample_updates
             )
 
         eval_generator = theano.function(
                 inputs = [ self.x, self.y ],
-                outputs = [ self.z, self.encoder.obj, self.encoder.loss,
-                                self.encoder.pred_diff ],
+                outputs = [ self.z, self.encoder.obj, self.encoder.loss],
                 updates = self.generator.sample_updates
             )
 

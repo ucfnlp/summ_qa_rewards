@@ -76,8 +76,12 @@ def create_batches(x, y, batch_size, padding_id, sort=True):
 
 def create_one_batch(lstx, lsty, padding_id):
     max_len = max(len(x) for x in lstx)
+    max_len_y = max(len(y) for y in lsty)
+
     assert min(len(x) for x in lstx) > 0
+
     bx = np.column_stack([ np.pad(x, (max_len-len(x),0), "constant",
                         constant_values=padding_id) for x in lstx ])
-    by = np.vstack(lsty).astype(theano.config.floatX)
+    by = np.column_stack([ np.pad(y, (max_len_y-len(y),0), "constant",
+                        constant_values=padding_id) for y in lsty ])
     return bx, by
