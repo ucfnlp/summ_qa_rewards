@@ -1,21 +1,21 @@
-import os
-import gzip
-import time
-import json
 import cPickle as pickle
+import gzip
+import json
+import os
+import time
 
 import numpy as np
 import theano
 import theano.tensor as T
 
-from nn.optimization import create_optimization_updates
-from nn.basic import LSTM, apply_dropout
-from nn.advanced import RCNN
-from nn.initialization import get_activation_by_name
-from util import say
 import myio
 import summarization_args
-from nn.extended_layers import ExtRCNN, ExtLSTM, ZLayer, LossComponent
+from nn.advanced import RCNN
+from nn.basic import LSTM, apply_dropout
+from nn.extended_layers import ExtRCNN, ZLayer
+from nn.initialization import get_activation_by_name
+from nn.optimization import create_optimization_updates
+from util import say
 
 
 class Generator(object):
@@ -28,7 +28,6 @@ class Generator(object):
         embedding_layer = self.embedding_layer
         args = self.args
         padding_id = embedding_layer.vocab_map["<padding>"]
-        print embedding_layer.embeddings.container.data[padding_id]
 
         dropout = self.dropout = theano.shared(np.float64(args.dropout).astype(theano.config.floatX))
 
@@ -77,9 +76,9 @@ class Generator(object):
         h_final = apply_dropout(h_final, dropout)
         size = n_d * 2
 
-        h1_sent = h1[args.sentence_length-1::args.sentence_length]
-        h2_sent = h2[args.sentence_length-1::args.sentence_length]
-        h_final_sent = T.concatenate([h1_sent,h2_sent[::-1]], axis=2)
+        h1_sent = h1[args.sentence_length - 1::args.sentence_length]
+        h2_sent = h2[args.sentence_length - 1::args.sentence_length]
+        h_final_sent = T.concatenate([h1_sent, h2_sent[::-1]], axis=2)
         h_final_sent = apply_dropout(h_final_sent, dropout)
 
         output_layer = self.output_layer = ZLayer(
@@ -113,7 +112,7 @@ class Generator(object):
         z_pred_sent = self.z_pred_sent = theano.gradient.disconnected_grad(z_pred_sent)
         self.sample_updates_sent = sample_updates_sent
 
-        probs_sent = output_layer_sent.forward_all(h_final, z_pred)
+        probs_sent = output_layer_sent.forward_all(h_final_sent, z_pred_sent)
 
         z_pred_sent = T.repeat(z_pred_sent, args.sentence_length, axis=0)
         self.z_pred_combined = z_pred * z_pred_sent
@@ -149,96 +148,69 @@ class Generator(object):
 
 
 class Encoder(object):
-    def __init__(self, args, embedding_layer, nclasses, generator):
+    def __init__(self, args, embedding_layer, embedding_layer_y, nclasses, generator):
         self.args = args
         self.embedding_layer = embedding_layer
+        self.embedding_layer_y = embedding_layer_y
         self.nclasses = nclasses
         self.generator = generator
 
     def ready(self):
         generator = self.generator
         embedding_layer = self.embedding_layer
+        embedding_layer_y = self.embedding_layer_y
+
         args = self.args
         padding_id = embedding_layer.vocab_map["<padding>"]
 
         dropout = generator.dropout
 
         # len*batch
-        x = generator.x
         y = self.y = T.imatrix()
 
         z = generator.z_pred_combined
 
         z = z.dimshuffle((0, 1, "x"))
 
-        z_y = T.ones_like(y.dimshuffle((0, 1, "x")))
-
         # batch*nclasses
-
-
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
         activation = get_activation_by_name(args.activation)
 
-        layers = self.layers = []
-        depth = args.depth
-        layer_type = args.layer.lower()
-        for i in xrange(depth):
-            if layer_type == "rcnn":
-                l = ExtRCNN(
-                    n_in=n_e if i == 0 else n_d,
-                    n_out=n_d,
-                    activation=activation,
-                    order=args.order
-                )
-            elif layer_type == "lstm":
-                l = ExtLSTM(
-                    n_in=n_e if i == 0 else n_d,
-                    n_out=n_d,
-                    activation=activation
-                )
-            layers.append(l)
-
-        # len * batch * 1
-        masks = T.cast(T.neq(x, padding_id).dimshuffle((0, 1, "x")) * z, theano.config.floatX)
-        # gs_len * batch * 1
-        masks_y = T.cast(T.neq(y, padding_id).dimshuffle((0, 1, "x")) * z_y, theano.config.floatX)
-
         # (len*batch)*n_e
-        embs = embedding_layer.forward(x.ravel())
+        embs = generator.word_embs
         # (gs_len*batch)*n_e
-        embs_y = embedding_layer.forward(y.ravel())
+        embs_y = embedding_layer_y.forward(y.ravel())
 
-        # len*batch*n_e
-        lst_states = []
-        lst_states_y = []
+        l = ExtRCNN(
+            n_in=n_e,
+            n_out=n_d,
+            activation=activation,
+            order=args.order
+        )
 
         h_prev = embs
         h_prev_y = embs_y
+        # len*batch*n_d
+        h_next_y = l.forward_all_2(h_prev_y)
+        h_next_y = theano.gradient.disconnected_grad(h_next_y)
 
-        for l in layers:
-            # len*batch*n_d
-            h_next = l.forward_all(h_prev, z)
-            # len_gs*batch*n_d
-            h_next_y = l.forward_all(h_prev_y, z_y)
+        h_next = l.forward_all(h_prev, z)
 
-            lst_states.append(h_next[::args.sentence_length])
-            lst_states_y.append(h_next_y[::args.sentence_length])
+        h_next = h_next[::args.sentence_length]
+        h_next_y = h_next_y[::args.sentence_length_hl]
 
-            h_prev = apply_dropout(h_next, dropout)
-            h_prev_y = h_next_y
+        h_final = apply_dropout(h_next, dropout)
+        h_final_y = apply_dropout(h_next_y, dropout)
 
-        h_final = lst_states[-1]
-        h_final_y = lst_states_y[-1]
+        # transpose gs, and get euclidian distance
+        h_final_y = h_final_y.dimshuffle(2, 1, 0)
 
-        h_final_y = h_final_y.dimshuffle(0, 2, 1)
-
-        similarity = T.dot(h_final, h_final_y * -1)
-        # batch
+        similarity = T.dot(h_final, h_final_y * -1) ** 2
 
         loss_mat = self.loss_mat = T.min(similarity, axis=2)
 
-        loss_vec = T.mean(loss_mat, axis=1)
+        loss_vec = T.mean(loss_mat)
 
         self.loss_vec = loss_vec
 
@@ -248,16 +220,17 @@ class Encoder(object):
 
         coherent_factor = args.sparsity * args.coherent
         loss = self.loss = T.mean(loss_vec)
-        sparsity_cost = self.sparsity_cost = T.mean(zsum) * args.sparsity + \
-                                             T.mean(zdiff) * coherent_factor
-        cost_vec = loss_vec + zsum * args.sparsity + zdiff * coherent_factor
+        self.sparsity_cost = T.mean(zsum) * args.sparsity + \
+                             T.mean(zdiff) * coherent_factor
+        samp = zsum * args.sparsity + zdiff * coherent_factor
+        cost_vec = loss_vec + samp
         cost_logpz = T.mean(cost_vec * T.sum(logpz, axis=0))
         self.obj = T.mean(cost_vec)
 
         params = self.params = []
-        for l in layers:
-            for p in l.params:
-                params.append(p)
+
+        for p in l.params:
+            params.append(p)
         nparams = sum(len(x.get_value(borrow=True).ravel()) \
                       for x in params)
         say("total # parameters: {}\n".format(nparams))
@@ -276,15 +249,16 @@ class Encoder(object):
 
 
 class Model(object):
-    def __init__(self, args, embedding_layer, nclasses):
+    def __init__(self, args, embedding_layer, embedding_layer_y, nclasses):
         self.args = args
         self.embedding_layer = embedding_layer
+        self.embedding_layer_y = embedding_layer_y
         self.nclasses = nclasses
 
     def ready(self):
-        args, embedding_layer, nclasses = self.args, self.embedding_layer, self.nclasses
+        args, embedding_layer_y, embedding_layer, nclasses = self.args, self.embedding_layer_y, self.embedding_layer, self.nclasses
         self.generator = Generator(args, embedding_layer, nclasses)
-        self.encoder = Encoder(args, embedding_layer, nclasses, self.generator)
+        self.encoder = Encoder(args, embedding_layer, embedding_layer_y, nclasses, self.generator)
         self.generator.ready()
         self.encoder.ready()
         self.dropout = self.generator.dropout
@@ -620,6 +594,7 @@ def main():
     assert args.embedding, "Pre-trained word embeddings required."
 
     embedding_layer = myio.create_embedding_layer(args.embedding)
+    embedding_layer_y = myio.create_embedding_layer(args.embedding)
 
     max_len_x = args.sentence_length * args.max_sentences
     max_len_y = args.sentence_length_hl * args.max_sentences_hl
@@ -627,7 +602,7 @@ def main():
     if args.train:
         train_x, train_y = myio.read_docs(args)
         train_x = [embedding_layer.map_to_ids(x)[:max_len_x] for x in train_x]
-        train_y = [embedding_layer.map_to_ids(y)[:max_len_y] for y in train_y]
+        train_y = [embedding_layer_y.map_to_ids(y)[:max_len_y] for y in train_y]
 
     if args.dev:
         dev_x, dev_y = myio.read_annotations(args.dev)
@@ -642,6 +617,7 @@ def main():
         model = Model(
             args=args,
             embedding_layer=embedding_layer,
+            embedding_layer_y=embedding_layer_y,
             nclasses=len(train_y[0])
         )
         model.ready()
@@ -698,5 +674,6 @@ def main():
 
 
 if __name__ == "__main__":
+    print theano.config.exception_verbosity
     args = summarization_args.get_args()
     main()
