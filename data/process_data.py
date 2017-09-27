@@ -1,14 +1,13 @@
-import os
-import nltk.data
-import numpy as np
 import json
+import os
 
-from util import data_utils as utils
+import nltk.data
+
 import data_args
+from util import data_utils as utils
 
 
 def process_data(args):
-
     highlights, articles = split_data(args)
     w2v_model = utils.create_w2v_model(args, [item for sublist in articles for item in sublist])
 
@@ -16,7 +15,6 @@ def process_data(args):
 
 
 def split_data(args):
-
     small_size_counter = 0
     highlights = []
     articles = []
@@ -49,7 +47,7 @@ def split_data(args):
 
             current_article, current_highlights = tokenize(args, current_article, current_highlights)
 
-            if len(current_article) ==0:
+            if len(current_article) == 0:
                 continue
             highlights.append(current_highlights)
             articles.append(current_article)

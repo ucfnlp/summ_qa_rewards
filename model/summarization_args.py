@@ -116,9 +116,14 @@ def get_args():
                            )
     parser.add_argument("-d2", "--hidden_dimension2",
                            type=int,
-                           default=30,
+                           default=300,
                            help="hidden dimension"
                            )
+    parser.add_argument("-d3", "--hidden_dimension3",
+                        type=int,
+                        default=10,
+                        help="hidden dimension"
+                        )
     parser.add_argument("--layer",
                            type=str,
                            default="rcnn",
