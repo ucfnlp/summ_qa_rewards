@@ -86,26 +86,34 @@ def create_one_batch(lstx, lsty, padding_id):
 
 
 def write_train_results(bz, bx, by, emb_layer, ofp):
-    ofp.write("BULLEIT POINTS :\n")
-    for b in xrange(15):
-        for i in xrange(60):
-            if i % 30 == 0:
-                ofp.write("\n")
+    ofp.write("BULLET POINTS :\n")
 
-            if bz[i,b] == 1:
-                ofp.write(emb_layer.lst_words[by[i,b]])
-                ofp.write(" ")
+    for i in xrange(4):
+        ofp.write("BP # " + str(i) + "\n")
+        for j in xrange(15):
 
-    for b in xrange(15):
-        for i in xrange(300):
-            if i % 30 == 0:
-                ofp.write("\n")
-                if np.mean(bz[i:i+30,b]) > 0:
-                    ofp.write("SUMMARY SENTENCE :\n")
+            idx = i*15 + j
+            ofp.write(emb_layer.lst_words[by[idx][0]] + " ")
 
-            if bz[i,b] == 1:
-                ofp.write(emb_layer.lst_words[bx[i,b]])
-                ofp.write(" ")
+        ofp.write("\n")
 
-    return ''
+    ofp.write("SUMMARY :\n\n")
+
+    for i in xrange(10):
+        did_write = False
+
+        for j in xrange(30):
+            idx = i * 30 + j
+
+            if bz[idx][0] > 0:
+                did_write = True
+                ofp.write(emb_layer.lst_words[bx[idx][0]] + " ")
+
+        if did_write:
+            ofp.write("\n")
+
+    ofp.write("\n")
+
+
+
 

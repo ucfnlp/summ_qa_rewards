@@ -181,6 +181,7 @@ class Encoder(object):
         embs = generator.word_embs
         # (gs_len*batch)*n_e
         embs_y = embedding_layer_y.forward(y.ravel())
+        embs_y = embs_y.reshape((y.shape[0], y.shape[1], n_e))
 
         l = ExtRCNN(
             n_in=n_e,
@@ -198,21 +199,22 @@ class Encoder(object):
         h_next = l.forward_all(h_prev, z)
 
         h_next = h_next[::args.sentence_length]
-        h_next_y = h_next_y[::args.sentence_length_hl]
+        h_final_y = h_next_y[::args.sentence_length_hl]
 
         h_final = apply_dropout(h_next, dropout)
-        h_final_y = apply_dropout(h_next_y, dropout)
 
-        # transpose gs, and get euclidian distance
-        h_final_y = h_final_y.dimshuffle(2, 1, 0)
+        h_final_y = h_final_y.dimshuffle(1, 0, 2) # 15 x 4 x 200
+        h_final = h_final.dimshuffle(1, 0, 2) # 15 x 10 x 200
 
-        similarity = T.dot(h_final, h_final_y * -1) ** 2
+        h_final_y_r = (h_final_y ** 2).sum(2).reshape((h_final_y.shape[0], h_final_y.shape[1], 1))
+        h_final_r = (h_final ** 2).sum(2).reshape((h_final.shape[0], 1, h_final.shape[1]))
+        batched_dot = T.batched_dot(h_final_y, h_final.dimshuffle(0, 2, 1))
+        squared_euclidean_distances = h_final_y_r + h_final_r - 2 * batched_dot
+        similarity = T.sqrt(squared_euclidean_distances)
 
-        loss_mat = self.loss_mat = T.min(similarity, axis=2)
+        loss_mat = self.loss_mat = T.min(similarity.dimshuffle(1,0,2), axis=2)
 
-        loss_vec = T.mean(loss_mat)
-
-        self.loss_vec = loss_vec
+        self.loss_vec = loss_vec = T.mean(loss_mat, axis=0)
 
         zsum = generator.zsum
         zdiff = generator.zdiff
@@ -223,7 +225,7 @@ class Encoder(object):
         self.sparsity_cost = T.mean(zsum) * args.sparsity + \
                              T.mean(zdiff) * coherent_factor
         samp = zsum * args.sparsity + zdiff * coherent_factor
-        cost_vec = loss_vec + samp
+        cost_vec = samp + loss_vec
         cost_logpz = T.mean(cost_vec * T.sum(logpz, axis=0))
         self.obj = T.mean(cost_vec)
 
@@ -419,7 +421,7 @@ class Model(object):
                     mask = bx != padding_id
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by)
-                    if epoch == args.max_epochs - 1:
+                    if epoch == args.max_epochs-1:
                         myio.write_train_results(bz, bx, by, self.embedding_layer, read_output)
                     k = len(by)
                     processed += k
