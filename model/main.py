@@ -206,13 +206,15 @@ class Encoder(object):
         h_final_y = h_final_y.dimshuffle(1, 0, 2) # 15 x 4 x 200
         h_final = h_final.dimshuffle(1, 0, 2) # 15 x 10 x 200
 
-        h_final_y_r = (h_final_y ** 2).sum(2).reshape((h_final_y.shape[0], h_final_y.shape[1], 1))
-        h_final_r = (h_final ** 2).sum(2).reshape((h_final.shape[0], 1, h_final.shape[1]))
-        batched_dot = T.batched_dot(h_final_y, h_final.dimshuffle(0, 2, 1))
-        squared_euclidean_distances = h_final_y_r + h_final_r - 2 * batched_dot
-        similarity = T.sqrt(squared_euclidean_distances)
+        h_final_y_r = (h_final_y ** 2).sum(2, keepdims=True) # 15 x 4 x 1
+        h_final_r = (h_final ** 2).sum(2, keepdims=True).dimshuffle(0,2,1) # 15 x 1 x 10
 
-        loss_mat = self.loss_mat = T.min(similarity.dimshuffle(1,0,2), axis=2)
+        batched_dot = T.batched_dot(h_final_y, h_final.dimshuffle(0, 2, 1)) # (15 x 4 x 1 + 15 x 1 x 10) +  (15 x 4 x 10)
+
+        squared_euclidean_distances = h_final_y_r + h_final_r - 2 * batched_dot # 15 x 4 x 10
+        similarity = T.sqrt(squared_euclidean_distances).dimshuffle(1,0,2) # 4 x 15 x 10
+
+        loss_mat = self.loss_mat = T.min(similarity, axis=2, keepdims=True) # 4 x 15 x 1
 
         self.loss_vec = loss_vec = T.mean(loss_mat, axis=0)
 
