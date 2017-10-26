@@ -34,7 +34,7 @@ def get_args():
 
     parser.add_argument('--small_limit',
                         type=int,
-                        default=3000,
+                        default=16384,
                         help='small batch limit in number of stories')
 
     parser.add_argument('--sentence_length',
@@ -54,7 +54,7 @@ def get_args():
 
     parser.add_argument('--max_sentences_hl',
                         type=int,
-                        default=4,
+                        default=3,
                         help='Number of total sentences for highlights')
 
     parser.add_argument('--embedding_dim',

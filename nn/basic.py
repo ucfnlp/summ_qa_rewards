@@ -324,7 +324,7 @@ class EmbeddingLayer(object):
 
     '''
 
-    def __init__(self, n_d, vocab, oov="<unk>", embs=None, fix_init_embs=True):
+    def __init__(self, n_d, vocab, oov="<unk>", pad="<padding>", embs=None, fix_init_embs=True):
 
         if embs is not None:
             lst_words = []
@@ -348,7 +348,7 @@ class EmbeddingLayer(object):
             for word in vocab:
                 if word not in vocab_map:
                     vocab_map[word] = len(vocab_map)
-                    emb_vals.append(random_init((n_d,)) * (0.001 if word != oov else 0.0))
+                    emb_vals.append(random_init((n_d,)) * (0.0 if (word == oov or word == pad)else 0.001))
                     lst_words.append(word)
 
             emb_vals = np.vstack(emb_vals).astype(theano.config.floatX)

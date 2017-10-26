@@ -40,7 +40,7 @@ def get_args():
 
     parser.add_argument('--max_sentences_hl',
                         type=int,
-                        default=4,
+                        default=3,
                         help='Number of total sentences for highlights')
 
     parser.add_argument("--train_output_readable",
@@ -86,7 +86,7 @@ def get_args():
                         )
     parser.add_argument("--max_epochs",
                         type=int,
-                        default=7,
+                        default=10,
                         help="maximum # of epochs"
                         )
     parser.add_argument("--eval_period",
@@ -96,7 +96,7 @@ def get_args():
                         )
     parser.add_argument("--batch",
                         type=int,
-                        default=15,
+                        default=32,
                         help="mini-batch size"
                         )
     parser.add_argument("--learning",

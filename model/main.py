@@ -209,9 +209,9 @@ class Encoder(object):
         h_final_y_r = (h_final_y ** 2).sum(2, keepdims=True) # 15 x 4 x 1
         h_final_r = (h_final ** 2).sum(2, keepdims=True).dimshuffle(0,2,1) # 15 x 1 x 10
 
-        batched_dot = T.batched_dot(h_final_y, h_final.dimshuffle(0, 2, 1)) # (15 x 4 x 1 + 15 x 1 x 10) +  (15 x 4 x 10)
+        batched_dot = T.batched_dot(h_final_y, h_final.dimshuffle(0, 2, 1)) # 15 x 4 x 10
 
-        squared_euclidean_distances = h_final_y_r + h_final_r - 2 * batched_dot # 15 x 4 x 10
+        squared_euclidean_distances = h_final_y_r + h_final_r - 2 * batched_dot # (15 x 4 x 1 + 15 x 1 x 10) +  (15 x 4 x 10)
         similarity = T.sqrt(squared_euclidean_distances).dimshuffle(1,0,2) # 4 x 15 x 10
 
         loss_mat = self.loss_mat = T.min(similarity, axis=2, keepdims=True) # 4 x 15 x 1
@@ -416,7 +416,7 @@ class Model(object):
 
                 N = len(train_batches_x)
                 for i in xrange(N):
-                    if (i + 1) % 100 == 0:
+                    if (i + 1) % 128 == 0:
                         say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
 
                     bx, by = train_batches_x[i], train_batches_y[i]
@@ -441,7 +441,7 @@ class Model(object):
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
-                more = False
+
                 if args.decay_lr and last_train_avg_cost is not None:
                     if cur_train_avg_cost > last_train_avg_cost * (1 + tolerance):
                         more = True
@@ -454,6 +454,7 @@ class Model(object):
                             last_dev_avg_cost, cur_dev_avg_cost
                         ))
 
+                more = False
                 if more:
                     lr_val = lr_g.get_value() * 0.5
                     lr_val = np.float64(lr_val).astype(theano.config.floatX)
