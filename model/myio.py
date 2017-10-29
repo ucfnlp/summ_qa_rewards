@@ -90,9 +90,9 @@ def write_train_results(bz, bx, by, emb_layer, ofp):
 
     for i in xrange(3):
         ofp.write("BP # " + str(i) + "\n")
-        for j in xrange(32):
+        for j in xrange(15):
 
-            idx = i*32 + j
+            idx = i*15 + j
             ofp.write(emb_layer.lst_words[by[idx][0]] + " ")
 
         ofp.write("\n")
