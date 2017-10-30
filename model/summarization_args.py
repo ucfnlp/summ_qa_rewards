@@ -86,7 +86,7 @@ def get_args():
                         )
     parser.add_argument("--max_epochs",
                         type=int,
-                        default=10,
+                        default=30,
                         help="maximum # of epochs"
                         )
     parser.add_argument("--eval_period",
