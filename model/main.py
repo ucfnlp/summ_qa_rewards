@@ -423,7 +423,7 @@ class Model(object):
                     mask = bx != padding_id
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by)
-                    if epoch == args.max_epochs-1:
+                    if unchanged == 19 or epoch == args.max_epochs - 1:
                         myio.write_train_results(bz, bx, by, self.embedding_layer, read_output)
                     k = len(by)
                     processed += k
