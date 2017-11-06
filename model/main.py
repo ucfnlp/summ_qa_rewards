@@ -167,6 +167,8 @@ class Encoder(object):
 
         # len*batch
         y = self.y = T.imatrix()
+        y_mask = self.y_mask = T.imatrix()
+        y_mask = y_mask.ravel()
 
         z = generator.z_pred_combined
 
@@ -193,7 +195,7 @@ class Encoder(object):
         h_prev = embs
         h_prev_y = embs_y
         # len*batch*n_d
-        h_next_y = l.forward_all_2(h_prev_y)
+        h_next_y = l.forward_all_2(h_prev_y, y_mask)
         h_next_y = theano.gradient.disconnected_grad(h_next_y)
 
         h_next = l.forward_all(h_prev, z)
@@ -268,6 +270,7 @@ class Model(object):
         self.dropout = self.generator.dropout
         self.x = self.generator.x
         self.y = self.encoder.y
+        self.y_mask = self.encoder.y_mask
         self.z = self.generator.z_pred_combined
         self.params = self.encoder.params + self.generator.params
 
@@ -332,13 +335,13 @@ class Model(object):
                 sort=False
             )
 
-        start_time = time.time()
-        train_batches_x, train_batches_y = myio.create_batches(
-            train[0], train[1], args.batch, padding_id
-        )
-        say("{:.2f}s to create training batches\n\n".format(
-            time.time() - start_time
-        ))
+        # start_time = time.time()
+        # train_batches_x, train_batches_y = myio.create_batches(
+        #     train[0], train[1], args.batch, padding_id
+        # )
+        # say("{:.2f}s to create training batches\n\n".format(
+        #     time.time() - start_time
+        # ))
 
         updates_e, lr_e, gnorm_e = create_optimization_updates(
             cost=self.encoder.cost_e,
@@ -364,20 +367,20 @@ class Model(object):
             updates=self.generator.sample_updates + self.generator.sample_updates_sent
         )
 
-        get_loss_and_pred = theano.function(
-            inputs=[self.x, self.y],
-            outputs=[self.encoder.loss_vec, self.z],
-            updates=self.generator.sample_updates + self.generator.sample_updates_sent
-        )
-
-        eval_generator = theano.function(
-            inputs=[self.x, self.y],
-            outputs=[self.z, self.encoder.obj, self.encoder.loss],
-            updates=self.generator.sample_updates + self.generator.sample_updates_sent
-        )
+        # get_loss_and_pred = theano.function(
+        #     inputs=[self.x, self.y],
+        #     outputs=[self.encoder.loss_vec, self.z],
+        #     updates=self.generator.sample_updates + self.generator.sample_updates_sent
+        # )
+        #
+        # eval_generator = theano.function(
+        #     inputs=[self.x, self.y],
+        #     outputs=[self.z, self.encoder.obj, self.encoder.loss],
+        #     updates=self.generator.sample_updates + self.generator.sample_updates_sent
+        # )
 
         train_generator = theano.function(
-            inputs=[self.x, self.y],
+            inputs=[self.x, self.y, self.y_mask],
             outputs=[self.encoder.obj, self.encoder.loss, \
                      self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates + self.generator.sample_updates_sent,
@@ -398,7 +401,7 @@ class Model(object):
             unchanged += 1
             if unchanged > 20: return
 
-            train_batches_x, train_batches_y = myio.create_batches(
+            train_batches_x, train_batches_y, train_batches_y_mask = myio.create_batches(
                 train[0], train[1], args.batch, padding_id
             )
 
@@ -419,10 +422,10 @@ class Model(object):
                     if (i + 1) % 128 == 0:
                         say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
 
-                    bx, by = train_batches_x[i], train_batches_y[i]
+                    bx, by, bym = train_batches_x[i], train_batches_y[i], train_batches_y_mask[i]
                     mask = bx != padding_id
 
-                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by)
+                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bym)
                     if unchanged == 19 or epoch == args.max_epochs - 1:
                         myio.write_train_results(bz, bx, by, self.embedding_layer, read_output)
                     k = len(by)

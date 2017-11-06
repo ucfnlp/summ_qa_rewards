@@ -15,10 +15,6 @@ class ExtRCNN(RCNN):
         hc_t = mask_t * hc_t + (1 - mask_t) * hc_tm1
         return hc_t
 
-    def forward_2(self, x_t, hc_tm1):
-        hc_t = super(ExtRCNN, self).forward(x_t, hc_tm1)
-        return hc_t
-
     def forward_all(self, x, mask, h0=None, return_c=False):
         if h0 is None:
             if x.ndim > 1:
@@ -37,15 +33,15 @@ class ExtRCNN(RCNN):
         else:
             return h[:, self.n_out * self.order:]
 
-    def forward_all_2(self, x, h0=None, return_c=False):
+    def forward_all_2(self, x, mask, h0=None, return_c=False):
         if h0 is None:
             if x.ndim > 1:
                 h0 = T.zeros((x.shape[1], self.n_out * (self.order + 1)), dtype=theano.config.floatX)
             else:
                 h0 = T.zeros((self.n_out * (self.order + 1),), dtype=theano.config.floatX)
         h, _ = theano.scan(
-            fn=self.forward_2,
-            sequences=[x],
+            fn=self.forward,
+            sequences=[x, mask],
             outputs_info=[h0]
         )
         if return_c:

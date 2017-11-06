@@ -47,7 +47,7 @@ def create_embedding_layer(path):
 
 
 def create_batches(x, y, batch_size, padding_id, sort=True):
-    batches_x, batches_y = [], []
+    batches_x, batches_y, batches_ym = [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
     if sort:
@@ -55,24 +55,29 @@ def create_batches(x, y, batch_size, padding_id, sort=True):
         perm = sorted(perm, key=lambda i: len(x[i]))
         x = [x[i] for i in perm]
         y = [y[i] for i in perm]
+
     for i in xrange(M):
-        bx, by = create_one_batch(
+        bx, by, bym = create_one_batch(
             x[i * batch_size:(i + 1) * batch_size],
             y[i * batch_size:(i + 1) * batch_size],
-            padding_id
+            padding_id,
+            batch_size
         )
         batches_x.append(bx)
         batches_y.append(by)
+        batches_ym.append(bym)
     if sort:
         random.seed(5817)
         perm2 = range(M)
         random.shuffle(perm2)
         batches_x = [batches_x[i] for i in perm2]
         batches_y = [batches_y[i] for i in perm2]
-    return batches_x, batches_y
+        batches_ym = [batches_ym[i] for i in perm2]
+
+    return batches_x, batches_y, batches_ym
 
 
-def create_one_batch(lstx, lsty, padding_id):
+def create_one_batch(lstx, lsty, padding_id, b_len):
     max_len = max(len(x) for x in lstx)
     max_len_y = max(len(y) for y in lsty)
 
@@ -82,7 +87,10 @@ def create_one_batch(lstx, lsty, padding_id):
                                  constant_values=padding_id) for x in lstx])
     by = np.column_stack([np.pad(y, (max_len_y - len(y), 0), "constant",
                                  constant_values=padding_id) for y in lsty])
-    return bx, by
+
+    bym = np.column_stack([np.asarray([0 if lsty[k][i] == padding_id else 1 for i in xrange(max_len_y)],dtype='int32') for k in xrange(b_len)])
+
+    return bx, by, bym
 
 
 def write_train_results(bz, bx, by, emb_layer, ofp):
