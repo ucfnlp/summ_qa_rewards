@@ -427,7 +427,7 @@ class Model(object):
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bym)
                     if unchanged == 19 or epoch == args.max_epochs - 1:
-                        myio.write_train_results(bz, bx, by, self.embedding_layer, read_output)
+                        myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)
                     k = len(by)
                     processed += k
                     train_cost += cost
