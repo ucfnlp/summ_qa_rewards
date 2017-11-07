@@ -93,15 +93,16 @@ def create_one_batch(lstx, lsty, padding_id, b_len):
     return bx, by, bym
 
 
-def write_train_results(bz, bx, by, emb_layer, ofp):
+def write_train_results(bz, bx, by, emb_layer, ofp, padding_id):
     ofp.write("BULLET POINTS :\n")
 
-    for i in xrange(3):
+    for i in xrange(4):
         ofp.write("BP # " + str(i) + "\n")
         for j in xrange(15):
 
             idx = i*15 + j
-            ofp.write(emb_layer.lst_words[by[idx][0]] + " ")
+            if by[idx][0] != padding_id:
+                ofp.write(emb_layer.lst_words[by[idx][0]] + " ")
 
         ofp.write("\n")
 
@@ -113,7 +114,7 @@ def write_train_results(bz, bx, by, emb_layer, ofp):
         for j in xrange(30):
             idx = i * 30 + j
 
-            if bz[idx][0] > 0:
+            if bz[idx][0] > 0 and bx[idx][0] != padding_id:
                 did_write = True
                 ofp.write(emb_layer.lst_words[bx[idx][0]] + " ")
 

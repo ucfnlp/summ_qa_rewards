@@ -3,6 +3,7 @@ import os
 import sys
 
 import nltk.data
+from nltk.tokenize import RegexpTokenizer
 
 import data_args
 from util import data_utils as utils
@@ -112,13 +113,14 @@ def machine_ready(args, highlights, articles, w2v_model):
 def tokenize(args, current_article, current_highlights):
     article = []
     highlights = []
+    tokenizer = RegexpTokenizer(r'\w+')
 
     for item in current_article:
         item_strip = str(item.encode('utf-8'))
         sentences = nltk.sent_tokenize(item_strip.decode("utf8"))
 
         for sentence in sentences:
-            article.append([w.lower() for w in nltk.word_tokenize(sentence)])
+            article.append([w.lower() for w in tokenizer.tokenize(sentence)])
 
     for item in current_highlights:
         item_strip = str(item.encode('utf-8'))
