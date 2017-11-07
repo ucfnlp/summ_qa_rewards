@@ -457,7 +457,7 @@ class Model(object):
                             last_dev_avg_cost, cur_dev_avg_cost
                         ))
 
-                more = False
+
                 if more:
                     lr_val = lr_g.get_value() * 0.5
                     lr_val = np.float64(lr_val).astype(theano.config.floatX)
