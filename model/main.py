@@ -443,7 +443,7 @@ class Model(object):
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
-
+                more = False
                 if args.decay_lr and last_train_avg_cost is not None:
                     if cur_train_avg_cost > last_train_avg_cost * (1 + tolerance):
                         more = True
