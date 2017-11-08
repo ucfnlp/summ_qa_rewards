@@ -383,8 +383,7 @@ class Model(object):
             inputs=[self.x, self.y, self.y_mask],
             outputs=[self.encoder.obj, self.encoder.loss, \
                      self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
-            updates=updates_e.items() + updates_g.items() + self.generator.sample_updates + self.generator.sample_updates_sent,
-            allow_input_downcast=True
+            updates=updates_e.items() + updates_g.items() + self.generator.sample_updates + self.generator.sample_updates_sent
         )
 
         eval_period = args.eval_period
@@ -600,7 +599,6 @@ class Model(object):
 
 
 def main():
-    print args
     assert args.embedding, "Pre-trained word embeddings required."
 
     embedding_layer = myio.create_embedding_layer(args.embedding)
