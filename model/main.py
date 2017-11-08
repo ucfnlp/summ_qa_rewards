@@ -426,8 +426,8 @@ class Model(object):
                     mask = bx != padding_id
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bym)
-
-                    myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)
+                    if i == N - 1:
+                        myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)
                     k = len(by)
                     processed += k
                     train_cost += cost
