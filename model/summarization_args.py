@@ -112,7 +112,7 @@ def get_args():
     parser.add_argument("--dropout",
                         type=float,
                         default=0.1,
-                        help="dropout probability"
+                        help="dropout rate"
                         )
     parser.add_argument("--l2_reg",
                         type=float,

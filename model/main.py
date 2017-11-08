@@ -78,8 +78,8 @@ class Generator(object):
 
         h1_sent = h1[args.sentence_length - 1::args.sentence_length]
         h2_sent = h2[args.sentence_length - 1::args.sentence_length]
-        h_final_sent = T.concatenate([h1_sent, h2_sent[::-1]], axis=2)
-        h_final_sent = apply_dropout(h_final_sent, dropout)
+        # h_final_sent = T.concatenate([h1_sent, h2_sent[::-1]], axis=2)
+        # h_final_sent = apply_dropout(h_final_sent, dropout)
 
         output_layer = self.output_layer = ZLayer(
             n_in=size,
@@ -101,24 +101,24 @@ class Generator(object):
 
         # SENTENCE LEVEL
 
-        output_layer_sent = self.output_layer_sent = ZLayer(
-            n_in=size,
-            n_hidden=args.hidden_dimension2,
-            activation=activation
-        )
+        # output_layer_sent = self.output_layer_sent = ZLayer(
+        #     n_in=size,
+        #     n_hidden=args.hidden_dimension2,
+        #     activation=activation
+        # )
+        #
+        # z_pred_sent, sample_updates_sent = output_layer_sent.sample_all(h_final_sent)
+        #
+        # z_pred_sent = self.z_pred_sent = theano.gradient.disconnected_grad(z_pred_sent)
+        # self.sample_updates_sent = sample_updates_sent
+        #
+        # probs_sent = output_layer_sent.forward_all(h_final_sent, z_pred_sent)
+        #
+        # z_pred_sent = T.repeat(z_pred_sent, args.sentence_length, axis=0)
+        self.z_pred_combined = z_pred
 
-        z_pred_sent, sample_updates_sent = output_layer_sent.sample_all(h_final_sent)
-
-        z_pred_sent = self.z_pred_sent = theano.gradient.disconnected_grad(z_pred_sent)
-        self.sample_updates_sent = sample_updates_sent
-
-        probs_sent = output_layer_sent.forward_all(h_final_sent, z_pred_sent)
-
-        z_pred_sent = T.repeat(z_pred_sent, args.sentence_length, axis=0)
-        self.z_pred_combined = z_pred * z_pred_sent
-
-        probs_sent = T.repeat(probs_sent, args.sentence_length, axis=0)
-        probs = probs_word * probs_sent
+        # probs_sent = T.repeat(probs_sent, args.sentence_length, axis=0)
+        probs = probs_word
 
         logpz = - T.nnet.binary_crossentropy(probs, self.z_pred_combined) * masks
         logpz = self.logpz = logpz.reshape(x.shape)
@@ -364,7 +364,7 @@ class Model(object):
         sample_generator = theano.function(
             inputs=[self.x],
             outputs=self.z,
-            updates=self.generator.sample_updates + self.generator.sample_updates_sent
+            updates=self.generator.sample_updates
         )
 
         # get_loss_and_pred = theano.function(
@@ -383,7 +383,7 @@ class Model(object):
             inputs=[self.x, self.y, self.y_mask],
             outputs=[self.encoder.obj, self.encoder.loss, \
                      self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
-            updates=updates_e.items() + updates_g.items() + self.generator.sample_updates + self.generator.sample_updates_sent
+            updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
 
         eval_period = args.eval_period
