@@ -395,8 +395,9 @@ class Model(object):
         tolerance = 0.10 + 1e-3
         dropout_prob = np.float64(args.dropout).astype(theano.config.floatX)
 
-        read_output = open(args.train_output_readable, 'w+')
         for epoch in xrange(args.max_epochs):
+            read_output = open(args.train_output_readable + '_e_' + str(epoch) + '.out', 'w+')
+
             unchanged += 1
             if unchanged > 20: return
 
@@ -425,8 +426,8 @@ class Model(object):
                     mask = bx != padding_id
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bym)
-                    if unchanged == 19 or epoch == args.max_epochs - 1:
-                        myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)
+
+                    myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)
                     k = len(by)
                     processed += k
                     train_cost += cost
@@ -436,13 +437,6 @@ class Model(object):
 
                 cur_train_avg_cost = train_cost / N
 
-                if dev:
-                    self.dropout.set_value(0.0)
-                    dev_obj, dev_loss, dev_diff, dev_p1 = self.evaluate_data(
-                        dev_batches_x, dev_batches_y, eval_generator, sampling=True)
-                    self.dropout.set_value(dropout_prob)
-                    cur_dev_avg_cost = dev_obj
-
                 more = False
                 if args.decay_lr and last_train_avg_cost is not None:
                     if cur_train_avg_cost > last_train_avg_cost * (1 + tolerance):
@@ -450,12 +444,6 @@ class Model(object):
                         say("\nTrain cost {} --> {}\n".format(
                             last_train_avg_cost, cur_train_avg_cost
                         ))
-                    if dev and cur_dev_avg_cost > last_dev_avg_cost * (1 + tolerance):
-                        more = True
-                        say("\nDev cost {} --> {}\n".format(
-                            last_dev_avg_cost, cur_dev_avg_cost
-                        ))
-
 
                 if more:
                     lr_val = lr_g.get_value() * 0.5
@@ -465,10 +453,9 @@ class Model(object):
                     say("Decrease learning rate to {}\n".format(float(lr_val)))
                     for p, v in zip(self.params, param_bak):
                         p.set_value(v)
-                    continue
+                    more = False
 
                 last_train_avg_cost = cur_train_avg_cost
-                if dev: last_dev_avg_cost = cur_dev_avg_cost
 
                 say("\n")
                 say(("Generator Epoch {:.2f}  costg={:.4f}  scost={:.4f}  lossg={:.4f}  " +
@@ -521,6 +508,7 @@ class Model(object):
                             r_prec1,
                             r_prec2
                         ))
+            read_output.close()
 
     def evaluate_data(self, batches_x, batches_y, eval_func, sampling=False):
         padding_id = self.embedding_layer.vocab_map["<padding>"]

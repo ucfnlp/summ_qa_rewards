@@ -45,7 +45,7 @@ def get_args():
 
     parser.add_argument("--train_output_readable",
                         type=str,
-                        default="../data/results.out",
+                        default="../data/results/results",
                         help="path to annotated train results"
                         )
     parser.add_argument("--load_rationale",
