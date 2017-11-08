@@ -40,7 +40,7 @@ def get_args():
 
     parser.add_argument('--max_sentences_hl',
                         type=int,
-                        default=3,
+                        default=4,
                         help='Number of total sentences for highlights')
 
     parser.add_argument("--train_output_readable",
