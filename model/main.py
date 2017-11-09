@@ -399,7 +399,7 @@ class Model(object):
             read_output = open(args.train_output_readable + '_e_' + str(epoch) + '.out', 'w+')
 
             unchanged += 1
-            if unchanged > 20: return
+            # if unchanged > 20: return
 
             train_batches_x, train_batches_y, train_batches_y_mask = myio.create_batches(
                 train[0], train[1], args.batch, padding_id
@@ -426,7 +426,7 @@ class Model(object):
                     mask = bx != padding_id
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bym)
-                    if i == N - 1:
+                    if i % 64 == 0:
                         myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)
                     k = len(by)
                     processed += k
@@ -453,7 +453,6 @@ class Model(object):
                     say("Decrease learning rate to {}\n".format(float(lr_val)))
                     for p, v in zip(self.params, param_bak):
                         p.set_value(v)
-                    more = False
 
                 last_train_avg_cost = cur_train_avg_cost
 
