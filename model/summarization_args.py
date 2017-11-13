@@ -86,7 +86,7 @@ def get_args():
                         )
     parser.add_argument("--max_epochs",
                         type=int,
-                        default=50,
+                        default=100,
                         help="maximum # of epochs"
                         )
     parser.add_argument("--eval_period",
@@ -106,7 +106,7 @@ def get_args():
                         )
     parser.add_argument("--learning_rate",
                         type=float,
-                        default=0.0005,
+                        default=0.005,
                         help="learning rate"
                         )
     parser.add_argument("--dropout",
@@ -163,11 +163,11 @@ def get_args():
 
     parser.add_argument("--sparsity",
                         type=float,
-                        default=0.0003
+                        default=0.003
                         )
     parser.add_argument("--coherent",
                         type=float,
-                        default=2.0
+                        default=3.0
                         )
     parser.add_argument("--aspect",
                         type=int,
