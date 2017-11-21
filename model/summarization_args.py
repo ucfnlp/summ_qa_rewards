@@ -163,11 +163,11 @@ def get_args():
 
     parser.add_argument("--sparsity",
                         type=float,
-                        default=0.003
+                        default=0.00003
                         )
     parser.add_argument("--coherent",
                         type=float,
-                        default=3.0
+                        default=2.0
                         )
     parser.add_argument("--aspect",
                         type=int,
