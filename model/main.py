@@ -419,7 +419,7 @@ class Model(object):
 
                 N = len(train_batches_x)
                 for i in xrange(N):
-                    if (i + 1) % 128 == 0:
+                    if (i + 1) % 32 == 0:
                         say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
 
                     bx, by, bym = train_batches_x[i], train_batches_y[i], train_batches_y_mask[i]
