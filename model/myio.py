@@ -142,7 +142,7 @@ def write_summ_for_rouge(args, bz, bx, by, emb_layer):
             ofp.close()
             s_num += 1
 
-    s_num = 0
+    s_num = 1
     for batch in by:
         for i in xrange(len(batch[0])):
             ofp = open(args.model_summ_path + 's.' + str(s_num) + '.txt', 'w+')
