@@ -450,7 +450,7 @@ class Model(object):
                     train_sparsity_cost += sparsity_cost
                     p1 += np.sum(bz * mask) / (np.sum(mask) + 1e-8)
 
-                    total_summaries_per_epoch += bz.shape[0]
+                    total_summaries_per_epoch += args.batch
                     total_words_per_epoch += myio.total_words(bz)
 
                 cur_train_avg_cost = train_cost / N
