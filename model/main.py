@@ -395,9 +395,18 @@ class Model(object):
         tolerance = 0.10 + 1e-3
         dropout_prob = np.float64(args.dropout).astype(theano.config.floatX)
 
-        for epoch in xrange(args.max_epochs):
-            read_output = open(args.train_output_readable + '_e_' + str(epoch) + '.out', 'w+')
+        total_words = 0
+        total_summaries = 0
+        metric_output = open(args.train_output_readable + '_METRICS' + '_sparcity_' + str(args.sparsity) + '.out', 'w+')
 
+        total_z = []
+        total_x = []
+        total_y = []
+
+        for epoch in xrange(args.max_epochs):
+            read_output = open(args.train_output_readable + '_e_' + str(epoch) + '_sparcity_' + str(args.sparsity) + '.out', 'w+')
+            total_words_per_epoch = 0
+            total_summaries_per_epoch = 0
             unchanged += 1
             # if unchanged > 20: return
 
@@ -426,7 +435,13 @@ class Model(object):
                     mask = bx != padding_id
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bym)
-                    if i % 16 == 0:
+
+                    if epoch == args.max_epochs - 1:
+                        total_z.append(bz)
+                        total_x.append(bx)
+                        total_y.append(by)
+
+                    if i % 8 == 0:
                         myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)
                     k = len(by)
                     processed += k
@@ -434,6 +449,9 @@ class Model(object):
                     train_loss += loss
                     train_sparsity_cost += sparsity_cost
                     p1 += np.sum(bz * mask) / (np.sum(mask) + 1e-8)
+
+                    total_summaries_per_epoch += bz.shape[0]
+                    total_words_per_epoch += myio.total_words(bz)
 
                 cur_train_avg_cost = train_cost / N
 
@@ -453,6 +471,10 @@ class Model(object):
                     say("Decrease learning rate to {}\n".format(float(lr_val)))
                     for p, v in zip(self.params, param_bak):
                         p.set_value(v)
+
+                else:
+                    total_summaries += total_summaries_per_epoch
+                    total_words += total_words_per_epoch
 
                 last_train_avg_cost = cur_train_avg_cost
 
@@ -474,40 +496,13 @@ class Model(object):
                 say("\t" + str(["{:.2f}".format(np.linalg.norm(x.get_value(borrow=True))) \
                                 for x in self.generator.params]) + "\n")
 
-                if dev:
-                    if dev_obj < best_dev:
-                        best_dev = dev_obj
-                        unchanged = 0
-                        if args.dump and rationale_data:
-                            self.dump_rationales(args.dump, valid_batches_x, valid_batches_y,
-                                                 get_loss_and_pred, sample_generator)
-
-                        if args.save_model:
-                            self.save_model(args.save_model, args)
-
-                    say(("\tsampling devg={:.4f}  mseg={:.4f}  avg_diffg={:.4f}" +
-                         "  p[1]g={:.2f}  best_dev={:.4f}\n").format(
-                        dev_obj,
-                        dev_loss,
-                        dev_diff,
-                        dev_p1,
-                        best_dev
-                    ))
-
-                    if rationale_data is not None:
-                        self.dropout.set_value(0.0)
-                        r_mse, r_p1, r_prec1, r_prec2 = self.evaluate_rationale(
-                            rationale_data, valid_batches_x,
-                            valid_batches_y, eval_generator)
-                        self.dropout.set_value(dropout_prob)
-                        say(("\trationale mser={:.4f}  p[1]r={:.2f}  prec1={:.4f}" +
-                             "  prec2={:.4f}\n").format(
-                            r_mse,
-                            r_p1,
-                            r_prec1,
-                            r_prec2
-                        ))
+            myio.write_metrics(total_summaries_per_epoch, total_words_per_epoch, metric_output, epoch, args)
             read_output.close()
+
+        myio.write_summ_for_rouge(args, total_z, total_x, total_y, self.embedding_layer)
+        myio.write_metrics(total_summaries, total_words, metric_output, 0, args, overall=True)
+        metric_output.close()
+
 
     def evaluate_data(self, batches_x, batches_y, eval_func, sampling=False):
         padding_id = self.embedding_layer.vocab_map["<padding>"]

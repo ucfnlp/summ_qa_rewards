@@ -3,6 +3,7 @@ import json
 import random
 
 import numpy as np
+from pyrouge import Rouge155
 
 from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
@@ -124,5 +125,60 @@ def write_train_results(bz, bx, by, emb_layer, ofp, padding_id):
     ofp.write("\n")
 
 
+def write_summ_for_rouge(args, bz, bx, by, emb_layer):
+    s_num = 1
+    for z in xrange(len(bx)):
+        for i in xrange(len(bx[z][0])):
+            ofp = open(args.system_summ_path + 's.' + str(s_num) + '.txt', 'w+')
 
+            for j in xrange(len(bx[z])):
+                word = emb_layer.lst_words[bx[z][j][i]]
+
+                if word == '<padding>' or word == '<unk>' or bz[z][j][i] == 0:
+                    continue
+
+                ofp.write(word + ' ')
+
+            ofp.close()
+            s_num += 1
+
+    s_num = 0
+    for batch in by:
+        for i in xrange(len(batch[0])):
+            ofp = open(args.model_summ_path + 's.' + str(s_num) + '.txt', 'w+')
+
+            for j in xrange(len(batch)):
+                word = emb_layer.lst_words[batch[j][i]]
+
+                if word == '<padding>' or word == '<unk>':
+                    continue
+
+                ofp.write(word + ' ')
+
+            ofp.close()
+            s_num += 1
+
+
+def get_rouge(args):
+    r = Rouge155()
+    r.system_dir = args.system_summ_path
+    r.model_dir = args.model_summ_path
+    r.system_filename_pattern = 's.(\d+).txt'
+    r.model_filename_pattern = 's.#ID#.txt'
+
+    return r.convert_and_evaluate()
+
+
+def total_words(z):
+    return np.sum(z, axis=None)
+
+
+def write_metrics(num_sum, total_w, ofp, epoch, args, overall=False):
+    if overall:
+        ofp.write('OVERALL STATS :\n')
+        ofp.write('Average words in summary : ' + str(total_w/float(num_sum)))
+        ofp.write('Rouge :\n' + str(get_rouge(args)) + '\n\n')
+    else:
+        ofp.write('Epoch : ' + str(epoch) + '\n')
+        ofp.write('\tAvg Words : ' + str(total_w/float(num_sum)) + '\n\n')
 

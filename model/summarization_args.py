@@ -48,6 +48,19 @@ def get_args():
                         default="../data/results/results",
                         help="path to annotated train results"
                         )
+
+    parser.add_argument("--system_summ_path",
+                        type=str,
+                        default="../data/results/summaries/system/",
+                        help="system summaries"
+                        )
+
+    parser.add_argument("--model_summ_path",
+                        type=str,
+                        default="../data/results/summaries/model/",
+                        help="gold standard summaries"
+                        )
+
     parser.add_argument("--load_rationale",
                         type=str,
                         default="",
@@ -86,7 +99,7 @@ def get_args():
                         )
     parser.add_argument("--max_epochs",
                         type=int,
-                        default=100,
+                        default=1,
                         help="maximum # of epochs"
                         )
     parser.add_argument("--eval_period",
