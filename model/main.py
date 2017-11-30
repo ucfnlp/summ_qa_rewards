@@ -376,7 +376,7 @@ class Model(object):
         eval_generator = theano.function(
             inputs=[self.x, self.y, self.y_mask],
             outputs=[self.z, self.encoder.obj, self.encoder.loss, self.z],
-            updates=self.generator.sample_updates + self.generator.sample_updates_sent
+            updates=self.generator.sample_updates
         )
 
         train_generator = theano.function(
