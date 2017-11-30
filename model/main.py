@@ -450,11 +450,13 @@ class Model(object):
 
                 if dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_loss, dev_p1 = self.evaluate_data(
-                        dev_batches_x, dev_batches_y, dev_batches_y_mask, eval_generator, args, sampling=True)
+                    dev_obj, dev_loss, dev_p1, dev_z, dev_x, dev_y = self.evaluate_data(
+                        dev_batches_x, dev_batches_y, dev_batches_y_mask, eval_generator, sampling=True)
 
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
+
+                    myio.write_summ_for_rouge(args, dev_z, dev_x, dev_y, self.embedding_layer)
                     myio.write_metrics(total_summaries_per_epoch, total_words_per_epoch, metric_output, epoch, args)
 
                 more = False
@@ -538,7 +540,7 @@ class Model(object):
 
         metric_output.close()
 
-    def evaluate_data(self, batches_x, batches_y, batches_ym, eval_func, args, sampling=False):
+    def evaluate_data(self, batches_x, batches_y, batches_ym, eval_func, sampling=False):
         padding_id = self.embedding_layer.vocab_map["<padding>"]
         tot_obj, tot_mse, p1 = 0.0, 0.0, 0.0
         dev_z = []
@@ -562,11 +564,9 @@ class Model(object):
 
         n = len(batches_x)
 
-        myio.write_summ_for_rouge(args, dev_z, dev_x, dev_y, self.embedding_layer)
-
         if not sampling:
             return tot_mse / n
-        return tot_obj / n, tot_mse / n, p1 / n
+        return tot_obj / n, tot_mse / n, p1 / n, dev_z, dev_x, dev_y
 
     def evaluate_rationale(self, reviews, batches_x, batches_y, eval_func):
         args = self.args
