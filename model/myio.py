@@ -175,5 +175,5 @@ def total_words(z):
 
 def write_metrics(num_sum, total_w, ofp, epoch, args):
     ofp.write('Epoch : ' + str(epoch) + '\n')
-    ofp.write('Average words in summary : ' + str(total_w/float(num_sum)))
+    ofp.write('Average words in summary : ' + str(total_w/float(num_sum)) + '\n')
     ofp.write('Rouge :\n' + str(get_rouge(args)) + '\n\n')
