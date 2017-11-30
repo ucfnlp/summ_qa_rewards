@@ -640,7 +640,7 @@ def main():
         train_y = [embedding_layer_y.map_to_ids(y)[:max_len_y] for y in train_y]
 
     if args.dev:
-        dev_x, dev_y = myio.read_annotations(args.dev)
+        dev_x, dev_y = myio.read_docs(args.dev)
         dev_x = [embedding_layer.map_to_ids(x)[:max_len_x] for x in dev_x]
         dev_y = [embedding_layer_y.map_to_ids(y)[:max_len_y] for y in dev_y]
 
