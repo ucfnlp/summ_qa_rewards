@@ -145,7 +145,7 @@ def write_summ_for_rouge(args, bz, bx, by, emb_layer):
     s_num = 1
     for batch in by:
         for i in xrange(len(batch[0])):
-            ofp = open(args.model_summ_path + str(args.sparcity) + 's.' + str(s_num) + '.txt', 'w+')
+            ofp = open(args.model_summ_path + str(args.sparsity) + 's.' + str(s_num) + '.txt', 'w+')
 
             for j in xrange(len(batch)):
                 word = emb_layer.lst_words[batch[j][i]]
@@ -163,8 +163,8 @@ def get_rouge(args):
     r = Rouge155()
     r.system_dir = args.system_summ_path
     r.model_dir = args.model_summ_path
-    r.system_filename_pattern = str(args.sparcity) + 's.(\d+).txt'
-    r.model_filename_pattern = str(args.sparcity) + 's.#ID#.txt'
+    r.system_filename_pattern = str(args.sparsity) + 's.(\d+).txt'
+    r.model_filename_pattern = str(args.sparsity) + 's.#ID#.txt'
 
     return r.convert_and_evaluate()
 
