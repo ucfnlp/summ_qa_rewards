@@ -375,7 +375,7 @@ class Model(object):
         #
         eval_generator = theano.function(
             inputs=[self.x, self.y, self.y_mask],
-            outputs=[self.z, self.encoder.obj, self.encoder.loss, self.z],
+            outputs=[self.z, self.encoder.obj, self.encoder.loss],
             updates=self.generator.sample_updates
         )
 
@@ -395,13 +395,7 @@ class Model(object):
         tolerance = 0.10 + 1e-3
         dropout_prob = np.float64(args.dropout).astype(theano.config.floatX)
 
-        total_words = 0
-        total_summaries = 0
         metric_output = open(args.train_output_readable + '_METRICS' + '_sparcity_' + str(args.sparsity) + '.out', 'w+')
-
-        total_z = []
-        total_x = []
-        total_y = []
 
         for epoch in xrange(args.max_epochs):
             read_output = open(args.train_output_readable + '_e_' + str(epoch) + '_sparcity_' + str(args.sparsity) + '.out', 'w+')
@@ -456,15 +450,12 @@ class Model(object):
 
                 if dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_loss, dev_diff, dev_p1, dz = self.evaluate_data(
+                    dev_obj, dev_loss, dev_diff, dev_p1 = self.evaluate_data(
                         dev_batches_x, dev_batches_y, dev_batches_y_mask, eval_generator, sampling=True)
 
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
-
-                    myio.write_summ_for_rouge(args, dz, dev_batches_x, dev_batches_y, self.embedding_layer)
                     myio.write_metrics(total_summaries_per_epoch, total_words_per_epoch, metric_output, epoch, args)
-                #     num_sum, total_w, ofp, epoch, args
 
                 more = False
                 if args.decay_lr and last_train_avg_cost is not None:
@@ -548,21 +539,33 @@ class Model(object):
 
         metric_output.close()
 
-
-    def evaluate_data(self, batches_x, batches_y, eval_func, sampling=False):
+    def evaluate_data(self, batches_x, batches_y, batches_ym, eval_func, sampling=False):
         padding_id = self.embedding_layer.vocab_map["<padding>"]
         tot_obj, tot_mse, tot_diff, p1 = 0.0, 0.0, 0.0, 0.0
-        for bx, by in zip(batches_x, batches_y):
+        dev_z = []
+        dev_x = []
+        dev_y = []
+
+        for bx, by, bm in zip(batches_x, batches_y, batches_ym):
             if not sampling:
-                e, d = eval_func(bx, by)
+                e, d = eval_func(bx, by, bm)
             else:
                 mask = bx != padding_id
-                bz, o, e, d = eval_func(bx, by)
+                bz, o, e, d = eval_func(bx, by, bm)
                 p1 += np.sum(bz * mask) / (np.sum(mask) + 1e-8)
                 tot_obj += o
+
             tot_mse += e
             tot_diff += d
+
+            dev_z.append(bz)
+            dev_y.append(by)
+            dev_x.append(bx)
+
         n = len(batches_x)
+
+        myio.write_summ_for_rouge(args, dev_z, dev_x, dev_y, self.embedding_layer)
+
         if not sampling:
             return tot_mse / n, tot_diff / n
         return tot_obj / n, tot_mse / n, tot_diff / n, p1 / n
