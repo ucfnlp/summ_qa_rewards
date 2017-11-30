@@ -456,6 +456,7 @@ class Model(object):
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
+                    myio.write_train_results(dev_z[0], dev_x[0], dev_y[0], self.embedding_layer, read_output, padding_id)
                     myio.write_summ_for_rouge(args, dev_z, dev_x, dev_y, self.embedding_layer)
                     myio.write_metrics(total_summaries_per_epoch, total_words_per_epoch, metric_output, epoch, args)
 
