@@ -173,12 +173,7 @@ def total_words(z):
     return np.sum(z, axis=None)
 
 
-def write_metrics(num_sum, total_w, ofp, epoch, args, overall=False):
-    if overall:
-        ofp.write('OVERALL STATS :\n')
-        ofp.write('Average words in summary : ' + str(total_w/float(num_sum)))
-        ofp.write('Rouge :\n' + str(get_rouge(args)) + '\n\n')
-    else:
-        ofp.write('Epoch : ' + str(epoch) + '\n')
-        ofp.write('\tAvg Words : ' + str(total_w/float(num_sum)) + '\n\n')
-
+def write_metrics(num_sum, total_w, ofp, epoch, args):
+    ofp.write('Epoch : ' + str(epoch) + '\n')
+    ofp.write('Average words in summary : ' + str(total_w/float(num_sum)))
+    ofp.write('Rouge :\n' + str(get_rouge(args)) + '\n\n')

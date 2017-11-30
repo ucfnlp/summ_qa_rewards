@@ -375,7 +375,7 @@ class Model(object):
         #
         eval_generator = theano.function(
             inputs=[self.x, self.y, self.y_mask],
-            outputs=[self.z, self.encoder.obj, self.encoder.loss],
+            outputs=[self.z, self.encoder.obj, self.encoder.loss, self.z],
             updates=self.generator.sample_updates + self.generator.sample_updates_sent
         )
 
@@ -439,13 +439,9 @@ class Model(object):
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bym)
 
-                    if epoch == args.max_epochs - 1:
-                        total_z.append(bz)
-                        total_x.append(bx)
-                        total_y.append(by)
-
                     if i % 8 == 0:
                         myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)
+
                     k = len(by)
                     processed += k
                     train_cost += cost
@@ -460,10 +456,15 @@ class Model(object):
 
                 if dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_loss, dev_diff, dev_p1 = self.evaluate_data(
+                    dev_obj, dev_loss, dev_diff, dev_p1, dz = self.evaluate_data(
                         dev_batches_x, dev_batches_y, dev_batches_y_mask, eval_generator, sampling=True)
+
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
+
+                    myio.write_summ_for_rouge(args, dz, dev_batches_x, dev_batches_y, self.embedding_layer)
+                    myio.write_metrics(total_summaries_per_epoch, total_words_per_epoch, metric_output, epoch, args)
+                #     num_sum, total_w, ofp, epoch, args
 
                 more = False
                 if args.decay_lr and last_train_avg_cost is not None:
@@ -543,11 +544,8 @@ class Model(object):
                     #         r_prec2
                     #     ))
 
-            myio.write_metrics(total_summaries_per_epoch, total_words_per_epoch, metric_output, epoch, args)
             read_output.close()
 
-        myio.write_summ_for_rouge(args, total_z, total_x, total_y, self.embedding_layer)
-        myio.write_metrics(total_summaries, total_words, metric_output, 0, args, overall=True)
         metric_output.close()
 
 

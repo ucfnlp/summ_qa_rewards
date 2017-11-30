@@ -107,10 +107,10 @@ def machine_ready(args, highlights, articles, w2v_model):
     final_json_train = dict()
     final_json_dev = dict()
 
-    final_json_train['x'] = input_seqs[:512]
-    final_json_train['y'] = input_seqs_hl[:512]
-    final_json_dev['x'] = input_seqs[512:]
-    final_json_dev['y'] = input_seqs_hl[512:]
+    final_json_train['x'] = input_seqs[512:]
+    final_json_train['y'] = input_seqs_hl[512:]
+    final_json_dev['x'] = input_seqs[:512]
+    final_json_dev['y'] = input_seqs_hl[:512]
 
     json.dump(final_json_train, ofp_train)
     json.dump(final_json_dev, ofp_dev)
