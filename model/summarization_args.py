@@ -79,12 +79,12 @@ def get_args():
                         )
     parser.add_argument("--train",
                         type=str,
-                        default="../data/training_x.json",
+                        default="../data/small_training_x.json",
                         help="path to training data"
                         )
     parser.add_argument("--dev",
                         type=str,
-                        default="",
+                        default="../data/small_dev_x.json",
                         help="path to development data"
                         )
     parser.add_argument("--test",

@@ -14,7 +14,7 @@ sys.setdefaultencoding('utf8')
 
 def process_data(args):
     highlights, articles = split_data(args)
-    w2v_model = utils.create_w2v_model(args, [item for sublist in articles for item in sublist])
+    w2v_model = utils.create_w2v_model(args, [item for sublist in articles[512:] for item in sublist])
 
     machine_ready(args, highlights, articles, w2v_model.wv)
 
@@ -59,7 +59,7 @@ def split_data(args):
 
             small_size_counter += 1
 
-            if not args.full_test and small_size_counter >= args.small_limit:
+            if not args.full_test and small_size_counter >= args.small_limit + 512:
                 return highlights, articles
 
     return highlights, articles
@@ -98,16 +98,24 @@ def machine_ready(args, highlights, articles, w2v_model):
 
         input_seqs_hl.append(single_inp)
 
-    filename = "small" + args.train if args.full_test else args.train
-    ofp = open(filename, 'w+')
+    filename_train = args.train if args.full_test else "small_" + args.train
+    filename_dev = args.dev if args.full_test else "small_" + args.dev
 
-    final_json = dict()
+    ofp_train = open(filename_train, 'w+')
+    ofp_dev = open(filename_dev, 'w+')
 
-    final_json['x'] = input_seqs
-    final_json['y'] = input_seqs_hl
+    final_json_train = dict()
+    final_json_dev = dict()
 
-    json.dump(final_json, ofp)
-    ofp.close()
+    final_json_train['x'] = input_seqs[:512]
+    final_json_train['y'] = input_seqs_hl[:512]
+    final_json_dev['x'] = input_seqs[512:]
+    final_json_dev['y'] = input_seqs_hl[512:]
+
+    json.dump(final_json_train, ofp_train)
+    json.dump(final_json_dev, ofp_dev)
+    ofp_train.close()
+    ofp_dev.close()
 
 
 def tokenize(args, current_article, current_highlights):

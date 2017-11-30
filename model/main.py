@@ -373,11 +373,11 @@ class Model(object):
         #     updates=self.generator.sample_updates + self.generator.sample_updates_sent
         # )
         #
-        # eval_generator = theano.function(
-        #     inputs=[self.x, self.y],
-        #     outputs=[self.z, self.encoder.obj, self.encoder.loss],
-        #     updates=self.generator.sample_updates + self.generator.sample_updates_sent
-        # )
+        eval_generator = theano.function(
+            inputs=[self.x, self.y],
+            outputs=[self.z, self.encoder.obj, self.encoder.loss],
+            updates=self.generator.sample_updates + self.generator.sample_updates_sent
+        )
 
         train_generator = theano.function(
             inputs=[self.x, self.y, self.y_mask],
@@ -408,7 +408,10 @@ class Model(object):
             total_words_per_epoch = 0
             total_summaries_per_epoch = 0
             unchanged += 1
-            # if unchanged > 20: return
+            if unchanged > 20:
+                metric_output.write("PROBLEM TRAINING, NO DEV IMPROVEMENT")
+                metric_output.close()
+                return
 
             train_batches_x, train_batches_y, train_batches_y_mask = myio.create_batches(
                 train[0], train[1], args.batch, padding_id
@@ -455,12 +458,24 @@ class Model(object):
 
                 cur_train_avg_cost = train_cost / N
 
+                if dev:
+                    self.dropout.set_value(0.0)
+                    dev_obj, dev_loss, dev_diff, dev_p1 = self.evaluate_data(
+                        dev_batches_x, dev_batches_y, eval_generator, sampling=True)
+                    self.dropout.set_value(dropout_prob)
+                    cur_dev_avg_cost = dev_obj
+
                 more = False
                 if args.decay_lr and last_train_avg_cost is not None:
                     if cur_train_avg_cost > last_train_avg_cost * (1 + tolerance):
                         more = True
                         say("\nTrain cost {} --> {}\n".format(
                             last_train_avg_cost, cur_train_avg_cost
+                        ))
+                    if dev and cur_dev_avg_cost > last_dev_avg_cost * (1 + tolerance):
+                        more = True
+                        say("\nDev cost {} --> {}\n".format(
+                            last_dev_avg_cost, cur_dev_avg_cost
                         ))
 
                 if more:
@@ -471,12 +486,10 @@ class Model(object):
                     say("Decrease learning rate to {}\n".format(float(lr_val)))
                     for p, v in zip(self.params, param_bak):
                         p.set_value(v)
-
-                else:
-                    total_summaries += total_summaries_per_epoch
-                    total_words += total_words_per_epoch
+                    continue
 
                 last_train_avg_cost = cur_train_avg_cost
+                if dev: last_dev_avg_cost = cur_dev_avg_cost
 
                 say("\n")
                 say(("Generator Epoch {:.2f}  costg={:.4f}  scost={:.4f}  lossg={:.4f}  " +
@@ -495,6 +508,40 @@ class Model(object):
                                 for x in self.encoder.params]) + "\n")
                 say("\t" + str(["{:.2f}".format(np.linalg.norm(x.get_value(borrow=True))) \
                                 for x in self.generator.params]) + "\n")
+
+                if dev:
+                    if dev_obj < best_dev:
+                        best_dev = dev_obj
+                        unchanged = 0
+                        # if args.dump and rationale_data:
+                        #     self.dump_rationales(args.dump, valid_batches_x, valid_batches_y,
+                        #                          get_loss_and_pred, sample_generator)
+                        #
+                        # if args.save_model:
+                        #     self.save_model(args.save_model, args)
+
+                    say(("\tsampling devg={:.4f}  mseg={:.4f}  avg_diffg={:.4f}" +
+                         "  p[1]g={:.2f}  best_dev={:.4f}\n").format(
+                        dev_obj,
+                        dev_loss,
+                        dev_diff,
+                        dev_p1,
+                        best_dev
+                    ))
+
+                    # if rationale_data is not None:
+                    #     self.dropout.set_value(0.0)
+                    #     r_mse, r_p1, r_prec1, r_prec2 = self.evaluate_rationale(
+                    #         rationale_data, valid_batches_x,
+                    #         valid_batches_y, eval_generator)
+                    #     self.dropout.set_value(dropout_prob)
+                    #     say(("\trationale mser={:.4f}  p[1]r={:.2f}  prec1={:.4f}" +
+                    #          "  prec2={:.4f}\n").format(
+                    #         r_mse,
+                    #         r_p1,
+                    #         r_prec1,
+                    #         r_prec2
+                    #     ))
 
             myio.write_metrics(total_summaries_per_epoch, total_words_per_epoch, metric_output, epoch, args)
             read_output.close()
@@ -590,13 +637,14 @@ def main():
     max_len_y = args.sentence_length_hl * args.max_sentences_hl
 
     if args.train:
-        train_x, train_y = myio.read_docs(args)
+        train_x, train_y = myio.read_docs(args.train)
         train_x = [embedding_layer.map_to_ids(x)[:max_len_x] for x in train_x]
         train_y = [embedding_layer_y.map_to_ids(y)[:max_len_y] for y in train_y]
 
     if args.dev:
         dev_x, dev_y = myio.read_annotations(args.dev)
         dev_x = [embedding_layer.map_to_ids(x)[:max_len_x] for x in dev_x]
+        dev_y = [embedding_layer_y.map_to_ids(y)[:max_len_y] for y in dev_y]
 
     if args.load_rationale:
         rationale_data = myio.read_rationales(args.load_rationale)

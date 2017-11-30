@@ -21,10 +21,10 @@ def read_rationales(path):
     return data
 
 
-def read_docs(args):
+def read_docs(filename):
     data_x, data_y = [], []
 
-    with open(args.train, 'r') as data_file:
+    with open(filename, 'r') as data_file:
         data = json.load(data_file)
 
     data_x = data['x']

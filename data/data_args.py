@@ -67,4 +67,9 @@ def get_args():
                         default="training_x.json",
                         help='Training Data')
 
+    parser.add_argument('--dev',
+                        type=str,
+                        default="dev_x.json",
+                        help='Development Data')
+
     return parser.parse_args()
