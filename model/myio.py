@@ -129,7 +129,7 @@ def write_summ_for_rouge(args, bz, bx, by, emb_layer):
     s_num = 1
     for z in xrange(len(bx)):
         for i in xrange(len(bx[z][0])):
-            ofp = open(args.system_summ_path + str(args.sparcity) + 's.' + str(s_num) + '.txt', 'w+')
+            ofp = open(args.system_summ_path + str(args.sparsity) + 's.' + str(s_num) + '.txt', 'w+')
 
             for j in xrange(len(bx[z])):
                 word = emb_layer.lst_words[bx[z][j][i]]
