@@ -319,7 +319,7 @@ class Model(object):
         padding_id = self.embedding_layer.vocab_map["<padding>"]
 
         if dev is not None:
-            dev_batches_x, dev_batches_y = myio.create_batches(
+            dev_batches_x, dev_batches_y, dev_batches_y_mask = myio.create_batches(
                 dev[0], dev[1], args.batch, padding_id
             )
         if test is not None:
@@ -374,7 +374,7 @@ class Model(object):
         # )
         #
         eval_generator = theano.function(
-            inputs=[self.x, self.y],
+            inputs=[self.x, self.y, self.y_mask],
             outputs=[self.z, self.encoder.obj, self.encoder.loss],
             updates=self.generator.sample_updates + self.generator.sample_updates_sent
         )
@@ -461,7 +461,7 @@ class Model(object):
                 if dev:
                     self.dropout.set_value(0.0)
                     dev_obj, dev_loss, dev_diff, dev_p1 = self.evaluate_data(
-                        dev_batches_x, dev_batches_y, eval_generator, sampling=True)
+                        dev_batches_x, dev_batches_y, dev_batches_y_mask, eval_generator, sampling=True)
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
