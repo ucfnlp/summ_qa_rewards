@@ -450,7 +450,7 @@ class Model(object):
 
                 if dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_loss, dev_diff, dev_p1 = self.evaluate_data(
+                    dev_obj, dev_loss, dev_p1 = self.evaluate_data(
                         dev_batches_x, dev_batches_y, dev_batches_y_mask, eval_generator, sampling=True)
 
                     self.dropout.set_value(dropout_prob)
@@ -512,11 +512,10 @@ class Model(object):
                         # if args.save_model:
                         #     self.save_model(args.save_model, args)
 
-                    say(("\tsampling devg={:.4f}  mseg={:.4f}  avg_diffg={:.4f}" +
+                    say(("\tsampling devg={:.4f}  mseg={:.4f}" +
                          "  p[1]g={:.2f}  best_dev={:.4f}\n").format(
                         dev_obj,
                         dev_loss,
-                        dev_diff,
                         dev_p1,
                         best_dev
                     ))
@@ -541,7 +540,7 @@ class Model(object):
 
     def evaluate_data(self, batches_x, batches_y, batches_ym, eval_func, sampling=False):
         padding_id = self.embedding_layer.vocab_map["<padding>"]
-        tot_obj, tot_mse, tot_diff, p1 = 0.0, 0.0, 0.0, 0.0
+        tot_obj, tot_mse, p1 = 0.0, 0.0, 0.0
         dev_z = []
         dev_x = []
         dev_y = []
@@ -551,12 +550,11 @@ class Model(object):
                 e, d = eval_func(bx, by, bm)
             else:
                 mask = bx != padding_id
-                bz, o, e, d = eval_func(bx, by, bm)
+                bz, o, e = eval_func(bx, by, bm)
                 p1 += np.sum(bz * mask) / (np.sum(mask) + 1e-8)
                 tot_obj += o
 
             tot_mse += e
-            tot_diff += d
 
             dev_z.append(bz)
             dev_y.append(by)
@@ -567,8 +565,8 @@ class Model(object):
         myio.write_summ_for_rouge(args, dev_z, dev_x, dev_y, self.embedding_layer)
 
         if not sampling:
-            return tot_mse / n, tot_diff / n
-        return tot_obj / n, tot_mse / n, tot_diff / n, p1 / n
+            return tot_mse / n
+        return tot_obj / n, tot_mse / n, p1 / n
 
     def evaluate_rationale(self, reviews, batches_x, batches_y, eval_func):
         args = self.args
