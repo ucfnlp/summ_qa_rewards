@@ -1,8 +1,8 @@
 import gzip
 import pickle
+import os.path
 import numpy as np
 
-import matplotlib
 import matplotlib.pyplot as plt
 
 import summarization_args
@@ -11,10 +11,17 @@ import summarization_args
 def weight_analysis(args):
     norms = []
     weights = []
+    early_term = False
 
     for e in xrange(args.max_epochs):
         for i in xrange(args.batch):
-            f = gzip.open(args.weight_eval + 'e_' + str(e) + '_b_' + str(i) + '_weights.pkl.gz', 'rb')
+            path = args.weight_eval + 'e_' + str(e) + '_b_' + str(i) + '_weights.pkl.gz'
+
+            if not os.path.isfile(path):
+                early_term = True
+                break
+
+            f = gzip.open(path, 'rb')
 
             a = pickle.load(f)
             values = []
@@ -32,11 +39,14 @@ def weight_analysis(args):
         plt.clf()
         plt.close()
 
+        if early_term:
+            break
+
     x = range(0,len(norms))
     plt.ylabel('L1 Norm')
-    plt.xlabel('Batches')
+    plt.xlabel('Num Batches')
     plt.plot(x, norms)
-    plt.savefig('../data/results/plots/norms_' + str(e) + '.png')
+    plt.savefig('../data/results/plots/norms.png')
     plt.close()
 
 
