@@ -232,6 +232,7 @@ class Encoder(object):
         cost_vec = samp + loss_vec
         cost_logpz = T.mean(cost_vec * T.sum(logpz, axis=0))
         self.obj = T.mean(cost_vec)
+        self.encoder_params = l.params
 
         params = self.params = []
 
@@ -273,6 +274,15 @@ class Model(object):
         self.y_mask = self.encoder.y_mask
         self.z = self.generator.z_pred_combined
         self.params = self.encoder.params + self.generator.params
+
+    def evaluate_rnn_weights(self, args, e, b):
+
+        with gzip.open(args.weight_eval + 'e_' + str(e) + '_b_' + str(b) + '_weights.pkl.gz', 'wb+') as fout:
+            pickle.dump(
+                ([x.get_value() for x in self.encoder.encoder_params]),
+                fout,
+                protocol=pickle.HIGHEST_PROTOCOL
+            )
 
     def save_model(self, path, args):
         # append file suffix
@@ -432,6 +442,8 @@ class Model(object):
                     mask = bx != padding_id
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bym)
+
+                    self.evaluate_rnn_weights(args, epoch, i)
 
                     if i % 8 == 0:
                         myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)

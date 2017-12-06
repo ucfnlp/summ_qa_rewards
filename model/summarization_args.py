@@ -72,6 +72,13 @@ def get_args():
                         default="",
                         help="path to save model parameters"
                         )
+
+    parser.add_argument("--weight_eval",
+                        type=str,
+                        default="../data/results/weights/",
+                        help="path to save model parameters, for encoder weights"
+                        )
+
     parser.add_argument("--load_model",
                         type=str,
                         default="",
