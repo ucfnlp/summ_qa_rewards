@@ -276,13 +276,15 @@ class Model(object):
         self.params = self.encoder.params + self.generator.params
 
     def evaluate_rnn_weights(self, args, e, b):
+        fout= gzip.open(args.weight_eval + 'e_' + str(e) + '_b_' + str(b) + '_weights.pkl.gz', 'wb+')
 
-        with gzip.open(args.weight_eval + 'e_' + str(e) + '_b_' + str(b) + '_weights.pkl.gz', 'wb+') as fout:
-            pickle.dump(
-                ([x.get_value() for x in self.encoder.encoder_params]),
-                fout,
-                protocol=pickle.HIGHEST_PROTOCOL
-            )
+        pickle.dump(
+            ([x.get_value() for x in self.encoder.encoder_params]),
+            fout,
+            protocol=pickle.HIGHEST_PROTOCOL
+        )
+
+        fout.close()
 
     def save_model(self, path, args):
         # append file suffix
@@ -443,7 +445,8 @@ class Model(object):
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bym)
 
-                    self.evaluate_rnn_weights(args, epoch, i)
+                    if i % 32 == 0:
+                        self.evaluate_rnn_weights(args, epoch, i)
 
                     if i % 8 == 0:
                         myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)

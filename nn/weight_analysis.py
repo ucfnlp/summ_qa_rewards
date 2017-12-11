@@ -10,6 +10,8 @@ import summarization_args
 
 def weight_analysis(args):
     norms = []
+    avg = []
+    var = []
     weights = []
     early_term = False
 
@@ -30,11 +32,13 @@ def weight_analysis(args):
 
             weights.append(values)
             norms.append(np.linalg.norm(values, ord=1))
+            avg.append(np.mean(values))
+            var.append(np.var(values))
 
             f.close()
 
-        plt.hist(weights[-1])
-        plt.ylabel('W')
+        plt.hist(weights[len(weights)-1], bins=20)
+        plt.xlabel('W')
         plt.savefig('../data/results/plots/e_' + str(e+1) + '.png')
         plt.clf()
         plt.close()
@@ -47,6 +51,24 @@ def weight_analysis(args):
     plt.xlabel('Num Batches')
     plt.plot(x, norms)
     plt.savefig('../data/results/plots/norms.png')
+
+    plt.clf()
+    plt.close()
+
+    plt.ylabel('W Average')
+    plt.xlabel('Num Batches')
+    plt.plot(x, avg)
+    plt.savefig('../data/results/plots/avg.png')
+
+    plt.clf()
+    plt.close()
+
+    plt.ylabel('W Variance')
+    plt.xlabel('Num Batches')
+    plt.plot(x, var)
+    plt.savefig('../data/results/plots/variance.png')
+
+    plt.clf()
     plt.close()
 
 
