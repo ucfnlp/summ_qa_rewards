@@ -7,6 +7,7 @@ import time
 import numpy as np
 import theano
 import theano.tensor as T
+from sklearn.metrics import jaccard_similarity_score
 
 import myio
 import summarization_args
@@ -15,7 +16,7 @@ from nn.basic import LSTM, apply_dropout
 from nn.extended_layers import ExtRCNN, ZLayer
 from nn.initialization import get_activation_by_name
 from nn.optimization import create_optimization_updates
-from util import say
+from util import say, get_ngram
 
 
 class Generator(object):
@@ -57,7 +58,7 @@ class Generator(object):
             layers.append(l)
 
         # len * batch
-        masks = T.cast(T.neq(x, padding_id), theano.config.floatX)
+        self.masks = T.cast(T.neq(x, padding_id), theano.config.floatX)
 
         # (len*batch)*n_e
         embs = embedding_layer.forward(x.ravel())
@@ -120,7 +121,7 @@ class Generator(object):
         # probs_sent = T.repeat(probs_sent, args.sentence_length, axis=0)
         probs = probs_word
 
-        logpz = - T.nnet.binary_crossentropy(probs, self.z_pred_combined) * masks
+        logpz = - T.nnet.binary_crossentropy(probs, self.z_pred_combined) * self.masks
         logpz = self.logpz = logpz.reshape(x.shape)
         probs = self.probs = probs.reshape(x.shape)
 
@@ -167,11 +168,10 @@ class Encoder(object):
 
         # len*batch
         y = self.y = T.imatrix()
-        y_mask = self.y_mask = T.imatrix()
-        y_mask = y_mask.ravel()
+        self.y_mask = T.cast(T.neq(y, padding_id), theano.config.floatX)
+
 
         z = generator.z_pred_combined
-
         z = z.dimshuffle((0, 1, "x"))
 
         # batch*nclasses
@@ -195,7 +195,7 @@ class Encoder(object):
         h_prev = embs
         h_prev_y = embs_y
         # len*batch*n_d
-        h_next_y = l.forward_all_2(h_prev_y, y_mask)
+        h_next_y = l.forward_all_2(h_prev_y)
         h_next_y = theano.gradient.disconnected_grad(h_next_y)
 
         h_next = l.forward_all(h_prev, z)
@@ -220,6 +220,7 @@ class Encoder(object):
 
         self.loss_vec = loss_vec = T.mean(loss_mat, axis=0)
 
+
         zsum = generator.zsum
         zdiff = generator.zdiff
         logpz = generator.logpz
@@ -228,9 +229,11 @@ class Encoder(object):
         loss = self.loss = T.mean(loss_vec)
         self.sparsity_cost = T.mean(zsum) * args.sparsity + \
                              T.mean(zdiff) * coherent_factor
+
         samp = zsum * args.sparsity + zdiff * coherent_factor
         cost_vec = samp + loss_vec
         cost_logpz = T.mean(cost_vec * T.sum(logpz, axis=0))
+
         self.obj = T.mean(cost_vec)
         self.encoder_params = l.params
 
@@ -271,7 +274,6 @@ class Model(object):
         self.dropout = self.generator.dropout
         self.x = self.generator.x
         self.y = self.encoder.y
-        self.y_mask = self.encoder.y_mask
         self.z = self.generator.z_pred_combined
         self.params = self.encoder.params + self.generator.params
 
@@ -386,13 +388,13 @@ class Model(object):
         # )
         #
         eval_generator = theano.function(
-            inputs=[self.x, self.y, self.y_mask],
+            inputs=[self.x, self.y],
             outputs=[self.z, self.encoder.obj, self.encoder.loss],
             updates=self.generator.sample_updates
         )
 
         train_generator = theano.function(
-            inputs=[self.x, self.y, self.y_mask],
+            inputs=[self.x, self.y],
             outputs=[self.encoder.obj, self.encoder.loss, \
                      self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
@@ -443,7 +445,8 @@ class Model(object):
                     bx, by, bym = train_batches_x[i], train_batches_y[i], train_batches_y_mask[i]
                     mask = bx != padding_id
 
-                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bym)
+                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by)
+
 
                     if i % 32 == 0:
                         self.evaluate_rnn_weights(args, epoch, i)
@@ -565,7 +568,7 @@ class Model(object):
 
         for bx, by, bm in zip(batches_x, batches_y, batches_ym):
             if not sampling:
-                e, d = eval_func(bx, by, bm)
+                e, d = eval_func(bx, by)
             else:
                 mask = bx != padding_id
                 bz, o, e = eval_func(bx, by, bm)
