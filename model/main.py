@@ -220,10 +220,22 @@ class Encoder(object):
 
         self.loss_vec = loss_vec = T.mean(loss_mat, axis=0)
 
-
         zsum = generator.zsum
         zdiff = generator.zdiff
         logpz = generator.logpz
+
+        z_x = self.generator.x * generator.z_pred_combined
+        padded = T.shape_padright(T.zeros_like(z_x[:, 0]))
+        shifted_x = T.concatenate(
+            [z_x[:, 1:], padded], axis=1)
+
+        self.bigrams = T.stack([shifted_x, z_x], axis=2)
+        mask2 = T.zeros_like(self.bigrams)
+
+        # sum(mask(Input == Tensor))
+        total_bigrams = T.sum(generator.z_pred_combined * self.generator.masks, axis=1)
+
+
 
         coherent_factor = args.sparsity * args.coherent
         loss = self.loss = T.mean(loss_vec)
@@ -333,7 +345,7 @@ class Model(object):
         padding_id = self.embedding_layer.vocab_map["<padding>"]
 
         if dev is not None:
-            dev_batches_x, dev_batches_y, dev_batches_y_mask = myio.create_batches(
+            dev_batches_x, dev_batches_y = myio.create_batches(
                 dev[0], dev[1], args.batch, padding_id
             )
         if test is not None:
@@ -396,7 +408,7 @@ class Model(object):
         train_generator = theano.function(
             inputs=[self.x, self.y],
             outputs=[self.encoder.obj, self.encoder.loss, \
-                     self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
+                     self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g, self.encoder.bigrams],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
 
@@ -421,7 +433,7 @@ class Model(object):
                 metric_output.close()
                 return
 
-            train_batches_x, train_batches_y, train_batches_y_mask = myio.create_batches(
+            train_batches_x, train_batches_y = myio.create_batches(
                 train[0], train[1], args.batch, padding_id
             )
 
@@ -442,10 +454,11 @@ class Model(object):
                     if (i + 1) % 32 == 0:
                         say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
 
-                    bx, by, bym = train_batches_x[i], train_batches_y[i], train_batches_y_mask[i]
+                    bx, by = train_batches_x[i], train_batches_y[i]
                     mask = bx != padding_id
 
-                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by)
+                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g, bg = train_generator(bx, by)
+                    print bg[0], bx[0]
 
 
                     if i % 32 == 0:
@@ -469,7 +482,7 @@ class Model(object):
                 if dev:
                     self.dropout.set_value(0.0)
                     dev_obj, dev_loss, dev_p1, dev_z, dev_x, dev_y = self.evaluate_data(
-                        dev_batches_x, dev_batches_y, dev_batches_y_mask, eval_generator, sampling=True)
+                        dev_batches_x, dev_batches_y, eval_generator, sampling=True)
 
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
@@ -559,19 +572,19 @@ class Model(object):
 
         metric_output.close()
 
-    def evaluate_data(self, batches_x, batches_y, batches_ym, eval_func, sampling=False):
+    def evaluate_data(self, batches_x, batches_y, eval_func, sampling=False):
         padding_id = self.embedding_layer.vocab_map["<padding>"]
         tot_obj, tot_mse, p1 = 0.0, 0.0, 0.0
         dev_z = []
         dev_x = []
         dev_y = []
 
-        for bx, by, bm in zip(batches_x, batches_y, batches_ym):
+        for bx, by in zip(batches_x, batches_y):
             if not sampling:
                 e, d = eval_func(bx, by)
             else:
                 mask = bx != padding_id
-                bz, o, e = eval_func(bx, by, bm)
+                bz, o, e = eval_func(bx, by)
                 p1 += np.sum(bz * mask) / (np.sum(mask) + 1e-8)
                 tot_obj += o
 

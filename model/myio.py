@@ -3,7 +3,7 @@ import json
 import random
 
 import numpy as np
-from pyrouge import Rouge155
+# from pyrouge import Rouge155
 
 from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
@@ -48,7 +48,7 @@ def create_embedding_layer(path):
 
 
 def create_batches(x, y, batch_size, padding_id, sort=True):
-    batches_x, batches_y, batches_ym = [], [], []
+    batches_x, batches_y = [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
     if sort:
@@ -58,7 +58,7 @@ def create_batches(x, y, batch_size, padding_id, sort=True):
         y = [y[i] for i in perm]
 
     for i in xrange(M):
-        bx, by, bym = create_one_batch(
+        bx, by = create_one_batch(
             x[i * batch_size:(i + 1) * batch_size],
             y[i * batch_size:(i + 1) * batch_size],
             padding_id,
@@ -66,16 +66,15 @@ def create_batches(x, y, batch_size, padding_id, sort=True):
         )
         batches_x.append(bx)
         batches_y.append(by)
-        batches_ym.append(bym)
+
     if sort:
         random.seed(5817)
         perm2 = range(M)
         random.shuffle(perm2)
         batches_x = [batches_x[i] for i in perm2]
         batches_y = [batches_y[i] for i in perm2]
-        batches_ym = [batches_ym[i] for i in perm2]
 
-    return batches_x, batches_y, batches_ym
+    return batches_x, batches_y
 
 
 def create_one_batch(lstx, lsty, padding_id, b_len):
@@ -89,9 +88,7 @@ def create_one_batch(lstx, lsty, padding_id, b_len):
     by = np.column_stack([np.pad(y, (max_len_y - len(y), 0), "constant",
                                  constant_values=padding_id) for y in lsty])
 
-    bym = np.column_stack([np.asarray([0 if lsty[k][i] == padding_id else 1 for i in xrange(max_len_y)],dtype='int32') for k in xrange(b_len)])
-
-    return bx, by, bym
+    return bx, by
 
 
 def write_train_results(bz, bx, by, emb_layer, ofp, padding_id):
