@@ -243,7 +243,7 @@ class Encoder(object):
                              T.mean(zdiff) * coherent_factor
 
         samp = zsum * args.sparsity + zdiff * coherent_factor
-        cost_vec = samp + loss_vec
+        cost_vec = samp + loss_vec + jac
         cost_logpz = T.mean(cost_vec * T.sum(logpz, axis=0))
 
         self.obj = T.mean(cost_vec) + jac
