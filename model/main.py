@@ -174,6 +174,7 @@ class Encoder(object):
 
         z = generator.z_pred_combined
         z = z.dimshuffle((0, 1, "x"))
+        y_mask = y_mask.dimshuffle((0, 1, "x"))
 
         # batch*nclasses
         n_d = args.hidden_dimension
@@ -226,10 +227,10 @@ class Encoder(object):
         logpz = generator.logpz
 
         padded = T.shape_padright(T.zeros_like(bv[:, 0]))
-        shifted_bv = T.concatenate(
+        component_2 = T.concatenate(
             [bv[:, 1:], padded], axis=1)
 
-        component_2 = T.stack([shifted_bv, bv], axis=2)
+        # component_2 = T.stack([shifted_bv, bv], axis=2)
         self.bigram_overlap = component_2 * bv
 
         intersection = T.sum(self.bigram_overlap)
@@ -285,6 +286,7 @@ class Model(object):
         self.dropout = self.generator.dropout
         self.x = self.generator.x
         self.y = self.encoder.y
+        self.bv = self.encoder.bv
         self.z = self.generator.z_pred_combined
         self.params = self.encoder.params + self.generator.params
 
@@ -344,7 +346,7 @@ class Model(object):
         padding_id = self.embedding_layer.vocab_map["<padding>"]
 
         if dev is not None:
-            dev_batches_x, dev_batches_y = myio.create_batches(
+            dev_batches_x, dev_batches_y, dev_batches_bv = myio.create_batches(
                 dev[0], dev[1], args.batch, padding_id
             )
         if test is not None:
@@ -399,13 +401,13 @@ class Model(object):
         # )
         #
         eval_generator = theano.function(
-            inputs=[self.x, self.y],
+            inputs=[self.x, self.y, self.bv],
             outputs=[self.z, self.encoder.obj, self.encoder.loss],
             updates=self.generator.sample_updates
         )
 
         train_generator = theano.function(
-            inputs=[self.x, self.y],
+            inputs=[self.x, self.y, self.bv],
             outputs=[self.encoder.obj, self.encoder.loss, \
                      self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
@@ -453,12 +455,12 @@ class Model(object):
                     if (i + 1) % 32 == 0:
                         say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
 
-                    bx, by = train_batches_x[i], train_batches_y[i]
+                    bx, by, bv = train_batches_x[i], train_batches_y[i], train_batches_bv[i]
                     mask = bx != padding_id
 
-                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by)
+                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bv)
 
-                    if i % 32 == 0:
+                    if i % 64 == 0:
                         self.evaluate_rnn_weights(args, epoch, i)
 
                     if i % 8 == 0:
@@ -478,14 +480,14 @@ class Model(object):
 
                 if dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_loss, dev_p1, dev_z, dev_x, dev_y = self.evaluate_data(
-                        dev_batches_x, dev_batches_y, eval_generator, sampling=True)
+                    dev_obj, dev_loss, dev_p1, dev_v, dev_x, dev_y = self.evaluate_data(
+                        dev_batches_x, dev_batches_y, dev_batches_bv, eval_generator, sampling=True)
 
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
-                    myio.write_train_results(dev_z[0], dev_x[0], dev_y[0], self.embedding_layer, read_output, padding_id)
-                    myio.write_summ_for_rouge(args, dev_z, dev_x, dev_y, self.embedding_layer)
+                    myio.write_train_results(dev_v[0], dev_x[0], dev_y[0], self.embedding_layer, read_output, padding_id)
+                    myio.write_summ_for_rouge(args, dev_v, dev_x, dev_y, self.embedding_layer)
                     myio.write_metrics(total_summaries_per_epoch, total_words_per_epoch, metric_output, epoch, args)
 
                 more = False
@@ -569,25 +571,25 @@ class Model(object):
 
         metric_output.close()
 
-    def evaluate_data(self, batches_x, batches_y, eval_func, sampling=False):
+    def evaluate_data(self, batches_x, batches_y, batches_bv, eval_func, sampling=False):
         padding_id = self.embedding_layer.vocab_map["<padding>"]
         tot_obj, tot_mse, p1 = 0.0, 0.0, 0.0
-        dev_z = []
+        dev_v = []
         dev_x = []
         dev_y = []
 
-        for bx, by in zip(batches_x, batches_y):
+        for bx, by, bv in zip(batches_x, batches_y, batches_bv):
             if not sampling:
                 e, d = eval_func(bx, by)
             else:
                 mask = bx != padding_id
-                bz, o, e = eval_func(bx, by)
+                bz, o, e = eval_func(bx, by, bv)
                 p1 += np.sum(bz * mask) / (np.sum(mask) + 1e-8)
                 tot_obj += o
 
             tot_mse += e
 
-            dev_z.append(bz)
+            dev_v.append(bz)
             dev_y.append(by)
             dev_x.append(bx)
 
@@ -595,7 +597,7 @@ class Model(object):
 
         if not sampling:
             return tot_mse / n
-        return tot_obj / n, tot_mse / n, p1 / n, dev_z, dev_x, dev_y
+        return tot_obj / n, tot_mse / n, p1 / n, dev_v, dev_x, dev_y
 
     def evaluate_rationale(self, reviews, batches_x, batches_y, eval_func):
         args = self.args
