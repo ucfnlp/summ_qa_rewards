@@ -129,6 +129,13 @@ def get_args():
                         default=0.005,
                         help="learning rate"
                         )
+
+    parser.add_argument("--jaccard_smoothing",
+                        type=float,
+                        default=0.001,
+                        help="Prevent /0"
+                        )
+
     parser.add_argument("--dropout",
                         type=float,
                         default=0.1,

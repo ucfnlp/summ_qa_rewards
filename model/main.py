@@ -168,8 +168,9 @@ class Encoder(object):
 
         # len*batch
         y = self.y = T.imatrix()
-        self.y_mask = T.cast(T.neq(y, padding_id), theano.config.floatX)
+        y_mask = T.cast(T.neq(y, padding_id), theano.config.floatX)
 
+        bv = self.bv = T.imatrix()
 
         z = generator.z_pred_combined
         z = z.dimshuffle((0, 1, "x"))
@@ -195,7 +196,7 @@ class Encoder(object):
         h_prev = embs
         h_prev_y = embs_y
         # len*batch*n_d
-        h_next_y = l.forward_all_2(h_prev_y)
+        h_next_y = l.forward_all_2(h_prev_y, y_mask)
         h_next_y = theano.gradient.disconnected_grad(h_next_y)
 
         h_next = l.forward_all(h_prev, z)
@@ -224,18 +225,16 @@ class Encoder(object):
         zdiff = generator.zdiff
         logpz = generator.logpz
 
-        z_x = self.generator.x * generator.z_pred_combined
-        padded = T.shape_padright(T.zeros_like(z_x[:, 0]))
-        shifted_x = T.concatenate(
-            [z_x[:, 1:], padded], axis=1)
+        padded = T.shape_padright(T.zeros_like(bv[:, 0]))
+        shifted_bv = T.concatenate(
+            [bv[:, 1:], padded], axis=1)
 
-        self.bigrams = T.stack([shifted_x, z_x], axis=2)
-        mask2 = T.zeros_like(self.bigrams)
+        component_2 = T.stack([shifted_bv, bv], axis=2)
+        self.bigram_overlap = component_2 * bv
 
-        # sum(mask(Input == Tensor))
-        total_bigrams = T.sum(generator.z_pred_combined * self.generator.masks, axis=1)
-
-
+        intersection = T.sum(self.bigram_overlap)
+        jac = (intersection + args.jaccard_smoothing) / (T.sum(bv) + args.jaccard_smoothing)
+        jac = 1 - jac
 
         coherent_factor = args.sparsity * args.coherent
         loss = self.loss = T.mean(loss_vec)
@@ -246,7 +245,7 @@ class Encoder(object):
         cost_vec = samp + loss_vec
         cost_logpz = T.mean(cost_vec * T.sum(logpz, axis=0))
 
-        self.obj = T.mean(cost_vec)
+        self.obj = T.mean(cost_vec) + jac
         self.encoder_params = l.params
 
         params = self.params = []
@@ -408,7 +407,7 @@ class Model(object):
         train_generator = theano.function(
             inputs=[self.x, self.y],
             outputs=[self.encoder.obj, self.encoder.loss, \
-                     self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g, self.encoder.bigrams],
+                     self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
 
@@ -433,7 +432,7 @@ class Model(object):
                 metric_output.close()
                 return
 
-            train_batches_x, train_batches_y = myio.create_batches(
+            train_batches_x, train_batches_y, train_batches_bv = myio.create_batches(
                 train[0], train[1], args.batch, padding_id
             )
 
@@ -457,9 +456,7 @@ class Model(object):
                     bx, by = train_batches_x[i], train_batches_y[i]
                     mask = bx != padding_id
 
-                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g, bg = train_generator(bx, by)
-                    print bg[0], bx[0]
-
+                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by)
 
                     if i % 32 == 0:
                         self.evaluate_rnn_weights(args, epoch, i)
