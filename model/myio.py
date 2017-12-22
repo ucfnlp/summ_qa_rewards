@@ -3,7 +3,7 @@ import json
 import random
 
 import numpy as np
-from pyrouge import Rouge155
+# from pyrouge import Rouge155
 
 from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
@@ -48,7 +48,7 @@ def create_embedding_layer(path):
 
 
 def create_batches(x, y, batch_size, padding_id, sort=True):
-    batches_x, batches_y = [], []
+    batches_x, batches_y, batches_v = [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
     if sort:
@@ -58,7 +58,7 @@ def create_batches(x, y, batch_size, padding_id, sort=True):
         y = [y[i] for i in perm]
 
     for i in xrange(M):
-        bx, by = create_one_batch(
+        bx, by, bv = create_one_batch(
             x[i * batch_size:(i + 1) * batch_size],
             y[i * batch_size:(i + 1) * batch_size],
             padding_id,
@@ -66,6 +66,7 @@ def create_batches(x, y, batch_size, padding_id, sort=True):
         )
         batches_x.append(bx)
         batches_y.append(by)
+        batches_v.append(bv)
 
     if sort:
         random.seed(5817)
@@ -73,8 +74,9 @@ def create_batches(x, y, batch_size, padding_id, sort=True):
         random.shuffle(perm2)
         batches_x = [batches_x[i] for i in perm2]
         batches_y = [batches_y[i] for i in perm2]
+        batches_v = [batches_v[i] for i in perm2]
 
-    return batches_x, batches_y
+    return batches_x, batches_y, batches_v
 
 
 def create_one_batch(lstx, lsty, padding_id, b_len):
@@ -83,12 +85,16 @@ def create_one_batch(lstx, lsty, padding_id, b_len):
 
     assert min(len(x) for x in lstx) > 0
 
+    lstbv = bigram_vectorize(lstx, lsty, padding_id)
+
     bx = np.column_stack([np.pad(x, (max_len - len(x), 0), "constant",
                                  constant_values=padding_id) for x in lstx])
     by = np.column_stack([np.pad(y, (max_len_y - len(y), 0), "constant",
                                  constant_values=padding_id) for y in lsty])
 
-    return bx, by
+    bv = np.column_stack([b for b in lstbv])
+
+    return bx, by, bv
 
 
 def write_train_results(bz, bx, by, emb_layer, ofp, padding_id):
@@ -165,6 +171,33 @@ def get_rouge(args):
 
     return r.convert_and_evaluate()
 
+
+def get_ngram(l, n=2):
+    return set(zip(*[l[i:] for i in range(n)]))
+
+
+def bigram_vectorize(lstx, lsty, padding_id):
+    bin_vectors = []
+
+    for i in xrange(len(lsty)):
+        target_ngrams = get_ngram(lsty[i])
+
+        bin_vec = np.zeros_like(lstx[i])
+
+        for j in xrange(bin_vec.shape[0] - 1):
+            w_1 = lstx[i][j]
+            w_2 = lstx[i][j + 1]
+            if w_1 == padding_id:
+                continue
+
+            bigram = (w_1, w_2)
+
+            if bigram in target_ngrams:
+                bin_vec[j] = 1
+
+        bin_vectors.append(bin_vec)
+
+    return bin_vectors
 
 def total_words(z):
     return np.sum(z, axis=None)
