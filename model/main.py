@@ -226,9 +226,9 @@ class Encoder(object):
         zdiff = generator.zdiff
         logpz = generator.logpz
 
-        padded = T.shape_padright(T.zeros_like(bv[0, :]))
+        padded = T.shape_padaxis(T.zeros_like(bv[0]), axis=1).dimshuffle((1,0))
         component_2 = T.concatenate(
-            [bv[1:, :], padded], axis=0)
+            [bv[1:], padded], axis=0)
 
         # component_2 = T.stack([shifted_bv, bv], axis=2)
         self.bigram_overlap = component_2 * bv
