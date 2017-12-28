@@ -13,7 +13,7 @@ import myio
 import summarization_args
 from nn.advanced import RCNN
 from nn.basic import LSTM, apply_dropout
-from nn.extended_layers import ExtRCNN, ZLayer
+from nn.extended_layers import ExtRCNN, ZLayer, ExtLSTM
 from nn.initialization import get_activation_by_name
 from nn.optimization import create_optimization_updates
 from util import say, get_ngram
@@ -226,9 +226,9 @@ class Encoder(object):
         zdiff = generator.zdiff
         logpz = generator.logpz
 
-        padded = T.shape_padright(T.zeros_like(bv[:, 0]))
+        padded = T.shape_padright(T.zeros_like(bv[0, :]))
         component_2 = T.concatenate(
-            [bv[:, 1:], padded], axis=1)
+            [bv[1:, :], padded], axis=0)
 
         # component_2 = T.stack([shifted_bv, bv], axis=2)
         self.bigram_overlap = component_2 * bv
