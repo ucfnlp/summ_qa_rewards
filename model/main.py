@@ -408,8 +408,7 @@ class Model(object):
 
         train_generator = theano.function(
             inputs=[self.x, self.y, self.bv],
-            outputs=[self.encoder.obj, self.encoder.loss, self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g,
-                     self.encoder.bigram_overlap, self.encoder.bigram_vec, self.encoder.componenet2],
+            outputs=[self.encoder.obj, self.encoder.loss, self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
 
@@ -472,7 +471,7 @@ class Model(object):
                     bx, by, bv = train_batches_x[i], train_batches_y[i], train_batches_bv[i]
                     mask = bx != padding_id
 
-                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g,bigram_overlap, bigram_vec, componenet2 = train_generator(bx, by, bv)
+                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bv)
 
                     if i % 64 == 0:
                         self.evaluate_rnn_weights(args, epoch, i)
