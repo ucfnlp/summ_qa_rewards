@@ -94,6 +94,12 @@ def get_args():
                         default="../data/small_dev_x.json",
                         help="path to development data"
                         )
+
+    parser.add_argument("--dev_baseline",
+                        type=int,
+                        default=1,
+                        help="Get baseline ROUGE for dev set, based on BG."
+                        )
     parser.add_argument("--test",
                         type=str,
                         default="",

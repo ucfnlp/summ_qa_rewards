@@ -408,8 +408,8 @@ class Model(object):
 
         train_generator = theano.function(
             inputs=[self.x, self.y, self.bv],
-            outputs=[self.encoder.obj, self.encoder.loss, \
-                     self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
+            outputs=[self.encoder.obj, self.encoder.loss, self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g,
+                     self.encoder.bigram_overlap, self.encoder.bigram_vec, self.encoder.componenet2],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
 
@@ -424,6 +424,20 @@ class Model(object):
 
         metric_output = open(args.train_output_readable + '_METRICS' + '_sparcity_' + str(args.sparsity) + '.out', 'w+')
 
+        if args.dev_baseline:
+            ofp1 = open(args.train_output_readable + '_METRICS' + '_sparcity_' + str(args.sparsity) + '_baseline.out', 'w+')
+            ofp2 = open(args.train_output_readable + '_sparcity_' + str(args.sparsity) + '_baseline.out', 'w+')
+
+            dz = myio.convert_bv_to_z(dev_batches_bv)
+
+            myio.write_train_results(dz[:,0], dev_batches_x[:,0], dev_batches_y[:,0], self.embedding_layer, ofp2, padding_id)
+            myio.write_summ_for_rouge(args, dz, dev_batches_x, dev_batches_y, self.embedding_layer)
+            myio.write_metrics(-1, -1, ofp1, -1, args)
+
+            ofp1.close()
+            ofp2.close()
+
+
         for epoch in xrange(args.max_epochs):
             read_output = open(args.train_output_readable + '_e_' + str(epoch) + '_sparcity_' + str(args.sparsity) + '.out', 'w+')
             total_words_per_epoch = 0
@@ -432,7 +446,7 @@ class Model(object):
             if unchanged > 20:
                 metric_output.write("PROBLEM TRAINING, NO DEV IMPROVEMENT")
                 metric_output.close()
-                return
+                break
 
             train_batches_x, train_batches_y, train_batches_bv = myio.create_batches(
                 train[0], train[1], args.batch, padding_id
@@ -458,7 +472,7 @@ class Model(object):
                     bx, by, bv = train_batches_x[i], train_batches_y[i], train_batches_bv[i]
                     mask = bx != padding_id
 
-                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bv)
+                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g,bigram_overlap, bigram_vec, componenet2 = train_generator(bx, by, bv)
 
                     if i % 64 == 0:
                         self.evaluate_rnn_weights(args, epoch, i)

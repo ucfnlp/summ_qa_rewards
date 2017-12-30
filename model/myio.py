@@ -176,6 +176,20 @@ def get_ngram(l, n=2):
     return set(zip(*[l[i:] for i in range(n)]))
 
 
+def convert_bv_to_z(bv):
+    dz = []
+
+    for b in xrange(len(bv[0])):
+        dz_b = [0] * len(bv)
+        for i in xrange(len(bv) - 1):
+            if bv[i][b] == 1:
+                dz_b[i] = dz_b[i + 1] = 1
+
+        dz.append(dz_b)
+
+    return np.column_stack([z for z in dz])
+
+
 def bigram_vectorize(lstx, lsty, padding_id):
     bin_vectors = []
 
