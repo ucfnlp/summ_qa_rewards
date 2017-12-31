@@ -429,7 +429,7 @@ class Model(object):
 
             dz = myio.convert_bv_to_z(dev_batches_bv)
 
-            myio.write_train_results(dz[:,0], dev_batches_x[:,0], dev_batches_y[:,0], self.embedding_layer, ofp2, padding_id)
+            myio.write_train_results(dz[0], dev_batches_x[0], dev_batches_y[0], self.embedding_layer, ofp2, padding_id)
             myio.write_summ_for_rouge(args, dz, dev_batches_x, dev_batches_y, self.embedding_layer)
             myio.write_metrics(-1, -1, ofp1, -1, args)
 
