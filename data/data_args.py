@@ -14,13 +14,14 @@ def get_args():
 
     parser.add_argument('--full_test',
                         type='bool',
-                        default=True,
+                        default=False,
                         help='Process full selection of CNN data')
 
     parser.add_argument('--raw_data',
                         type=str,
+                        # default='/data1/corpora/cnn_dailymail/cnn-dailymail',
                         default='cnn',
-                        help='Raw CNN data')
+                        help='Raw data')
 
     parser.add_argument('--word_model',
                         type=str,
@@ -34,7 +35,7 @@ def get_args():
 
     parser.add_argument('--small_limit',
                         type=int,
-                        default=1024,
+                        default=10240,
                         help='small batch limit in number of stories')
 
     parser.add_argument('--sentence_length',
@@ -62,11 +63,6 @@ def get_args():
                         default=200,
                         help='Size of word vectors')
 
-    parser.add_argument('--train',
-                        type=str,
-                        default="training_x.json",
-                        help='Training Data')
-
     parser.add_argument('--train_urls',
                         type=str,
                         default="lists/all_train.txt",
@@ -82,9 +78,19 @@ def get_args():
                         default="lists/all_val.txt",
                         help='Dev Set URLs')
 
+    parser.add_argument('--train',
+                        type=str,
+                        default="training.json",
+                        help='Training Data')
+
     parser.add_argument('--dev',
                         type=str,
-                        default="dev_x.json",
+                        default="dev.json",
                         help='Development Data')
+
+    parser.add_argument('--test',
+                        type=str,
+                        default="test.json",
+                        help='Test Data')
 
     return parser.parse_args()
