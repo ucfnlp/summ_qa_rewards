@@ -2,8 +2,7 @@ import json
 import os
 import sys
 
-import nltk.data
-from nltk.tokenize import RegexpTokenizer
+import hashlib
 
 import data_args
 from util import data_utils as utils
@@ -13,16 +12,27 @@ sys.setdefaultencoding('utf8')
 
 
 def process_data(args):
-    highlights, articles = split_data(args)
-    w2v_model = utils.create_w2v_model(args, [item for sublist in articles[512:] for item in sublist])
-
-    machine_ready(args, highlights, articles, w2v_model.wv)
+    train, dev, test = split_data(args)
+    # w2v_model = utils.create_w2v_model(args, [item for sublist in articles[512:] for item in sublist])
+    print 'lol'
+    # machine_ready(args, highlights, articles, w2v_model.wv)
 
 
 def split_data(args):
     small_size_counter = 0
-    highlights = []
-    articles = []
+
+    unique_words = dict() # word : count
+
+    highlights_train = []
+    articles_train = []
+
+    highlights_dev = []
+    articles_dev = []
+
+    highlights_test = []
+    articles_test = []
+
+    train_urls, dev_urls, test_urls = get_url_sets(args)
 
     for subdir, dirs, files in os.walk(args.raw_data):
         for file_in in files:
@@ -33,6 +43,7 @@ def split_data(args):
             if file_in.startswith('.'):
                 continue
 
+            sha = file_in.split('.')[0]
             file_in = open(subdir + '/' + file_in, 'r')
             incoming_hl = False
 
@@ -50,19 +61,34 @@ def split_data(args):
                 else:
                     current_article.append(line)
 
-            current_article, current_highlights = tokenize(args, current_article, current_highlights)
+            current_article, current_highlights = tokenize(args, current_article, current_highlights, unique_words)
 
             if len(current_article) == 0:
                 continue
-            highlights.append(current_highlights)
-            articles.append(current_article)
+
+            catg = get_set(sha, train_urls, dev_urls, test_urls)
+
+            if catg < 0:
+                print 'Problem with : ' + str(sha)
+                continue
+
+            if catg == 1: #TRAIN
+                highlights_train.append(current_highlights)
+                articles_train.append(current_article)
+            elif catg == 2: #DEV
+                highlights_dev.append(current_highlights)
+                articles_dev.append(current_article)
+            else:#TEST
+                highlights_test.append(current_highlights)
+                articles_test.append(current_article)
 
             small_size_counter += 1
 
-            if not args.full_test and small_size_counter >= args.small_limit + 512:
-                return highlights, articles
+            if not args.full_test and small_size_counter >= args.small_limit:
+                return (highlights_train, articles_train), (highlights_dev, articles_dev), (
+                highlights_test, articles_test)
 
-    return highlights, articles
+    return (highlights_train, articles_train), (highlights_dev, articles_dev), (highlights_test, articles_test)
 
 
 def machine_ready(args, highlights, articles, w2v_model):
@@ -118,27 +144,82 @@ def machine_ready(args, highlights, articles, w2v_model):
     ofp_dev.close()
 
 
-def tokenize(args, current_article, current_highlights):
+def tokenize(args, current_article, current_highlights, unique_w):
     article = []
     highlights = []
-    tokenizer = RegexpTokenizer(r'\w+')
 
     for item in current_article:
-        item_strip = str(item.encode('utf-8'))
-        sentences = nltk.sent_tokenize(item_strip.decode("utf8"))
+        sentence = str(item.encode('utf-8'))
 
-        for sentence in sentences:
-            article.append([w.lower() for w in tokenizer.tokenize(sentence)])
+        words = sentence.rstrip().split(' ')
+        s = []
+        for w in words:
+            w = w.lower()
+
+            if w in unique_w:
+                unique_w[w] += 1
+            else:
+                unique_w[w] = 1
+            s.append(w)
+
+        article.append(s)
 
     for item in current_highlights:
-        item_strip = str(item.encode('utf-8'))
-        sentences = nltk.sent_tokenize(item_strip.decode("utf8"))
+        sentence = str(item.encode('utf-8'))
 
-        for sentence in sentences:
-            highlights.append([w.lower() for w in nltk.word_tokenize(sentence)])
+        words = sentence.rstrip().split(' ')
+        s = []
+        for w in words:
+            w = w.lower()
+
+            if w in unique_w:
+                unique_w[w] += 1
+            else:
+                unique_w[w] = 1
+            s.append(w)
+
+        highlights.append(s)
 
     return article, highlights
 
+
+def get_url_sets(args):
+
+    sha1 = hashlib.sha1
+
+    train_urls = set()
+    dev_urls = set()
+    test_urls = set()
+
+    train_ofp = open(args.train_urls, 'r')
+    dev_ofp = open(args.dev_urls, 'r')
+    test_ofp = open(args.test_urls, 'r')
+
+    for line in train_ofp:
+        train_urls.add(sha1(line.rstrip()).hexdigest())
+
+    for line in dev_ofp:
+        dev_urls.add(sha1(line.rstrip()).hexdigest())
+
+    for line in test_ofp:
+        test_urls.add(sha1(line.rstrip()).hexdigest())
+
+    train_ofp.close()
+    dev_ofp.close()
+    test_ofp.close()
+
+    return train_urls, dev_urls, test_urls
+
+
+def get_set(file_in, train_urls, dev_urls, test_urls):
+    if file_in in train_urls:
+        return 1
+    elif file_in in dev_urls:
+        return 2
+    elif file_in in test_urls:
+        return 3
+    else:
+        return -1
 
 if __name__ == '__main__':
     args = data_args.get_args()

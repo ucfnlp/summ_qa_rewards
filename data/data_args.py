@@ -14,7 +14,7 @@ def get_args():
 
     parser.add_argument('--full_test',
                         type='bool',
-                        default=False,
+                        default=True,
                         help='Process full selection of CNN data')
 
     parser.add_argument('--raw_data',
@@ -66,6 +66,21 @@ def get_args():
                         type=str,
                         default="training_x.json",
                         help='Training Data')
+
+    parser.add_argument('--train_urls',
+                        type=str,
+                        default="lists/all_train.txt",
+                        help='Training URLs')
+
+    parser.add_argument('--test_urls',
+                        type=str,
+                        default="lists/all_test.txt",
+                        help='Test set URLs')
+
+    parser.add_argument('--dev_urls',
+                        type=str,
+                        default="lists/all_val.txt",
+                        help='Dev Set URLs')
 
     parser.add_argument('--dev',
                         type=str,
