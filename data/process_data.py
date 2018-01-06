@@ -103,11 +103,18 @@ def seqs(args, inp, vocab, tagger, test=False):
 
     tag_ls = ['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC']
 
-    for sample in inp:
+    total_samples = len(inp[0])
+    print total_samples, 'total samples'
+
+    for sample in xrange(total_samples):
+        if sample % (total_samples / 10) == 0:
+            print '..', sample
+
         single_inp_hl = []
         single_inp_art = []
-        highlight = sample[0]
-        article = sample[1]
+
+        highlight = inp[0][sample]
+        article = inp[1][sample]
 
         entities_used = []
 
