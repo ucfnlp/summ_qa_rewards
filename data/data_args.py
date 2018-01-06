@@ -35,7 +35,7 @@ def get_args():
 
     parser.add_argument('--small_limit',
                         type=int,
-                        default=10240,
+                        default=2000,
                         help='small batch limit in number of stories')
 
     parser.add_argument('--inp_len',

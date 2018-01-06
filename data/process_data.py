@@ -14,12 +14,12 @@ sys.setdefaultencoding('utf8')
 
 def process_data(args):
     train, dev, test, unique_w = split_data(args)
-    # w2v_model = utils.create_w2v_model(args, [item for sublist in articles[512:] for item in sublist])
     word_counts = [50000, 20000, 10000]
 
     for count in word_counts:
+        print 'Building dataset for vocab size : ' + str(count)
         vocab = create_vocab_map(unique_w, count)
-        machine_ready(args, train, dev, test, vocab)
+        machine_ready(args, train, dev, test, vocab, count)
 
 
 def split_data(args):
@@ -161,44 +161,60 @@ def seqs(args, inp, vocab, tagger, test=False):
     return input_seqs, input_hl_seqs, entity_set.items()
 
 
-def machine_ready(args, train, dev, test, vocab):
+def machine_ready(args, train, dev, test, vocab, count):
     st = StanfordNERTagger(args.stgz, args.stjar, encoding='utf-8')
 
+    print 'Train data NER and indexing'
     seqs_train_articles, seqs_train_hl, train_items = seqs(args, train, vocab, st)
 
-    seqs_dev_articles, seqs_dev_hl, dev_items = seqs(args, dev, vocab, st)
-
-    seqs_test_articles, seqs_test_hl, _ = seqs(args, test[0], vocab, st, test=True)
-
     filename_train = args.train if args.full_test else "small_" + args.train
-    filename_dev = args.dev if args.full_test else "small_" + args.dev
-    filename_test = args.dev if args.full_test else "small_" + args.test
+    filename_train = str(count) + '_' + filename_train
 
     ofp_train = open(filename_train, 'w+')
-    ofp_dev = open(filename_dev, 'w+')
-    ofp_test = open(filename_test, 'w+')
-
     final_json_train = dict()
-    final_json_dev = dict()
-    final_json_test = dict()
 
     final_json_train['x'] = seqs_train_articles
     final_json_train['y'] = seqs_train_hl
-    final_json_test['entities'] = train_items
+    final_json_train['entities'] = train_items
+
+    json.dump(final_json_train, ofp_train)
+    ofp_train.close()
+    del seqs_train_articles
+    del seqs_train_hl
+    del train_items
+
+    print 'Dev data NER and indexing'
+    seqs_dev_articles, seqs_dev_hl, dev_items = seqs(args, dev, vocab, st)
+
+    filename_dev = args.dev if args.full_test else "small_" + args.dev
+    filename_dev = str(count) + '_' + filename_dev
+
+    ofp_dev = open(filename_dev, 'w+')
+    final_json_dev = dict()
 
     final_json_dev['x'] = seqs_dev_articles
     final_json_dev['y'] = seqs_dev_hl
     final_json_dev['entities'] = dev_items
 
+    json.dump(final_json_dev, ofp_dev)
+    ofp_dev.close()
+    del seqs_dev_articles
+    del seqs_dev_hl
+    del dev_items
+
+    print 'Test data indexing'
+    seqs_test_articles, seqs_test_hl, _ = seqs(args, test[0], vocab, st, test=True)
+
+    filename_test = args.dev if args.full_test else "small_" + args.test
+    filename_test = str(count) + '_' + filename_test
+
+    ofp_test = open(filename_test, 'w+')
+    final_json_test = dict()
+
     final_json_test['x'] = seqs_test_articles
     final_json_test['y'] = seqs_test_hl
 
-    json.dump(final_json_train, ofp_train)
-    json.dump(final_json_dev, ofp_dev)
     json.dump(final_json_test, ofp_test)
-
-    ofp_train.close()
-    ofp_dev.close()
     ofp_test.close()
 
 
