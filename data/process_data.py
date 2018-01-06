@@ -3,6 +3,7 @@ import os
 import sys
 
 import hashlib
+from nltk.tag import StanfordNERTagger
 
 import data_args
 
@@ -94,38 +95,80 @@ def split_data(args):
     return (highlights_train, articles_train), (highlights_dev, articles_dev), (highlights_test, articles_test), unique_words
 
 
-def pad_seqs(args, inp, vocab):
+def seqs(args, inp, vocab, tagger, test=False):
     input_seqs = []
+    input_hl_seqs = []
+    entity_set = dict()
+    entity_counter = 1
 
-    for i in xrange(len(inp)):
+    tag_ls = ['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC']
 
-        single_inp = []
+    for sample in inp:
+        single_inp_hl = []
+        single_inp_art = []
+        highlight = sample[0]
+        article = sample[1]
 
-        for j in xrange(args.max_sentences):
-            for k in xrange(args.sentence_length):
+        entities_used = []
 
-                if j < len(inp[i]) and k < len(inp[i][j]):
-                    if inp[i][j][k] in vocab:
-                        single_inp.append(vocab[inp[i][j][k]])
+        for sentence in highlight:
+            no_entity = True
+
+            s = []
+            tagged_text = tagger.tag(sentence[:args.inp_len_hl])
+
+            for i in xrange(len(tagged_text)):
+                tag_token = tagged_text[i]
+
+                if tag_token[1] in tag_ls and no_entity: # word is an entity, and highlight still needs entity
+
+                    if tag_token[0] in entity_set:
+                        s.append(entity_set[tag_token[0]])
                     else:
-                        single_inp.append(vocab['<unk>'])
+                        placeholder = '@entity' + str(entity_counter)
+                        s.append(placeholder)
+                        entity_set[tag_token[0]] = placeholder
+                        entity_counter += 1
+
+                    entities_used.append(tag_token[0])
+
+                    no_entity = False
                 else:
-                    single_inp.append(vocab['<padding>'])
+                    index = vocab[sentence[i]] if sentence[i] in vocab else 1
+                    s.append(index)
 
-        input_seqs.append(single_inp)
+            single_inp_hl.append(s)
 
-    return input_seqs
+        input_hl_seqs.append(single_inp_hl)
+
+        for sentence in article:
+
+            s = []
+            max_len = args.inp_len if args.inp_len < len(sentence) else len(sentence)
+
+            for i in xrange(max_len):
+                word = sentence[i]
+                if word in entities_used:
+                    s.append(entity_set[word])
+                else:
+                    index = vocab[word] if word in vocab else 1
+                    s.append(index)
+
+            single_inp_art.append(s)
+
+        input_seqs.append(single_inp_art)
+
+    return input_seqs, input_hl_seqs, entity_set.items()
 
 
 def machine_ready(args, train, dev, test, vocab):
-    seqs_train_articles = pad_seqs(args, train[0], vocab)
-    seqs_train_hl = pad_seqs(args, train[1], vocab)
+    st = StanfordNERTagger(args.stgz, args.stjar, encoding='utf-8')
 
-    seqs_dev_articles = pad_seqs(args, dev[0], vocab)
-    seqs_dev_hl = pad_seqs(args, dev[1], vocab)
+    seqs_train_articles, seqs_train_hl, train_items = seqs(args, train, vocab, st)
 
-    seqs_test_articles = pad_seqs(args, test[0], vocab)
-    seqs_test_hl = pad_seqs(args, test[1], vocab)
+    seqs_dev_articles, seqs_dev_hl, dev_items = seqs(args, dev, vocab, st)
+
+    seqs_test_articles, seqs_test_hl, _ = seqs(args, test[0], vocab, st, test=True)
 
     filename_train = args.train if args.full_test else "small_" + args.train
     filename_dev = args.dev if args.full_test else "small_" + args.dev
@@ -141,9 +184,11 @@ def machine_ready(args, train, dev, test, vocab):
 
     final_json_train['x'] = seqs_train_articles
     final_json_train['y'] = seqs_train_hl
+    final_json_test['entities'] = train_items
 
     final_json_dev['x'] = seqs_dev_articles
     final_json_dev['y'] = seqs_dev_hl
+    final_json_dev['entities'] = dev_items
 
     final_json_test['x'] = seqs_test_articles
     final_json_test['y'] = seqs_test_hl

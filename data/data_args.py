@@ -38,19 +38,14 @@ def get_args():
                         default=10240,
                         help='small batch limit in number of stories')
 
-    parser.add_argument('--sentence_length',
+    parser.add_argument('--inp_len',
                         type=int,
-                        default=30,
-                        help='length of single sentence')
+                        default=400,
+                        help='length of single sample')
 
-    parser.add_argument('--max_sentences',
+    parser.add_argument('--inp_len_hl',
                         type=int,
-                        default=10,
-                        help='Size of document in sentences')
-
-    parser.add_argument('--sentence_length_hl',
-                        type=int,
-                        default=15,
+                        default=25,
                         help='length of single sentence in highlights')
 
     parser.add_argument('--max_sentences_hl',
@@ -92,5 +87,15 @@ def get_args():
                         type=str,
                         default="test.json",
                         help='Test Data')
+
+    parser.add_argument('--stgz',
+                        type=str,
+                        default="/Users/kristjan/Documents/Grad School/CAP7919/danqi/stanford-ner/classifiers/english.all.3class.distsim.crf.ser.gz",
+                        help='')
+
+    parser.add_argument('--stjar',
+                        type=str,
+                        default="/Users/kristjan/Documents/Grad School/CAP7919/danqi/stanford-ner/stanford-ner.jar",
+                        help='')
 
     return parser.parse_args()
