@@ -41,59 +41,62 @@ def split_data(args):
 
     train_urls, dev_urls, test_urls = get_url_sets(args)
 
-    for subdir, dirs, files in os.walk(args.raw_data):
-        for file_in in files:
+    data_dirs = [args.raw_data_cnn, args.raw_data_dm]
 
-            current_article = []
-            current_highlights = []
+    for raw_data in data_dirs:
+        for subdir, dirs, files in os.walk(raw_data):
+            for file_in in files:
 
-            if file_in.startswith('.'):
-                continue
+                current_article = []
+                current_highlights = []
 
-            sha = file_in.split('.')[0]
-            file_in = open(subdir + '/' + file_in, 'r')
-            incoming_hl = False
-
-            for line in file_in:
-                if len(line.strip()) == 0:
+                if file_in.startswith('.'):
                     continue
 
-                if '@highlight' in line:
-                    incoming_hl = True
+                sha = file_in.split('.')[0]
+                file_in = open(subdir + '/' + file_in, 'r')
+                incoming_hl = False
+
+                for line in file_in:
+                    if len(line.strip()) == 0:
+                        continue
+
+                    if '@highlight' in line:
+                        incoming_hl = True
+                        continue
+
+                    if incoming_hl:
+                        current_highlights.append(line)
+                        incoming_hl = False
+                    else:
+                        current_article.append(line)
+
+                current_article, current_highlights = tokenize(args, current_article, current_highlights, unique_words)
+
+                if len(current_article) == 0:
                     continue
 
-                if incoming_hl:
-                    current_highlights.append(line)
-                    incoming_hl = False
-                else:
-                    current_article.append(line)
+                catg = get_set(sha, train_urls, dev_urls, test_urls)
 
-            current_article, current_highlights = tokenize(args, current_article, current_highlights, unique_words)
+                if catg < 0:
+                    print 'Problem with : ' + str(sha)
+                    continue
 
-            if len(current_article) == 0:
-                continue
+                if catg == 1: #TRAIN
+                    highlights_train.append(current_highlights)
+                    articles_train.append(current_article)
+                elif catg == 2: #DEV
+                    highlights_dev.append(current_highlights)
+                    articles_dev.append(current_article)
+                else:#TEST
+                    highlights_test.append(current_highlights)
+                    articles_test.append(current_article)
 
-            catg = get_set(sha, train_urls, dev_urls, test_urls)
+                small_size_counter += 1
 
-            if catg < 0:
-                print 'Problem with : ' + str(sha)
-                continue
-
-            if catg == 1: #TRAIN
-                highlights_train.append(current_highlights)
-                articles_train.append(current_article)
-            elif catg == 2: #DEV
-                highlights_dev.append(current_highlights)
-                articles_dev.append(current_article)
-            else:#TEST
-                highlights_test.append(current_highlights)
-                articles_test.append(current_article)
-
-            small_size_counter += 1
-
-            if not args.full_test and small_size_counter >= args.small_limit:
-                return (highlights_train, articles_train), (highlights_dev, articles_dev), (
-                highlights_test, articles_test), unique_words
+                if not args.full_test and small_size_counter >= args.small_limit:
+                    return (highlights_train, articles_train), (highlights_dev, articles_dev), (
+                    highlights_test, articles_test), unique_words
 
     return (highlights_train, articles_train), (highlights_dev, articles_dev), (highlights_test, articles_test), unique_words
 
@@ -114,10 +117,31 @@ def core_nlp(args, train, dev, test):
 
     ofp_train.close()
 
+    for highlight in dev:
+
+        for sentence in highlight:
+            for word in sentence:
+                ofp_dev.write(word + ' ')
+            ofp_dev.write('.\n')
+        ofp_dev.write('\n')
+
+    ofp_dev.close()
+
+    for highlight in test:
+
+        for sentence in highlight:
+            for word in sentence:
+                ofp_test.write(word + ' ')
+            ofp_test.write('.\n')
+        ofp_test.write('\n')
+
+    ofp_test.close()
+
 
 def seqs(args, inp, vocab, entity_set, entity_counter, type):
     input_seqs = []
     input_hl_seqs = []
+    input_hl_entities = []
 
     tag_ls = ['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC']
 
@@ -185,6 +209,7 @@ def seqs(args, inp, vocab, entity_set, entity_counter, type):
                 single_inp_hl_entity_map.append(entity_set[ner[0]])
 
             input_hl_seqs.append(single_inp_hl)
+        input_hl_entities.append(single_inp_hl_entity_map)
 
         for sentence in article:
 
@@ -203,7 +228,7 @@ def seqs(args, inp, vocab, entity_set, entity_counter, type):
 
         input_seqs.append(single_inp_art)
 
-    return input_seqs, input_hl_seqs
+    return input_seqs, input_hl_seqs, input_hl_entities
 
 
 def machine_ready(args, train, dev, test, vocab, count):
@@ -211,7 +236,7 @@ def machine_ready(args, train, dev, test, vocab, count):
     entity_counter = 1
 
     print 'Train data NER and indexing'
-    seqs_train_articles, seqs_train_hl = seqs(args, train, vocab, entity_set, entity_counter, 'train')
+    seqs_train_articles, seqs_train_hl, seqs_train_e = seqs(args, train, vocab, entity_set, entity_counter, 'train')
 
     filename_train = args.train if args.full_test else "small_" + args.train
     filename_train = str(count) + '_' + filename_train
@@ -221,18 +246,15 @@ def machine_ready(args, train, dev, test, vocab, count):
 
     final_json_train['x'] = seqs_train_articles
     final_json_train['y'] = seqs_train_hl
-    final_json_train['entities'] = entity_set.items()
+    final_json_train['e'] = seqs_train_e
 
     json.dump(final_json_train, ofp_train)
     ofp_train.close()
     del seqs_train_articles
     del seqs_train_hl
 
-    if 12 < 14:
-        return
-
     print 'Dev data NER and indexing'
-    seqs_dev_articles, seqs_dev_hl = seqs(args, dev, vocab, entity_set, entity_counter,'dev')
+    seqs_dev_articles, seqs_dev_hl, seqs_dev_e = seqs(args, dev, vocab, entity_set, entity_counter,'dev')
 
     filename_dev = args.dev if args.full_test else "small_" + args.dev
     filename_dev = str(count) + '_' + filename_dev
@@ -242,6 +264,7 @@ def machine_ready(args, train, dev, test, vocab, count):
 
     final_json_dev['x'] = seqs_dev_articles
     final_json_dev['y'] = seqs_dev_hl
+    final_json_dev['e'] = seqs_dev_e
 
     json.dump(final_json_dev, ofp_dev)
     ofp_dev.close()
@@ -249,7 +272,7 @@ def machine_ready(args, train, dev, test, vocab, count):
     del seqs_dev_hl
 
     print 'Test data indexing'
-    seqs_test_articles, seqs_test_hl = seqs(args, test[0], vocab, entity_set, entity_counter, 'test')
+    seqs_test_articles, seqs_test_hl, _ = seqs(args, test, vocab, entity_set, entity_counter, 'test')
 
     filename_test = args.dev if args.full_test else "small_" + args.test
     filename_test = str(count) + '_' + filename_test
@@ -262,6 +285,18 @@ def machine_ready(args, train, dev, test, vocab, count):
 
     json.dump(final_json_test, ofp_test)
     ofp_test.close()
+    del seqs_test_articles
+    del seqs_test_hl
+
+    filename_entities = 'entities.json' if args.full_test else "small_entities.json"
+    filename_entities = str(count) + '_' + filename_entities
+
+    ofp_entities = open(filename_entities, 'w+')
+    final_json_entities = dict()
+    final_json_entities['entities'] = entity_set.items()
+
+    json.dump(final_json_entities, ofp_entities)
+    ofp_entities.close()
 
 
 def tokenize(args, current_article, current_highlights, unique_w):
@@ -317,10 +352,11 @@ def create_vocab_map(unique_w, count):
         else:
             inv_map[v] = [k]
 
-    ofp.write('<padding>\n<unk>\n')
+    ofp.write('<padding>\n<unk>\n<placeholder>\n')
 
     vocab_map['<padding>'] = 0
     vocab_map['<unk>'] = 1
+    vocab_map['<placeholder>'] = 2
 
     for c in sorted(inv_map.iterkeys(), reverse=True):
         words = inv_map[c]
@@ -435,13 +471,14 @@ def find_ner_tokens(tokens_ls, tag_ls):
 
             if current_ner is None:
                 start_idx = i
+                current_ner = item['ner']
             elif current_ner != item['ner']:
                 end_idx = i - 1
 
                 name = ''
 
                 for j in range(start_idx, i):
-                    name += tokens_ls[j]['word'].lower()
+                    name += tokens_ls[j]['lemma']
                     name += '' if j == i - 1 else ' '
 
                 # (entity name, start, end, type)
@@ -457,7 +494,7 @@ def find_ner_tokens(tokens_ls, tag_ls):
             name = ''
 
             for j in range(start_idx, i):
-                name += tokens_ls[j]['word']
+                name += tokens_ls[j]['lemma']
                 name += '' if j == i - 1 else ' '
 
             ner = (name, start_idx, end_idx, current_ner)

@@ -14,7 +14,7 @@ def get_args():
 
     parser.add_argument('--full_test',
                         type='bool',
-                        default=False,
+                        default=True,
                         help='Process full selection of CNN data')
 
     parser.add_argument('--pipeline',
@@ -22,11 +22,17 @@ def get_args():
                         default=False,
                         help='Process for Stanford Core NLP')
 
-    parser.add_argument('--raw_data',
+    parser.add_argument('--raw_data_cnn',
                         type=str,
-                        # default='/data1/corpora/cnn_dailymail/cnn-dailymail',
-                        default='cnn/stories/',
-                        help='Raw data')
+                        default='/data1/corpora/cnn_dailymail/cnn-dailymail/cnn_stories_tokenized/',
+                        # default='cnn/stories/',
+                        help='Raw data CNN')
+
+    parser.add_argument('--raw_data_dm',
+                        type=str,
+                        default='/data1/corpora/cnn_dailymail/cnn-dailymail/dm_stories_tokenized/',
+                        # default='cnn/stories/',
+                        help='Raw data Daily Mail')
 
     parser.add_argument('--word_model',
                         type=str,
@@ -40,7 +46,7 @@ def get_args():
 
     parser.add_argument('--small_limit',
                         type=int,
-                        default=10,
+                        default=1000,
                         help='small batch limit in number of stories')
 
     parser.add_argument('--inp_len',
