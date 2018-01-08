@@ -160,6 +160,7 @@ def seqs(args, inp, vocab, entity_set, entity_counter, type):
 
         single_inp_hl = []
         single_inp_hl_entity_map = []
+        single_inp_article_entity_map = []
         single_inp_art = []
 
         highlight = inp[0][sample]
@@ -179,14 +180,14 @@ def seqs(args, inp, vocab, entity_set, entity_counter, type):
             root_token = find_root_token(tokens_ls, root_basic_dep)
             root_lemma = root_token['lemma']
 
-            if root_lemma not in entity_set: # previously not found @entity
-                entity_set[root_lemma] = entity_counter
+            if root_lemma.lower() not in entity_set: # previously not found @entity
+                entity_set[root_lemma.lower()] = entity_counter
                 entity_counter += 1
 
             hl_vec = create_hl_vector_root(args, vocab, tokens_ls, root_lemma)
 
             single_inp_hl.append(hl_vec)
-            single_inp_hl_entity_map.append(entity_set[root_lemma])
+            single_inp_hl_entity_map.append(entity_set[root_lemma.lower()])
 
             # 2.) find all instances of tags
             # named entities in the form : (entity name, start, end, type)
@@ -218,11 +219,9 @@ def seqs(args, inp, vocab, entity_set, entity_counter, type):
 
             for i in xrange(max_len):
                 word = sentence[i]
-                if word in entities_used:
-                    s.append(entity_set[word])
-                else:
-                    index = vocab[word] if word in vocab else 1
-                    s.append(index)
+
+                index = vocab[word] if word in vocab else 1
+                s.append(index)
 
             single_inp_art.append(s)
 
@@ -478,7 +477,7 @@ def find_ner_tokens(tokens_ls, tag_ls):
                 name = ''
 
                 for j in range(start_idx, i):
-                    name += tokens_ls[j]['lemma']
+                    name += tokens_ls[j]['lemma'].lower()
                     name += '' if j == i - 1 else ' '
 
                 # (entity name, start, end, type)
@@ -494,7 +493,7 @@ def find_ner_tokens(tokens_ls, tag_ls):
             name = ''
 
             for j in range(start_idx, i):
-                name += tokens_ls[j]['lemma']
+                name += tokens_ls[j]['lemma'].lower()
                 name += '' if j == i - 1 else ' '
 
             ner = (name, start_idx, end_idx, current_ner)
