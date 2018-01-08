@@ -3,7 +3,6 @@ import os
 import sys
 
 import hashlib
-from nltk.tag import StanfordNERTagger
 
 import data_args
 
@@ -14,12 +13,16 @@ sys.setdefaultencoding('utf8')
 
 def process_data(args):
     train, dev, test, unique_w = split_data(args)
-    word_counts = [50000, 20000, 10000]
 
-    for count in word_counts:
-        print 'Building dataset for vocab size : ' + str(count)
-        vocab = create_vocab_map(unique_w, count)
-        machine_ready(args, train, dev, test, vocab, count)
+    if args.pipeline: # takes a long-o-time
+        core_nlp(args, train[0], dev[0], test[0])
+    else:
+        word_counts = [150000, 100000, 50000]
+
+        for count in word_counts:
+            print 'Building dataset for vocab size : ' + str(count)
+            vocab = create_vocab_map(unique_w, count)
+            machine_ready(args, train, dev, test, vocab, count)
 
 
 def split_data(args):
@@ -95,58 +98,93 @@ def split_data(args):
     return (highlights_train, articles_train), (highlights_dev, articles_dev), (highlights_test, articles_test), unique_words
 
 
-def seqs(args, inp, vocab, tagger, test=False):
+def core_nlp(args, train, dev, test):
+
+    ofp_train = open(args.intermediate + '_train.txt', 'w+')
+    ofp_dev = open(args.intermediate + '_dev.txt', 'w+')
+    ofp_test = open(args.intermediate + '_test.txt', 'w+')
+
+    for highlight in train:
+
+        for sentence in highlight:
+            for word in sentence:
+                ofp_train.write(word + ' ')
+            ofp_train.write('.\n')
+        ofp_train.write('\n')
+
+    ofp_train.close()
+
+
+def seqs(args, inp, vocab, entity_set, entity_counter, type):
     input_seqs = []
     input_hl_seqs = []
-    entity_set = dict()
-    entity_counter = 1
 
     tag_ls = ['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC']
+
+    annotated_hl_fp = open(args.intermediate + '_' + str(type) + '.txt.json', 'r')
+    annotated_hl_json = json.load(annotated_hl_fp)
+    sentences = annotated_hl_json['sentences']
+
+    hl_idx_start = hl_idx_end = 0
 
     total_samples = len(inp[0])
     print total_samples, 'total samples'
 
     for sample in xrange(total_samples):
-        if sample % (total_samples / 10) == 0:
+        if (total_samples / 10) > 0 and sample % (total_samples / 10) == 0:
             print '..', sample
 
         single_inp_hl = []
+        single_inp_hl_entity_map = []
         single_inp_art = []
 
         highlight = inp[0][sample]
         article = inp[1][sample]
 
         entities_used = []
+        hl_idx_start = hl_idx_end
+        hl_idx_end += len(highlight)
 
-        for sentence in highlight:
-            no_entity = True
+        for h in range(hl_idx_start, hl_idx_end):
+            # 1.) find sentence root
+            working_anno_hl = sentences[h]
+            basic_dep = working_anno_hl['basicDependencies']
+            tokens_ls = working_anno_hl['tokens']
 
-            s = []
-            tagged_text = tagger.tag(sentence[:args.inp_len_hl])
+            root_basic_dep = basic_dep[0]
+            root_token = find_root_token(tokens_ls, root_basic_dep)
+            root_lemma = root_token['lemma']
 
-            for i in xrange(len(tagged_text)):
-                tag_token = tagged_text[i]
+            if root_lemma not in entity_set: # previously not found @entity
+                entity_set[root_lemma] = entity_counter
+                entity_counter += 1
 
-                if tag_token[1] in tag_ls and no_entity: # word is an entity, and highlight still needs entity
+            hl_vec = create_hl_vector_root(args, vocab, tokens_ls, root_lemma)
 
-                    if tag_token[0] in entity_set:
-                        s.append(entity_set[tag_token[0]])
-                    else:
-                        placeholder = '@entity' + str(entity_counter)
-                        s.append(placeholder)
-                        entity_set[tag_token[0]] = placeholder
-                        entity_counter += 1
+            single_inp_hl.append(hl_vec)
+            single_inp_hl_entity_map.append(entity_set[root_lemma])
 
-                    entities_used.append(tag_token[0])
+            # 2.) find all instances of tags
+            # named entities in the form : (entity name, start, end, type)
+            entities = find_ner_tokens(tokens_ls, tag_ls)
 
-                    no_entity = False
-                else:
-                    index = vocab[sentence[i]] if sentence[i] in vocab else 1
-                    s.append(index)
+            clean_hl_vec = create_hl_vector(args, vocab, tokens_ls)
 
-            single_inp_hl.append(s)
+            for ner in entities:
 
-        input_hl_seqs.append(single_inp_hl)
+                if ner[2] > args.inp_len_hl:
+                    continue
+
+                if ner[0] not in entity_set:
+                    entity_set[ner[0]] = entity_counter
+                    entity_counter += 1
+
+                hl_vec_complete = clean_hl_vec[:ner[1]] + [args.placeholder] + clean_hl_vec[ner[2] + 1:]
+
+                single_inp_hl.append(hl_vec_complete[:args.inp_len_hl])
+                single_inp_hl_entity_map.append(entity_set[ner[0]])
+
+            input_hl_seqs.append(single_inp_hl)
 
         for sentence in article:
 
@@ -165,14 +203,15 @@ def seqs(args, inp, vocab, tagger, test=False):
 
         input_seqs.append(single_inp_art)
 
-    return input_seqs, input_hl_seqs, entity_set.items()
+    return input_seqs, input_hl_seqs
 
 
 def machine_ready(args, train, dev, test, vocab, count):
-    st = StanfordNERTagger(args.stgz, args.stjar, encoding='utf-8')
+    entity_set = dict()
+    entity_counter = 1
 
     print 'Train data NER and indexing'
-    seqs_train_articles, seqs_train_hl, train_items = seqs(args, train, vocab, st)
+    seqs_train_articles, seqs_train_hl = seqs(args, train, vocab, entity_set, entity_counter, 'train')
 
     filename_train = args.train if args.full_test else "small_" + args.train
     filename_train = str(count) + '_' + filename_train
@@ -182,16 +221,18 @@ def machine_ready(args, train, dev, test, vocab, count):
 
     final_json_train['x'] = seqs_train_articles
     final_json_train['y'] = seqs_train_hl
-    final_json_train['entities'] = train_items
+    final_json_train['entities'] = entity_set.items()
 
     json.dump(final_json_train, ofp_train)
     ofp_train.close()
     del seqs_train_articles
     del seqs_train_hl
-    del train_items
+
+    if 12 < 14:
+        return
 
     print 'Dev data NER and indexing'
-    seqs_dev_articles, seqs_dev_hl, dev_items = seqs(args, dev, vocab, st)
+    seqs_dev_articles, seqs_dev_hl = seqs(args, dev, vocab, entity_set, entity_counter,'dev')
 
     filename_dev = args.dev if args.full_test else "small_" + args.dev
     filename_dev = str(count) + '_' + filename_dev
@@ -201,16 +242,14 @@ def machine_ready(args, train, dev, test, vocab, count):
 
     final_json_dev['x'] = seqs_dev_articles
     final_json_dev['y'] = seqs_dev_hl
-    final_json_dev['entities'] = dev_items
 
     json.dump(final_json_dev, ofp_dev)
     ofp_dev.close()
     del seqs_dev_articles
     del seqs_dev_hl
-    del dev_items
 
     print 'Test data indexing'
-    seqs_test_articles, seqs_test_hl, _ = seqs(args, test[0], vocab, st, test=True)
+    seqs_test_articles, seqs_test_hl = seqs(args, test[0], vocab, entity_set, entity_counter, 'test')
 
     filename_test = args.dev if args.full_test else "small_" + args.test
     filename_test = str(count) + '_' + filename_test
@@ -251,13 +290,14 @@ def tokenize(args, current_article, current_highlights, unique_w):
         words = sentence.rstrip().split(' ')
         s = []
         for w in words:
-            w = w.lower()
+            s.append(w)
 
+            w = w.lower()
             if w in unique_w:
                 unique_w[w] += 1
             else:
                 unique_w[w] = 1
-            s.append(w)
+
 
         highlights.append(s)
 
@@ -336,6 +376,98 @@ def get_set(file_in, train_urls, dev_urls, test_urls):
         return 3
     else:
         return -1
+
+
+def find_root_token(tokens_ls, root_basic_dep):
+    word = root_basic_dep['dependentGloss']
+
+    for token in tokens_ls:
+
+        if token['originalText'] == word:
+            return token
+
+    return None
+
+
+def create_hl_vector_root(args, vocab, tokens_ls, root_lemma):
+    vector = []
+
+    for token in tokens_ls:
+
+        if root_lemma == token['lemma']:
+            vector.append(args.placeholder)
+        else:
+            word = token['word'].lower()
+
+            if word in vocab:
+                vector.append(vocab[word])
+            else:
+                vector.append(args.unk)
+
+    return vector
+
+
+def create_hl_vector(args, vocab, tokens_ls):
+    vector = []
+
+    for token in tokens_ls:
+
+        word = token['word'].lower()
+
+        if word in vocab:
+            vector.append(vocab[word])
+        else:
+            vector.append(args.unk)
+
+    return vector
+
+
+def find_ner_tokens(tokens_ls, tag_ls):
+    ner_set = set()
+    current_ner = None
+    start_idx = end_idx = -1
+
+    for i in xrange(len(tokens_ls)):
+
+        item = tokens_ls[i]
+
+        if item['ner'] in tag_ls:
+
+            if current_ner is None:
+                start_idx = i
+            elif current_ner != item['ner']:
+                end_idx = i - 1
+
+                name = ''
+
+                for j in range(start_idx, i):
+                    name += tokens_ls[j]['word'].lower()
+                    name += '' if j == i - 1 else ' '
+
+                # (entity name, start, end, type)
+                ner = (name, start_idx, end_idx, current_ner)
+                ner_set.add(ner)
+
+                start_idx = i
+                current_ner = item['ner']
+
+        elif current_ner is not None:
+            end_idx = i - 1
+
+            name = ''
+
+            for j in range(start_idx, i):
+                name += tokens_ls[j]['word']
+                name += '' if j == i - 1 else ' '
+
+            ner = (name, start_idx, end_idx, current_ner)
+            ner_set.add(ner)
+
+            start_idx = -1
+            current_ner = None
+
+    return ner_set
+
 
 if __name__ == '__main__':
     args = data_args.get_args()
