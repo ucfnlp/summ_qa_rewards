@@ -138,8 +138,59 @@ def core_nlp(args, train, dev, test):
     ofp_test.close()
 
 
-def seqs(args, inp, vocab, entity_set, entity_counter, type):
-    input_seqs = []
+def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map):
+    inp_seqs = []
+    inp_ents = []
+
+    for article in inp:
+        single_inp_seqs = []
+        entities_in_article = set()
+
+        for sent in article:
+
+            single_inp_sent = []
+            for w in xrange(len(sent)):
+
+                # 1.) check if word in vocab or not
+                word = sent[w].lower()
+
+                index = vocab[word] if word in vocab else 1
+                single_inp_sent.append(index)
+
+                # 2.) check if word starts NER
+                if word in first_word_map:
+
+                    originals = first_word_map[word]
+
+                    for raw_text_entity in originals:
+
+                        text_ls = raw_text_entity.split(' ')
+                        ent_len = len(text_ls)
+                        entity_found = True
+
+                        for i in xrange(ent_len):
+                            if w + i >= len(sent):
+                                entity_found = False
+                                break
+
+                            if sent[w + i] != text_ls[i]:
+                                entity_found = False
+                                break
+
+                        if entity_found:
+                            entity = entity_set[raw_entity_mapping[raw_text_entity]]
+                            if entity[0] not in entities_in_article and entity[1] != 'ROOT':
+                                entities_in_article.add(entity[0])
+                            break
+
+            single_inp_seqs.append(single_inp_sent)
+        inp_ents.append(list(entities_in_article))
+        inp_seqs.append(single_inp_seqs)
+
+    return inp_seqs, inp_ents
+
+
+def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, first_word_map,  type):
     input_hl_seqs = []
     input_hl_entities = []
 
@@ -151,7 +202,7 @@ def seqs(args, inp, vocab, entity_set, entity_counter, type):
 
     hl_idx_start = hl_idx_end = 0
 
-    total_samples = len(inp[0])
+    total_samples = len(inp)
     print total_samples, 'total samples'
 
     for sample in xrange(total_samples):
@@ -160,79 +211,100 @@ def seqs(args, inp, vocab, entity_set, entity_counter, type):
 
         single_inp_hl = []
         single_inp_hl_entity_map = []
-        single_inp_article_entity_map = []
-        single_inp_art = []
 
-        highlight = inp[0][sample]
-        article = inp[1][sample]
+        highlight = inp[sample]
 
-        entities_used = []
         hl_idx_start = hl_idx_end
         hl_idx_end += len(highlight)
 
         for h in range(hl_idx_start, hl_idx_end):
+
+            single_sent_hl_entity_map = []
+
             # 1.) find sentence root
             working_anno_hl = sentences[h]
             basic_dep = working_anno_hl['basicDependencies']
             tokens_ls = working_anno_hl['tokens']
 
             root_basic_dep = basic_dep[0]
-            root_idx = root_basic_dep['index']
+            root_idx = root_basic_dep['dependent']
 
             root_token= tokens_ls[root_idx - 1]
             root_lemma = root_token['lemma']
 
             if root_lemma.lower() not in entity_set: # previously not found @entity
-                entity_set[root_lemma.lower()] = entity_counter
+                entity_info = [entity_counter, root_token['ner']]
+                entity_set[root_lemma.lower()] = entity_info
                 entity_counter += 1
+
             clean_hl_vec = create_hl_vector(args, vocab, tokens_ls)
 
             hl_vec = clean_hl_vec[:]
             hl_vec[root_idx - 1] = 2
 
             single_inp_hl.append(hl_vec)
-            single_inp_hl_entity_map.append(entity_set[root_lemma.lower()])
+            single_sent_hl_entity_map.append(entity_set[root_lemma.lower()])
 
             # 2.) find all instances of tags
-            # named entities in the form : (entity name, start, end, type)
+            # named entities in the form : (entity name, start, end, type, raw name, first word)
             entities = find_ner_tokens(tokens_ls, tag_ls)
 
             for ner in entities:
                 if ner[0] not in entity_set:
-                    entity_set[ner[0]] = entity_counter
+                    entity_info = [entity_counter, ner[3]]
+                    entity_set[ner[0]] = entity_info
                     entity_counter += 1
 
                 hl_vec_complete = clean_hl_vec[:ner[1]] + [args.placeholder] + clean_hl_vec[ner[2] + 1:]
 
                 single_inp_hl.append(hl_vec_complete)
-                single_inp_hl_entity_map.append(entity_set[ner[0]])
+                single_sent_hl_entity_map.append(entity_set[ner[0]])
+
+                if ner[4] not in raw_entity_mapping:
+                    raw_entity_mapping[ner[4]] = ner[0]
+
+                if ner[5] not in first_word_map:
+                    first_word_map[ner[5]] = [ner[4]]
+                else:
+                    originals = first_word_map[ner[5]]
+
+                    if ner[4] not in originals:
+                        first_word_map[ner[5]].append(ner[4])
 
             input_hl_seqs.append(single_inp_hl)
+            single_inp_hl_entity_map.append(single_sent_hl_entity_map)
+
         input_hl_entities.append(single_inp_hl_entity_map)
 
-        for sentence in article:
-
-            s = []
-
-            for i in xrange(len(sentence)):
-                word = sentence[i]
-
-                index = vocab[word] if word in vocab else 1
-                s.append(index)
-
-            single_inp_art.append(s)
-
-        input_seqs.append(single_inp_art)
-
-    return input_seqs, input_hl_seqs, input_hl_entities
+    return input_hl_seqs, input_hl_entities, entity_counter
 
 
 def machine_ready(args, train, dev, test, vocab, count):
     entity_set = dict()
+    raw_entity_mapping = dict()
+    first_word_map = dict()
+
     entity_counter = 1
 
-    print 'Train data NER and indexing'
-    seqs_train_articles, seqs_train_hl, seqs_train_e = seqs(args, train, vocab, entity_set, entity_counter, 'train')
+    print 'Train data NER HL proc..'
+    seqs_train_hl, seqs_train_e, entity_counter = seqs_hl(args, train[0], vocab, entity_set, entity_counter, raw_entity_mapping,
+                                          first_word_map, 'train')
+    print 'Dev data NER HL proc..'
+    seqs_dev_hl, seqs_dev_e, entity_counter = seqs_hl(args, dev[0], vocab, entity_set, entity_counter, raw_entity_mapping,
+                                      first_word_map, 'dev')
+    print 'Test data NER HL proc..'
+    seqs_test_hl, seqs_test_e, entity_counter = seqs_hl(args, test[0], vocab, entity_set, entity_counter, raw_entity_mapping,
+                                        first_word_map, 'test')
+
+    print 'Train data indexing..'
+    seqs_train_articles, seq_train_art_ents = seqs_art(args, train[1], vocab, entity_set, raw_entity_mapping,
+                                                       first_word_map)
+    print 'Dev data indexing..'
+    seqs_dev_articles, seq_dev_art_ents = seqs_art(args, dev[1], vocab, entity_set, raw_entity_mapping,
+                                                   first_word_map)
+    print 'Test data indexing..'
+    seqs_test_articles, seq_test_art_ents = seqs_art(args, test[1], vocab, entity_set, raw_entity_mapping,
+                                                     first_word_map)
 
     filename_train = args.train if args.full_test else "small_" + args.train
     filename_train = str(count) + '_' + filename_train
@@ -243,14 +315,10 @@ def machine_ready(args, train, dev, test, vocab, count):
     final_json_train['x'] = seqs_train_articles
     final_json_train['y'] = seqs_train_hl
     final_json_train['e'] = seqs_train_e
+    final_json_train['valid_e'] = seq_train_art_ents
 
     json.dump(final_json_train, ofp_train)
     ofp_train.close()
-    del seqs_train_articles
-    del seqs_train_hl
-
-    print 'Dev data NER and indexing'
-    seqs_dev_articles, seqs_dev_hl, seqs_dev_e = seqs(args, dev, vocab, entity_set, entity_counter,'dev')
 
     filename_dev = args.dev if args.full_test else "small_" + args.dev
     filename_dev = str(count) + '_' + filename_dev
@@ -261,14 +329,10 @@ def machine_ready(args, train, dev, test, vocab, count):
     final_json_dev['x'] = seqs_dev_articles
     final_json_dev['y'] = seqs_dev_hl
     final_json_dev['e'] = seqs_dev_e
+    final_json_dev['valid_e'] = seq_dev_art_ents
 
     json.dump(final_json_dev, ofp_dev)
     ofp_dev.close()
-    del seqs_dev_articles
-    del seqs_dev_hl
-
-    print 'Test data indexing'
-    seqs_test_articles, seqs_test_hl, _ = seqs(args, test, vocab, entity_set, entity_counter, 'test')
 
     filename_test = args.dev if args.full_test else "small_" + args.test
     filename_test = str(count) + '_' + filename_test
@@ -281,8 +345,6 @@ def machine_ready(args, train, dev, test, vocab, count):
 
     json.dump(final_json_test, ofp_test)
     ofp_test.close()
-    del seqs_test_articles
-    del seqs_test_hl
 
     filename_entities = 'entities.json' if args.full_test else "small_entities.json"
     filename_entities = str(count) + '_' + filename_entities
@@ -443,14 +505,20 @@ def find_ner_tokens(tokens_ls, tag_ls):
                 end_idx = i - 1
 
                 name = ''
+                name_raw = ''
 
                 for j in range(start_idx, i):
                     name += tokens_ls[j]['lemma'].lower()
                     name += '' if j == i - 1 else ' '
 
-                # (entity name, start, end, type)
-                ner = (name, start_idx, end_idx, current_ner)
+                    name_raw += tokens_ls[j]['originalText'].lower()
+                    name_raw += '' if j == i - 1 else ' '
+
+                # (entity name, start, end, type, raw_name, first word)
+                fw = tokens_ls[start_idx]['originalText'].lower()
+                ner = (name, start_idx, end_idx, current_ner, name_raw, fw)
                 ner_set.add(ner)
+
 
                 start_idx = i
                 current_ner = item['ner']
@@ -459,12 +527,17 @@ def find_ner_tokens(tokens_ls, tag_ls):
             end_idx = i - 1
 
             name = ''
+            name_raw = ''
 
             for j in range(start_idx, i):
                 name += tokens_ls[j]['lemma'].lower()
                 name += '' if j == i - 1 else ' '
 
-            ner = (name, start_idx, end_idx, current_ner)
+                name_raw += tokens_ls[j]['originalText'].lower()
+                name_raw += '' if j == i - 1 else ' '
+
+            fw = tokens_ls[start_idx]['originalText'].lower()
+            ner = (name, start_idx, end_idx, current_ner, name_raw, fw)
             ner_set.add(ner)
 
             start_idx = -1
