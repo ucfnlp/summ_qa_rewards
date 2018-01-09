@@ -177,14 +177,18 @@ def seqs(args, inp, vocab, entity_set, entity_counter, type):
             tokens_ls = working_anno_hl['tokens']
 
             root_basic_dep = basic_dep[0]
-            root_token = find_root_token(tokens_ls, root_basic_dep)
+            root_idx = root_basic_dep['index']
+
+            root_token= tokens_ls[root_idx - 1]
             root_lemma = root_token['lemma']
 
             if root_lemma.lower() not in entity_set: # previously not found @entity
                 entity_set[root_lemma.lower()] = entity_counter
                 entity_counter += 1
+            clean_hl_vec = create_hl_vector(args, vocab, tokens_ls)
 
-            hl_vec = create_hl_vector_root(args, vocab, tokens_ls, root_lemma)
+            hl_vec = clean_hl_vec[:]
+            hl_vec[root_idx - 1] = 2
 
             single_inp_hl.append(hl_vec)
             single_inp_hl_entity_map.append(entity_set[root_lemma.lower()])
@@ -193,20 +197,14 @@ def seqs(args, inp, vocab, entity_set, entity_counter, type):
             # named entities in the form : (entity name, start, end, type)
             entities = find_ner_tokens(tokens_ls, tag_ls)
 
-            clean_hl_vec = create_hl_vector(args, vocab, tokens_ls)
-
             for ner in entities:
-
-                if ner[2] > args.inp_len_hl:
-                    continue
-
                 if ner[0] not in entity_set:
                     entity_set[ner[0]] = entity_counter
                     entity_counter += 1
 
                 hl_vec_complete = clean_hl_vec[:ner[1]] + [args.placeholder] + clean_hl_vec[ner[2] + 1:]
 
-                single_inp_hl.append(hl_vec_complete[:args.inp_len_hl])
+                single_inp_hl.append(hl_vec_complete)
                 single_inp_hl_entity_map.append(entity_set[ner[0]])
 
             input_hl_seqs.append(single_inp_hl)
@@ -215,9 +213,8 @@ def seqs(args, inp, vocab, entity_set, entity_counter, type):
         for sentence in article:
 
             s = []
-            max_len = args.inp_len if args.inp_len < len(sentence) else len(sentence)
 
-            for i in xrange(max_len):
+            for i in xrange(len(sentence)):
                 word = sentence[i]
 
                 index = vocab[word] if word in vocab else 1
@@ -411,35 +408,6 @@ def get_set(file_in, train_urls, dev_urls, test_urls):
         return 3
     else:
         return -1
-
-
-def find_root_token(tokens_ls, root_basic_dep):
-    word = root_basic_dep['dependentGloss']
-
-    for token in tokens_ls:
-
-        if token['originalText'] == word:
-            return token
-
-    return None
-
-
-def create_hl_vector_root(args, vocab, tokens_ls, root_lemma):
-    vector = []
-
-    for token in tokens_ls:
-
-        if root_lemma == token['lemma']:
-            vector.append(args.placeholder)
-        else:
-            word = token['word'].lower()
-
-            if word in vocab:
-                vector.append(vocab[word])
-            else:
-                vector.append(args.unk)
-
-    return vector
 
 
 def create_hl_vector(args, vocab, tokens_ls):
