@@ -271,9 +271,10 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
                     if ner[4] not in originals:
                         first_word_map[ner[5]].append(ner[4])
 
-            input_hl_seqs.append(single_inp_hl)
+
             single_inp_hl_entity_ls.append(single_sent_hl_entity_ls)
 
+        input_hl_seqs.append(single_inp_hl)
         input_hl_entities.append(single_inp_hl_entity_ls)
 
     return input_hl_seqs, input_hl_entities, entity_counter
@@ -295,6 +296,8 @@ def machine_ready(args, train, dev, test, vocab, count):
     print 'Test data NER HL proc..'
     seqs_test_hl, seqs_test_e, entity_counter = seqs_hl(args, test[0], vocab, entity_set, entity_counter, raw_entity_mapping,
                                         first_word_map, 'test')
+
+    # sort_entries(first_word_map)
 
     print 'Train data indexing..'
     seqs_train_articles, seq_train_art_ents = seqs_art(args, train[1], vocab, entity_set, raw_entity_mapping,
@@ -485,6 +488,12 @@ def create_hl_vector(args, vocab, tokens_ls):
             vector.append(args.unk)
 
     return vector
+
+
+def sort_entries(first_word_map):
+    for word, ls in first_word_map:
+
+        originals
 
 
 def find_ner_tokens(tokens_ls, tag_ls):
