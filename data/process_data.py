@@ -210,7 +210,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             print '..', sample
 
         single_inp_hl = []
-        single_inp_hl_entity_map = []
+        single_inp_hl_entity_ls = []
 
         highlight = inp[sample]
 
@@ -219,7 +219,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
 
         for h in range(hl_idx_start, hl_idx_end):
 
-            single_sent_hl_entity_map = []
+            single_sent_hl_entity_ls = []
 
             # 1.) find sentence root
             working_anno_hl = sentences[h]
@@ -243,7 +243,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             hl_vec[root_idx - 1] = args.placeholder
 
             single_inp_hl.append(hl_vec)
-            single_sent_hl_entity_map.append(entity_set[root_lemma.lower()][0])
+            single_sent_hl_entity_ls.append(entity_set[root_lemma.lower()][0])
 
             # 2.) find all instances of tags
             # named entities in the form : (entity name, start, end, type, raw name, first word)
@@ -258,7 +258,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
                 hl_vec_complete = clean_hl_vec[:ner[1]] + [args.placeholder] + clean_hl_vec[ner[2] + 1:]
 
                 single_inp_hl.append(hl_vec_complete)
-                single_sent_hl_entity_map.append(entity_set[ner[0]][0])
+                single_sent_hl_entity_ls.append(entity_set[ner[0]][0])
 
                 if ner[4] not in raw_entity_mapping:
                     raw_entity_mapping[ner[4]] = ner[0]
@@ -272,9 +272,9 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
                         first_word_map[ner[5]].append(ner[4])
 
             input_hl_seqs.append(single_inp_hl)
-            single_inp_hl_entity_map.append(single_sent_hl_entity_map)
+            single_inp_hl_entity_ls.append(single_sent_hl_entity_ls)
 
-        input_hl_entities.append(single_inp_hl_entity_map)
+        input_hl_entities.append(single_inp_hl_entity_ls)
 
     return input_hl_seqs, input_hl_entities, entity_counter
 
