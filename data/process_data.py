@@ -17,7 +17,7 @@ def process_data(args):
     if args.pipeline: # takes a long-o-time
         core_nlp(args, train[0], dev[0], test[0])
     else:
-        word_counts = [150000, 100000, 50000]
+        word_counts = [150000]#, 100000, 50000]
 
         for count in word_counts:
             print 'Building dataset for vocab size : ' + str(count)
@@ -233,17 +233,17 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             root_lemma = root_token['lemma']
 
             if root_lemma.lower() not in entity_set: # previously not found @entity
-                entity_info = [entity_counter, root_token['ner']]
+                entity_info = [entity_counter, 'ROOT']
                 entity_set[root_lemma.lower()] = entity_info
                 entity_counter += 1
 
             clean_hl_vec = create_hl_vector(args, vocab, tokens_ls)
 
             hl_vec = clean_hl_vec[:]
-            hl_vec[root_idx - 1] = 2
+            hl_vec[root_idx - 1] = args.placeholder
 
             single_inp_hl.append(hl_vec)
-            single_sent_hl_entity_map.append(entity_set[root_lemma.lower()])
+            single_sent_hl_entity_map.append(entity_set[root_lemma.lower()][0])
 
             # 2.) find all instances of tags
             # named entities in the form : (entity name, start, end, type, raw name, first word)
@@ -258,7 +258,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
                 hl_vec_complete = clean_hl_vec[:ner[1]] + [args.placeholder] + clean_hl_vec[ner[2] + 1:]
 
                 single_inp_hl.append(hl_vec_complete)
-                single_sent_hl_entity_map.append(entity_set[ner[0]])
+                single_sent_hl_entity_map.append(entity_set[ner[0]][0])
 
                 if ner[4] not in raw_entity_mapping:
                     raw_entity_mapping[ner[4]] = ner[0]
@@ -400,7 +400,7 @@ def tokenize(args, current_article, current_highlights, unique_w):
 def create_vocab_map(unique_w, count):
     ofp = open('vocab_' + str(count) + '.txt', 'w+')
     vocab_map = dict()
-    index = 2
+    index = 3
 
     inv_map = dict()
 
@@ -477,7 +477,7 @@ def create_hl_vector(args, vocab, tokens_ls):
 
     for token in tokens_ls:
 
-        word = token['word'].lower()
+        word = token['originalText'].lower()
 
         if word in vocab:
             vector.append(vocab[word])
