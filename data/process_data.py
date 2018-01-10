@@ -17,7 +17,7 @@ def process_data(args):
     if args.pipeline: # takes a long-o-time
         core_nlp(args, train[0], dev[0], test[0])
     else:
-        word_counts = [150000]#, 100000, 50000]
+        word_counts = [150000, 100000, 50000]
 
         for count in word_counts:
             print 'Building dataset for vocab size : ' + str(count)
@@ -179,8 +179,7 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map):
 
                         if entity_found:
                             entity = entity_set[raw_entity_mapping[raw_text_entity]]
-                            if entity[0] not in entities_in_article and entity[1] != 'ROOT':
-                                entities_in_article.add(entity[0])
+                            entities_in_article.add(entity[0])
                             break
 
             single_inp_seqs.append(single_inp_sent)
@@ -271,7 +270,6 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
                     if ner[4] not in originals:
                         first_word_map[ner[5]].append(ner[4])
 
-
             single_inp_hl_entity_ls.append(single_sent_hl_entity_ls)
 
         input_hl_seqs.append(single_inp_hl)
@@ -297,17 +295,17 @@ def machine_ready(args, train, dev, test, vocab, count):
     seqs_test_hl, seqs_test_e, entity_counter = seqs_hl(args, test[0], vocab, entity_set, entity_counter, raw_entity_mapping,
                                         first_word_map, 'test')
 
-    # sort_entries(first_word_map)
+    sorted_first_word_map = sort_entries(first_word_map)
 
     print 'Train data indexing..'
     seqs_train_articles, seq_train_art_ents = seqs_art(args, train[1], vocab, entity_set, raw_entity_mapping,
-                                                       first_word_map)
+                                                       sorted_first_word_map)
     print 'Dev data indexing..'
     seqs_dev_articles, seq_dev_art_ents = seqs_art(args, dev[1], vocab, entity_set, raw_entity_mapping,
-                                                   first_word_map)
+                                                   sorted_first_word_map)
     print 'Test data indexing..'
     seqs_test_articles, seq_test_art_ents = seqs_art(args, test[1], vocab, entity_set, raw_entity_mapping,
-                                                     first_word_map)
+                                                     sorted_first_word_map)
 
     filename_train = args.train if args.full_test else "small_" + args.train
     filename_train = str(count) + '_' + filename_train
@@ -393,7 +391,6 @@ def tokenize(args, current_article, current_highlights, unique_w):
                 unique_w[w] += 1
             else:
                 unique_w[w] = 1
-
 
         highlights.append(s)
 
@@ -491,9 +488,24 @@ def create_hl_vector(args, vocab, tokens_ls):
 
 
 def sort_entries(first_word_map):
-    for word, ls in first_word_map:
+    new_first_word_map = dict()
 
-        originals
+    for word, ls in first_word_map.iteritems():
+
+        new_ents = []
+        originals_as_ls = []
+
+        for entity in ls:
+            originals_as_ls.append(entity.split(' '))
+
+        sorted_ls = sorted(originals_as_ls, key=len, reverse=True)
+
+        for entity_ls in sorted_ls:
+            new_ents.append(' '.join(entity_ls))
+
+        new_first_word_map[word] = new_ents
+
+    return new_first_word_map
 
 
 def find_ner_tokens(tokens_ls, tag_ls):
