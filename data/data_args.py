@@ -12,9 +12,11 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.register('type', 'bool', str2bool)
 
+    # GENERAL DATA/DEBUG INFO
+
     parser.add_argument('--full_test',
                         type='bool',
-                        default=True,
+                        default=False,
                         help='Process full selection of CNN data')
 
     parser.add_argument('--pipeline',
@@ -22,10 +24,21 @@ def get_args():
                         default=False,
                         help='Process for Stanford Core NLP')
 
+    parser.add_argument('--split_by_source',
+                        type='bool',
+                        default=False,
+                        help='Split data further into domains')
+
+    parser.add_argument('--vocab_size',
+                        type=int,
+                        default=150000,
+                        help='Vocab size')
+
+
     parser.add_argument('--raw_data_cnn',
                         type=str,
-                        default='/data1/corpora/cnn_dailymail/cnn-dailymail/cnn_stories_tokenized/',
-                        # default='cnn/stories/',
+                        # default='/data1/corpora/cnn_dailymail/cnn-dailymail/cnn_stories_tokenized/',
+                        default='cnn/stories/',
                         help='Raw data CNN')
 
     parser.add_argument('--raw_data_dm',
@@ -33,6 +46,13 @@ def get_args():
                         default='/data1/corpora/cnn_dailymail/cnn-dailymail/dm_stories_tokenized/',
                         # default='cnn/stories/',
                         help='Raw data Daily Mail')
+
+    parser.add_argument('--small_limit',
+                        type=int,
+                        default=2000,
+                        help='small batch limit in number of stories')
+
+    # MODEL INPUT INFO
 
     parser.add_argument('--word_model',
                         type=str,
@@ -43,11 +63,6 @@ def get_args():
                         type=str,
                         default='cnn_w2v_tmp.txt',
                         help='w2v model name and path')
-
-    parser.add_argument('--small_limit',
-                        type=int,
-                        default=1000,
-                        help='small batch limit in number of stories')
 
     parser.add_argument('--inp_len',
                         type=int,
@@ -69,6 +84,48 @@ def get_args():
                         default=200,
                         help='Size of word vectors')
 
+    parser.add_argument('--n',
+                        type=int,
+                        default=4,
+                        help='Number of highlights to use for model input')
+
+    parser.add_argument('--use_root',
+                        type='bool',
+                        default=True,
+                        help='Whether to use the ROOT based entity in the data.')
+
+    parser.add_argument('--use_person',
+                        type='bool',
+                        default=True,
+                        help='Whether to use the PERSON based entity in the data.')
+
+    parser.add_argument('--use_location',
+                        type='bool',
+                        default=True,
+                        help='Whether to use the LOCATION based entity in the data.')
+
+    parser.add_argument('--use_org',
+                        type='bool',
+                        default=True,
+                        help='Whether to use the ORGANIZATION based entity in the data.')
+
+    parser.add_argument('--use_misc',
+                        type='bool',
+                        default=True,
+                        help='Whether to use the MISC based entity in the data.')
+
+    parser.add_argument('--use_all',
+                        type='bool',
+                        default=True,
+                        help='Use all entity types in the data.')
+
+    parser.add_argument('--use_hl_once',
+                        type='bool',
+                        default=False,
+                        help='Whether to use a given highlight only once, or all its permutations.')
+
+    # URLS FOR SPLITS
+
     parser.add_argument('--train_urls',
                         type=str,
                         default="lists/all_train.txt",
@@ -83,6 +140,8 @@ def get_args():
                         type=str,
                         default="lists/all_val.txt",
                         help='Dev Set URLs')
+
+    # INTERMEDIATE FILE NAMES, W/NER, AND MASK INFO
 
     parser.add_argument('--train',
                         type=str,
@@ -104,6 +163,25 @@ def get_args():
                         default="stanford_nlp",
                         help='file location for StanfordCoreNLP input')
 
+    # MODEL READY FILES
+
+    parser.add_argument('--train_model',
+                        type=str,
+                        default="training_model.json",
+                        help='Training Data ready for input to the model')
+
+    parser.add_argument('--test_model',
+                        type=str,
+                        default="test_model.json",
+                        help='Test Data ready for input to the model')
+
+    parser.add_argument('--dev_model',
+                        type=str,
+                        default="dev_model.json",
+                        help='Dev Data ready for input to the model')
+
+    # TOKENS
+
     parser.add_argument('--placeholder',
                         type=int,
                         default=2,
@@ -113,15 +191,5 @@ def get_args():
                         type=int,
                         default=1,
                         help='IDX of <unk> token')
-
-    parser.add_argument('--stgz',
-                        type=str,
-                        default="/Users/kristjan/Documents/Grad School/CAP7919/danqi/stanford-ner/classifiers/english.all.3class.distsim.crf.ser.gz",
-                        help='')
-
-    parser.add_argument('--stjar',
-                        type=str,
-                        default="/Users/kristjan/Documents/Grad School/CAP7919/danqi/stanford-ner/stanford-ner.jar",
-                        help='')
 
     return parser.parse_args()
