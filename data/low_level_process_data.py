@@ -14,11 +14,11 @@ def prune_hl(args):
 
     entity_map = get_entities(args)
 
-    updated_train_y, updated_train_e = prune_type(train_y, train_e, train_ve, entity_map)
-    updated_dev_y, updated_dev_e = prune_type(dev_y, dev_e, dev_ve, entity_map)
+    updated_train_y, updated_train_e, updated_train_x = prune_type(train_x, train_y, train_e, train_ve, entity_map)
+    updated_dev_y, updated_dev_e, updated_dev_x = prune_type(dev_x, dev_y, dev_e, dev_ve, entity_map)
 
-    return (train_x, updated_train_y, updated_train_e, train_ve), \
-           (dev_x, updated_dev_y, updated_dev_e, dev_ve)
+    return (updated_train_x, updated_train_y, updated_train_e, train_ve), \
+           (updated_dev_x, updated_dev_y, updated_dev_e, dev_ve)
 
 
 def write_model_ready(args, train, dev):
@@ -51,10 +51,11 @@ def write_model_ready(args, train, dev):
     ofp_dev.close()
 
 
-def prune_type(y, e, ve, entity_map):
+def prune_type(x, y, e, ve, entity_map):
     length = len(y)
     updated_y = []
     updated_e = []
+    updated_x = []
 
     restricted_types = generate_valid_entity_types(args)
 
@@ -85,9 +86,6 @@ def prune_type(y, e, ve, entity_map):
 
                 y_idx += 1
 
-        if i >= 10 and length < 1000:
-            print len(updated_e_ls)
-
         if total_entries < args.n and total_entries != 0:
 
             original_y = updated_y_ls[:]
@@ -102,8 +100,9 @@ def prune_type(y, e, ve, entity_map):
 
         updated_y.append(updated_y_ls[:args.n])
         updated_e.append(updated_e_ls[:args.n])
+        updated_x.append([w for sent in x[i] for w in sent])
 
-    return updated_y, updated_e
+    return updated_y, updated_e, updated_x
 
 
 def load_json(args, type):
