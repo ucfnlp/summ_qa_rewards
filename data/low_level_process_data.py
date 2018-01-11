@@ -61,8 +61,10 @@ def prune_type(y, e, ve, entity_map):
     for i in xrange(length):
 
         valid_entities = set(ve[i])
+
         y_idx = 0
         total_entries = 0
+
         updated_y_ls = []
         updated_e_ls = []
 
@@ -83,20 +85,20 @@ def prune_type(y, e, ve, entity_map):
 
                 y_idx += 1
 
-            if total_entries < args.n:
-                num_missing = args.n - total_entries
+        if i >= 10 and length < 1000:
+            print len(updated_e_ls)
 
-                if num_missing <= len(updated_e_ls):
+        if total_entries < args.n and total_entries != 0:
 
-                    original_y = updated_y_ls[:]
-                    original_e = updated_e_ls[:]
+            original_y = updated_y_ls[:]
+            original_e = updated_e_ls[:]
 
-                    added_entries = len(original_y)
+            added_entries = len(original_y)
 
-                    while total_entries < args.n:
-                        updated_e_ls.extend(original_e[:])
-                        updated_y_ls.extend(original_y[:])
-                        total_entries += added_entries
+            while total_entries < args.n:
+                updated_e_ls.extend(original_e[:])
+                updated_y_ls.extend(original_y[:])
+                total_entries += added_entries
 
         updated_y.append(updated_y_ls[:args.n])
         updated_e.append(updated_e_ls[:args.n])
