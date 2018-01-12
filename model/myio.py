@@ -144,18 +144,20 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
 def process_hl(args, lsty, padding_id):
     max_len_y = args.hl_len
     y_processed = []
-    unigrams = set()
+    unigrams = []
 
     for i in len(lsty):
         sample_y = []
+        sample_u = set()
 
         for y in lsty[i]:
             sample_y.append(np.pad(y, (max_len_y - len(y), 0), "constant", constant_values=padding_id))
 
             for token in y:
-                unigrams.add(token)
+                sample_u.add(token)
 
         y_processed.append(sample_y)
+        unigrams.append(sample_u)
 
     return y_processed, unigrams
 
@@ -163,12 +165,12 @@ def process_hl(args, lsty, padding_id):
 def create_unigram_masks(lstx, unigrams):
     masks = []
 
-    for x in lstx:
-        len_x = len(x)
+    for i in xrange(len(lstx)):
+        len_x = len(lstx[i])
         m = np.zeros((len_x,), dtype=np.int8)
 
-        for i in xrange(len_x):
-            if x[i] in unigrams:
+        for j in xrange(len_x):
+            if lstx[i][j] in unigrams[i]:
                 m[i] = 1
 
         masks.append(m)
