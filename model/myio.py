@@ -22,35 +22,50 @@ def read_rationales(path):
 
 
 def read_docs(filename):
-    data_x, data_y = [], []
 
-    with open(filename, 'r') as data_file:
+    with open(filename, 'rb') as data_file:
         data = json.load(data_file)
 
     data_x = data['x']
     data_y = data['y']
+    data_ve = data['valid_e']
+    data_e = data['e']
 
     data_file.close()
 
-    return data_x, data_y
+    return data_x, data_y, data_ve, data_e
+
+
+def load_e(filename):
+
+    with open(filename, 'rb') as data_file:
+        data = json.load(data_file)
+
+    entites = data['entities']
+    data_file.close()
+
+    return entites
+
+
 
 
 def create_embedding_layer(path):
     embedding_layer = EmbeddingLayer(
         n_d=200,
-        vocab=["<unk>", "<padding>"],
+        vocab=["<unk>", "<padding>", "<placeholder>"],
         embs=load_embedding_iterator(path),
         oov="<unk>",
-        # fix_init_embs = True
-        fix_init_embs=False
+        fix_init_embs = True
+        # fix_init_embs=False
     )
     return embedding_layer
 
 
-def create_batches(x, y, batch_size, padding_id, sort=True):
-    batches_x, batches_y, batches_v = [], [], []
+def create_batches(args, n_classes, x, y, ve, e, batch_size, padding_id, sort=True):
+    batches_x, batches_y, batches_e, batches_ve = [], [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
+
     if sort:
         perm = range(N)
         perm = sorted(perm, key=lambda i: len(x[i]))
@@ -58,15 +73,21 @@ def create_batches(x, y, batch_size, padding_id, sort=True):
         y = [y[i] for i in perm]
 
     for i in xrange(M):
-        bx, by, bv = create_one_batch(
+        bx, by, bve, be = create_one_batch(
+            args,
+            n_classes,
             x[i * batch_size:(i + 1) * batch_size],
             y[i * batch_size:(i + 1) * batch_size],
+            ve[i * batch_size:(i + 1) * batch_size],
+            e[i * batch_size:(i + 1) * batch_size],
             padding_id,
             batch_size
         )
         batches_x.append(bx)
         batches_y.append(by)
-        batches_v.append(bv)
+        batches_ve.append(bve)
+        batches_e.append(e)
+
 
     if sort:
         random.seed(5817)
@@ -74,28 +95,77 @@ def create_batches(x, y, batch_size, padding_id, sort=True):
         random.shuffle(perm2)
         batches_x = [batches_x[i] for i in perm2]
         batches_y = [batches_y[i] for i in perm2]
-        batches_v = [batches_v[i] for i in perm2]
+        batches_ve = [batches_ve[i] for i in perm2]
+        batches_e = [batches_e[i] for i in perm2]
 
-    return batches_x, batches_y, batches_v
+    return batches_x, batches_y, batches_ve, batches_e
 
 
-def create_one_batch(lstx, lsty, padding_id, b_len):
-    max_len = max(len(x) for x in lstx)
-    max_len_y = max(len(y) for y in lsty)
+def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len, bigrams=False):
+    """
+    Parameters
+    ----------
+    lstx : List of 1D documents.
+
+    lsty : List of list of sentences
+        usually a preselected limit of input Highlights
+
+    lstve : List of all valid entity indexes to use in loss
+
+    lste : For each hl in lsty, the correct class
+
+    """
+    max_len = args.inp_len
 
     assert min(len(x) for x in lstx) > 0
 
-    lstbv = bigram_vectorize(lstx, lsty, padding_id)
+    # padded y
+    lsty = process_hl(args,lsty, padding_id)
+    lstve = process_ent(n_classes, lstve)
 
     bx = np.column_stack([np.pad(x, (max_len - len(x), 0), "constant",
                                  constant_values=padding_id) for x in lstx])
-    by = np.column_stack([np.pad(y, (max_len_y - len(y), 0), "constant",
-                                 constant_values=padding_id) for y in lsty])
+    by = np.column_stack([y for y in lsty])
+    be = np.column_stack([e for e in lste])
 
-    bv = np.column_stack([b for b in lstbv])
+    bve = np.column_stack([e for e in lstve])
 
-    return bx, by, bv
+    if bigrams:
+        lstbv = bigram_vectorize(lstx, lsty, padding_id)
+        bv = np.column_stack([b for b in lstbv])
 
+        return bx, by, bv
+
+    return bx, by, bve, be
+
+
+def process_hl(args, lsty, padding_id):
+    max_len_y = args.hl_len
+    y_processed = []
+
+    for i in len(lsty):
+        sample_y = []
+
+        for y in lsty[i]:
+            sample_y.append(np.pad(y, (max_len_y - len(y), 0), "constant", constant_values=padding_id))
+
+        y_processed.append(sample_y)
+
+    return y_processed
+
+
+def process_ent(n_classes, lste):
+    ret_e = []
+
+    for e in lste:
+        e_mask = np.zeros((n_classes,))
+
+        for e_idx in e:
+            e_mask[e_idx] = 1
+
+        ret_e.append(e_mask)
+
+    return ret_e
 
 def write_train_results(bz, bx, by, emb_layer, ofp, padding_id):
     ofp.write("BULLET POINTS :\n")
@@ -216,6 +286,7 @@ def bigram_vectorize(lstx, lsty, padding_id):
         bin_vectors.append(bin_vec)
 
     return bin_vectors
+
 
 def total_words(z):
     return np.sum(z, axis=None)

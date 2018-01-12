@@ -323,10 +323,10 @@ class Model(object):
         args = self.args
         dropout = self.dropout
         padding_id = self.embedding_layer.vocab_map["<padding>"]
-
+        # (args, n_classes, x, y, ve, e, batch_size, padding_id, sort=True):
         if dev is not None:
-            dev_batches_x, dev_batches_y, dev_batches_bv = myio.create_batches(
-                dev[0], dev[1], args.batch, padding_id
+            dev_batches_x, dev_batches_y, dev_batches_ve, dev_batches_e = myio.create_batches(
+                args, self.nclasses, dev[0], dev[1], dev[2], dev[3], args.batch,  padding_id
             )
         if test is not None:
             test_batches_x, test_batches_y = myio.create_batches(
@@ -656,83 +656,30 @@ def main():
     embedding_layer = myio.create_embedding_layer(args.embedding)
     embedding_layer_y = myio.create_embedding_layer(args.embedding)
 
-    max_len_x = args.sentence_length * args.max_sentences
-    max_len_y = args.sentence_length_hl * args.max_sentences_hl
+    entities = myio.load_e(args.entities)
+    n_classes = len(entities)
 
     if args.train:
-        train_x, train_y = myio.read_docs(args.train)
-        train_x = [embedding_layer.map_to_ids(x)[:max_len_x] for x in train_x]
-        train_y = [embedding_layer_y.map_to_ids(y)[:max_len_y] for y in train_y]
+        train_x, train_y, train_e_idxs, train_e = myio.read_docs(args.train)
 
     if args.dev:
-        dev_x, dev_y = myio.read_docs(args.dev)
-        dev_x = [embedding_layer.map_to_ids(x)[:max_len_x] for x in dev_x]
-        dev_y = [embedding_layer_y.map_to_ids(y)[:max_len_y] for y in dev_y]
-
-    if args.load_rationale:
-        rationale_data = myio.read_rationales(args.load_rationale)
-        for x in rationale_data:
-            x["xids"] = embedding_layer.map_to_ids(x["x"])
+        dev_x, dev_y, dev_e_idxs, dev_e = myio.read_docs(args.dev)
 
     if args.train:
         model = Model(
             args=args,
             embedding_layer=embedding_layer,
             embedding_layer_y=embedding_layer_y,
-            nclasses=len(train_y[0])
+            nclasses=n_classes
         )
         model.ready()
 
-        # debug_func2 = theano.function(
-        #        inputs = [ model.x, model.z ],
-        #        outputs = model.generator.logpz
-        #    )
-        # theano.printing.debugprint(debug_func2)
-        # return
-
         model.train(
-            (train_x, train_y),
-            (dev_x, dev_y) if args.dev else None,
+            (train_x, train_y, train_e_idxs, train_e),
+            (dev_x, dev_y, dev_e_idxs, dev_e) if args.dev else None,
             None,  # (test_x, test_y),
-            rationale_data if args.load_rationale else None
+            None,
         )
-
-    if args.load_model and args.dev and not args.train:
-        model = Model(
-            args=None,
-            embedding_layer=embedding_layer,
-            nclasses=-1
-        )
-        model.load_model(args.load_model)
-        say("model loaded successfully.\n")
-
-        # compile an evaluation function
-        eval_func = theano.function(
-            inputs=[model.x, model.y],
-            outputs=[model.z, model.encoder.obj, model.encoder.loss,
-                     model.encoder.pred_diff],
-            updates=model.generator.sample_updates
-        )
-
-        # compile a predictor function
-        pred_func = theano.function(
-            inputs=[model.x],
-            outputs=[model.z, model.encoder.preds],
-            updates=model.generator.sample_updates
-        )
-
-        # batching data
-        padding_id = embedding_layer.vocab_map["<padding>"]
-        dev_batches_x, dev_batches_y = myio.create_batches(
-            dev_x, dev_y, args.batch, padding_id
-        )
-
-        # disable dropout
-        model.dropout.set_value(0.0)
-        dev_obj, dev_loss, dev_diff, dev_p1 = model.evaluate_data(
-            dev_batches_x, dev_batches_y, eval_func, sampling=True)
-        say("{} {} {} {}\n".format(dev_obj, dev_loss, dev_diff, dev_p1))
-
 
 if __name__ == "__main__":
     print theano.config.exception_verbosity

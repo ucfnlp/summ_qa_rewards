@@ -23,25 +23,15 @@ def get_args():
                         default=200,
                         help='Size of word vectors')
 
-    parser.add_argument('--sentence_length',
+    parser.add_argument('--inp_len',
                         type=int,
-                        default=30,
+                        default=400,
                         help='length of single sentence')
 
-    parser.add_argument('--max_sentences',
+    parser.add_argument('--hl_len',
                         type=int,
-                        default=10,
-                        help='Size of document in sentences')
-
-    parser.add_argument('--sentence_length_hl',
-                        type=int,
-                        default=15,
+                        default=25,
                         help='length of single sentence in highlights')
-
-    parser.add_argument('--max_sentences_hl',
-                        type=int,
-                        default=4,
-                        help='Number of total sentences for highlights')
 
     parser.add_argument("--train_output_readable",
                         type=str,
@@ -86,12 +76,19 @@ def get_args():
                         )
     parser.add_argument("--train",
                         type=str,
-                        default="../data/small_training_x.json",
+                        default="../data/training_model.json",
                         help="path to training data"
                         )
+
+    parser.add_argument("--entities",
+                        type=str,
+                        default="../data/entities.json",
+                        help="path to entity data"
+                        )
+
     parser.add_argument("--dev",
                         type=str,
-                        default="../data/small_dev_x.json",
+                        default="../data/dev_model.json",
                         help="path to development data"
                         )
 
