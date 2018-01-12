@@ -47,8 +47,6 @@ def load_e(filename):
     return entites
 
 
-
-
 def create_embedding_layer(path):
     embedding_layer = EmbeddingLayer(
         n_d=200,
@@ -62,7 +60,7 @@ def create_embedding_layer(path):
 
 
 def create_batches(args, n_classes, x, y, ve, e, batch_size, padding_id, sort=True):
-    batches_x, batches_y, batches_e, batches_ve = [], [], [], []
+    batches_x, batches_y, batches_e, batches_ve, batches_bm = [], [], [], []. [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
 
@@ -73,7 +71,7 @@ def create_batches(args, n_classes, x, y, ve, e, batch_size, padding_id, sort=Tr
         y = [y[i] for i in perm]
 
     for i in xrange(M):
-        bx, by, bve, be = create_one_batch(
+        bx, by, bve, be, bm = create_one_batch(
             args,
             n_classes,
             x[i * batch_size:(i + 1) * batch_size],
@@ -87,6 +85,7 @@ def create_batches(args, n_classes, x, y, ve, e, batch_size, padding_id, sort=Tr
         batches_y.append(by)
         batches_ve.append(bve)
         batches_e.append(e)
+        batches_bm.append(bm)
 
 
     if sort:
@@ -97,8 +96,9 @@ def create_batches(args, n_classes, x, y, ve, e, batch_size, padding_id, sort=Tr
         batches_y = [batches_y[i] for i in perm2]
         batches_ve = [batches_ve[i] for i in perm2]
         batches_e = [batches_e[i] for i in perm2]
+        batches_bm = [batches_bm[i] for i in perm2]
 
-    return batches_x, batches_y, batches_ve, batches_e
+    return batches_x, batches_y, batches_ve, batches_e, batches_bm
 
 
 def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len, bigrams=False):
@@ -120,13 +120,15 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
     assert min(len(x) for x in lstx) > 0
 
     # padded y
-    lsty = process_hl(args,lsty, padding_id)
+    lsty, unigrams = process_hl(args,lsty, padding_id)
     lstve = process_ent(n_classes, lstve)
+    bm = create_unigram_masks(lstx, unigrams)
 
     bx = np.column_stack([np.pad(x, (max_len - len(x), 0), "constant",
                                  constant_values=padding_id) for x in lstx])
     by = np.column_stack([y for y in lsty])
     be = np.column_stack([e for e in lste])
+    bm = np.column_stack([m for m in bm])
 
     bve = np.column_stack([e for e in lstve])
 
@@ -136,12 +138,13 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
 
         return bx, by, bv
 
-    return bx, by, bve, be
+    return bx, by, bve, be, bm
 
 
 def process_hl(args, lsty, padding_id):
     max_len_y = args.hl_len
     y_processed = []
+    unigrams = set()
 
     for i in len(lsty):
         sample_y = []
@@ -149,9 +152,28 @@ def process_hl(args, lsty, padding_id):
         for y in lsty[i]:
             sample_y.append(np.pad(y, (max_len_y - len(y), 0), "constant", constant_values=padding_id))
 
+            for token in y:
+                unigrams.add(token)
+
         y_processed.append(sample_y)
 
-    return y_processed
+    return y_processed, unigrams
+
+
+def create_unigram_masks(lstx, unigrams):
+    masks = []
+
+    for x in lstx:
+        len_x = len(x)
+        m = np.zeros((len_x,), dtype=np.int8)
+
+        for i in xrange(len_x):
+            if x[i] in unigrams:
+                m[i] = 1
+
+        masks.append(m)
+
+    return masks
 
 
 def process_ent(n_classes, lste):
@@ -166,6 +188,7 @@ def process_ent(n_classes, lste):
         ret_e.append(e_mask)
 
     return ret_e
+
 
 def write_train_results(bz, bx, by, emb_layer, ofp, padding_id):
     ofp.write("BULLET POINTS :\n")
@@ -243,6 +266,7 @@ def get_rouge(args):
 
 
 def get_ngram(l, n=2):
+
     return set(zip(*[l[i:] for i in range(n)]))
 
 

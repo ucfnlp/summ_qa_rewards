@@ -325,7 +325,7 @@ class Model(object):
         padding_id = self.embedding_layer.vocab_map["<padding>"]
         # (args, n_classes, x, y, ve, e, batch_size, padding_id, sort=True):
         if dev is not None:
-            dev_batches_x, dev_batches_y, dev_batches_ve, dev_batches_e = myio.create_batches(
+            dev_batches_x, dev_batches_y, dev_batches_ve, dev_batches_e, dev_batches_bm = myio.create_batches(
                 args, self.nclasses, dev[0], dev[1], dev[2], dev[3], args.batch,  padding_id
             )
         if test is not None:
