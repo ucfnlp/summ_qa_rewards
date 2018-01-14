@@ -229,11 +229,23 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
 
             root_token= tokens_ls[root_idx - 1]
             root_lemma = root_token['lemma']
+            root_org = root_token['originalText']
 
             if root_lemma.lower() not in entity_set: # previously not found @entity
                 entity_info = [entity_counter, 'ROOT']
                 entity_set[root_lemma.lower()] = entity_info
                 entity_counter += 1
+
+            if root_org not in raw_entity_mapping:
+                raw_entity_mapping[root_org] = root_lemma
+
+            if root_org not in first_word_map:
+                first_word_map[root_org] = [root_org]
+            else:
+                originals = first_word_map[root_org]
+
+                if root_org not in originals:
+                    first_word_map[root_org].append(root_org)
 
             clean_hl_vec = create_hl_vector(args, vocab, tokens_ls)
 
@@ -247,27 +259,27 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             # named entities in the form : (entity name, start, end, type, raw name, first word)
             entities = find_ner_tokens(tokens_ls, tag_ls)
 
-            for ner in entities:
-                if ner[0] not in entity_set:
-                    entity_info = [entity_counter, ner[3]]
-                    entity_set[ner[0]] = entity_info
+            for entity_name, start, end, e_type, raw_name, first_word in entities:
+                if entity_name not in entity_set:
+                    entity_info = [entity_counter, e_type]
+                    entity_set[entity_name] = entity_info
                     entity_counter += 1
 
-                hl_vec_complete = clean_hl_vec[:ner[1]] + [args.placeholder] + clean_hl_vec[ner[2] + 1:]
+                hl_vec_complete = clean_hl_vec[:start] + [args.placeholder] + clean_hl_vec[end + 1:]
 
                 single_inp_hl.append(hl_vec_complete)
-                single_sent_hl_entity_ls.append(entity_set[ner[0]][0])
+                single_sent_hl_entity_ls.append(entity_set[entity_name][0])
 
-                if ner[4] not in raw_entity_mapping:
-                    raw_entity_mapping[ner[4]] = ner[0]
+                if raw_name not in raw_entity_mapping:
+                    raw_entity_mapping[raw_name] = entity_name
 
-                if ner[5] not in first_word_map:
-                    first_word_map[ner[5]] = [ner[4]]
+                if first_word not in first_word_map:
+                    first_word_map[first_word] = [raw_name]
                 else:
-                    originals = first_word_map[ner[5]]
+                    originals = first_word_map[first_word]
 
-                    if ner[4] not in originals:
-                        first_word_map[ner[5]].append(ner[4])
+                    if raw_name not in originals:
+                        first_word_map[first_word].append(raw_name)
 
             single_inp_hl_entity_ls.append(single_sent_hl_entity_ls)
 
@@ -282,7 +294,7 @@ def machine_ready(args, train, dev, test, vocab, count):
     raw_entity_mapping = dict()
     first_word_map = dict()
 
-    entity_counter = 1
+    entity_counter = 0
 
     print 'Train data NER HL proc..'
     seqs_train_hl, seqs_train_e, entity_counter = seqs_hl(args, train[0], vocab, entity_set, entity_counter, raw_entity_mapping,

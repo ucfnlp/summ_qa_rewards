@@ -84,6 +84,10 @@ def prune_type(x, y, e, ve, entity_map):
                     updated_e_ls.append(perm)
                     total_entries += 1
 
+                if args.use_hl_once:
+                    y_idx += len(highlight)
+                    break
+
                 y_idx += 1
 
         if total_entries < args.n and total_entries != 0:

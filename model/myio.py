@@ -60,7 +60,7 @@ def create_embedding_layer(path):
 
 
 def create_batches(args, n_classes, x, y, ve, e, batch_size, padding_id, sort=True):
-    batches_x, batches_y, batches_e, batches_ve, batches_bm = [], [], [], []. [], []
+    batches_x, batches_y, batches_e, batches_ve, batches_bm = [], [], [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
 
@@ -124,8 +124,8 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
     lstve = process_ent(n_classes, lstve)
     bm = create_unigram_masks(lstx, unigrams)
 
-    bx = np.column_stack([np.pad(x, (max_len - len(x), 0), "constant",
-                                 constant_values=padding_id) for x in lstx])
+    bx = np.column_stack(
+        [np.pad(x[:max_len], (max_len - len(x), 0), "constant", constant_values=padding_id) for x in lstx])
     by = np.column_stack([y for y in lsty])
     be = np.column_stack([e for e in lste])
     bm = np.column_stack([m for m in bm])
@@ -146,12 +146,12 @@ def process_hl(args, lsty, padding_id):
     y_processed = []
     unigrams = []
 
-    for i in len(lsty):
+    for i in xrange(len(lsty)):
         sample_y = []
         sample_u = set()
 
         for y in lsty[i]:
-            sample_y.append(np.pad(y, (max_len_y - len(y), 0), "constant", constant_values=padding_id))
+            sample_y.append(np.pad(y[:max_len_y], (max_len_y - len(y), 0), "constant", constant_values=padding_id))
 
             for token in y:
                 sample_u.add(token)
@@ -169,8 +169,8 @@ def create_unigram_masks(lstx, unigrams):
         len_x = len(lstx[i])
         m = np.zeros((len_x,), dtype=np.int8)
 
-        for j in xrange(len_x):
-            if lstx[i][j] in unigrams[i]:
+        for j in xrange(len_x - 1):
+            if lstx[i][j] in unigrams[i] and lstx[i][j+1] in unigrams[i]:
                 m[i] = 1
 
         masks.append(m)
