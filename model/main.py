@@ -653,17 +653,17 @@ class Model(object):
 def main():
     assert args.embedding, "Pre-trained word embeddings required."
 
-    embedding_layer = myio.create_embedding_layer(args.embedding)
-    embedding_layer_y = myio.create_embedding_layer(args.embedding)
+    vocab = myio.get_vocab(args)
+    embedding_layer = myio.create_embedding_layer(args, args.embedding, vocab)
 
-    entities = myio.load_e(args.entities)
+    entities = myio.load_e(args)
     n_classes = len(entities)
 
     if args.train:
-        train_x, train_y, train_e_idxs, train_e = myio.read_docs(args.train)
+        train_x, train_y, train_e_idxs, train_e = myio.read_docs(args, 'train')
 
     if args.dev:
-        dev_x, dev_y, dev_e_idxs, dev_e = myio.read_docs(args.dev)
+        dev_x, dev_y, dev_e_idxs, dev_e = myio.read_docs(args, 'dev')
 
     if args.train:
         model = Model(
@@ -680,6 +680,7 @@ def main():
             None,  # (test_x, test_y),
             None,
         )
+
 
 if __name__ == "__main__":
     print theano.config.exception_verbosity

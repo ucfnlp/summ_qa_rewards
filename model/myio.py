@@ -3,7 +3,7 @@ import json
 import random
 
 import numpy as np
-from pyrouge import Rouge155
+# from pyrouge import Rouge155
 
 from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
@@ -21,7 +21,9 @@ def read_rationales(path):
     return data
 
 
-def read_docs(filename):
+def read_docs(args, type):
+    filename = type + '_model.json' if args.full_test else "small_" + type + '_model.json'
+    filename = '../data/' + str(args.vocab_size) + '_' + filename
 
     with open(filename, 'rb') as data_file:
         data = json.load(data_file)
@@ -36,7 +38,9 @@ def read_docs(filename):
     return data_x, data_y, data_ve, data_e
 
 
-def load_e(filename):
+def load_e(args):
+    filename = args.entities if args.full_test else "small_" + args.entities
+    filename = '../data/' + str(args.vocab_size) + '_' + filename
 
     with open(filename, 'rb') as data_file:
         data = json.load(data_file)
@@ -47,10 +51,23 @@ def load_e(filename):
     return entites
 
 
-def create_embedding_layer(path):
+def get_vocab(args):
+    ifp = open('../data/vocab_' + str(args.vocab_size) + '.txt', 'r')
+    vocab = []
+
+    for line in ifp:
+        vocab.append(line.rstrip())
+
+    ifp.close()
+
+    return vocab
+
+
+def create_embedding_layer(args, path, vocab):
+
     embedding_layer = EmbeddingLayer(
-        n_d=200,
-        vocab=["<unk>", "<padding>", "<placeholder>"],
+        n_d=args.embedding_dim,
+        vocab=vocab,
         embs=load_embedding_iterator(path),
         oov="<unk>",
         fix_init_embs = True

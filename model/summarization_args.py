@@ -18,10 +18,21 @@ def get_args():
                         default='../data/cnn_w2v_tmp.txt',
                         help='w2v model name and path')
 
+    parser.add_argument('--full_test',
+                        type='bool',
+                        default=False,
+                        help='Process full selection of CNN data')
+
     parser.add_argument('--embedding_dim',
                         type=int,
                         default=200,
                         help='Size of word vectors')
+
+    parser.add_argument('--vocab_size',
+                        type=int,
+                        default=50000,
+                        help='Vocab size')
+
 
     parser.add_argument('--inp_len',
                         type=int,
@@ -82,7 +93,7 @@ def get_args():
 
     parser.add_argument("--entities",
                         type=str,
-                        default="../data/entities.json",
+                        default="entities.json",
                         help="path to entity data"
                         )
 

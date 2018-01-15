@@ -16,7 +16,7 @@ def get_args():
 
     parser.add_argument('--full_test',
                         type='bool',
-                        default=True,
+                        default=False,
                         help='Process full selection of CNN data')
 
     parser.add_argument('--pipeline',
@@ -31,13 +31,13 @@ def get_args():
 
     parser.add_argument('--vocab_size',
                         type=int,
-                        default=150000,
+                        default=50000,
                         help='Vocab size')
 
     parser.add_argument('--raw_data_cnn',
                         type=str,
-                        default='/data1/corpora/cnn_dailymail/cnn-dailymail/cnn_stories_tokenized/',
-                        # default='cnn/stories/',
+                        # default='/data1/corpora/cnn_dailymail/cnn-dailymail/cnn_stories_tokenized/',
+                        default='cnn/stories/',
                         help='Raw data CNN')
 
     parser.add_argument('--raw_data_dm',
@@ -60,7 +60,7 @@ def get_args():
 
     parser.add_argument('--embedding_file',
                         type=str,
-                        default='cnn_w2v_tmp.txt',
+                        default='../data/emb/glove.6B/glove.6B.200d.txt',
                         help='w2v model name and path')
 
     parser.add_argument('--inp_len',
@@ -144,7 +144,7 @@ def get_args():
 
     parser.add_argument('--train',
                         type=str,
-                        default="training.json",
+                        default="train.json",
                         help='Training Data')
 
     parser.add_argument('--dev',
@@ -166,7 +166,7 @@ def get_args():
 
     parser.add_argument('--train_model',
                         type=str,
-                        default="training_model.json",
+                        default="train_model.json",
                         help='Training Data ready for input to the model')
 
     parser.add_argument('--test_model',
@@ -178,17 +178,5 @@ def get_args():
                         type=str,
                         default="dev_model.json",
                         help='Dev Data ready for input to the model')
-
-    # TOKENS
-
-    parser.add_argument('--placeholder',
-                        type=int,
-                        default=2,
-                        help='IDX of <placeholder> token')
-
-    parser.add_argument('--unk',
-                        type=int,
-                        default=1,
-                        help='IDX of <unk> token')
 
     return parser.parse_args()

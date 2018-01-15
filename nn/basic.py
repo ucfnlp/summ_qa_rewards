@@ -318,25 +318,37 @@ class EmbeddingLayer(object):
         vocab           : an iterator of string tokens; the layer will allocate an ID
                             and a vector for each token in it
         oov             : out-of-vocabulary token
-        embs            : an iterator of (word, vector) pairs; these will be added to
+        embs            : a dictionary of (word, vector) pairs; these will be added to
                             the layer
         fix_init_embs   : whether to fix the initial word vectors loaded from embs
 
     '''
 
-    def __init__(self, n_d, vocab, oov="<unk>", pad="<padding>", embs=None, fix_init_embs=True):
+    def __init__(self, n_d, vocab, oov="<unk>", embs=None, fix_init_embs=True):
 
         if embs is not None:
             lst_words = []
             vocab_map = {}
             emb_vals = []
-            for word, vector in embs:
-                assert word not in vocab_map, "Duplicate words in initial embeddings"
-                vocab_map[word] = len(vocab_map)
-                emb_vals.append(vector)
-                lst_words.append(word)
 
-            self.init_end = len(emb_vals) if fix_init_embs else -1
+            self.init_end = None
+
+            for word in vocab:
+
+                if word in embs:
+                    vocab_map[word] = len(vocab_map)
+                    vector = embs[word]
+
+                    emb_vals.append(vector)
+                    lst_words.append(word)
+                else:
+                    if self.init_end is None:
+                        self.init_end = len(emb_vals) if fix_init_embs else -1
+
+                    vocab_map[word] = len(vocab_map)
+                    emb_vals.append(random_init((n_d,)) * (0.0 if (word == oov) else 0.001))
+                    lst_words.append(word)
+
             if n_d != len(emb_vals[0]):
                 say("WARNING: n_d ({}) != init word vector size ({}). Use {} instead.\n".format(
                     n_d, len(emb_vals[0]), len(emb_vals[0])
@@ -345,16 +357,10 @@ class EmbeddingLayer(object):
 
             say("{} pre-trained embeddings loaded.\n".format(len(emb_vals)))
 
-            for word in vocab:
-                if word not in vocab_map:
-                    vocab_map[word] = len(vocab_map)
-                    emb_vals.append(random_init((n_d,)) * (0.0 if (word == oov) else 0.001))
-                    lst_words.append(word)
-
             emb_vals = np.vstack(emb_vals).astype(theano.config.floatX)
             self.vocab_map = vocab_map
             self.lst_words = lst_words
-        else:
+        else:# TODO: Update to above
             lst_words = []
             vocab_map = {}
             for word in vocab:
