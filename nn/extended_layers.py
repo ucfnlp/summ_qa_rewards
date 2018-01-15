@@ -56,10 +56,9 @@ class ExtRCNN(RCNN):
         self.bias = from_obj.bias
 
 
-
 class ExtLSTM(LSTM):
     def forward(self, x_t, mask_t, hc_tm1):
-        hc_t = super(LSTM, self).forward(x_t, hc_tm1)
+        hc_t = super(ExtLSTM, self).forward(x_t, hc_tm1)
         hc_t = mask_t * hc_t + (1 - mask_t) * hc_tm1
         return hc_t
 
@@ -77,9 +76,50 @@ class ExtLSTM(LSTM):
         if return_c:
             return h
         elif x.ndim > 1:
-            return h[:, :, self.n_out * self.order:]
+            return h[:, :, self.n_out:]
         else:
             return h[:, self.n_out * self.order:]
+
+    def forward_all_2(self, x, mask, h0=None, return_c=False):
+        if h0 is None:
+            if x.ndim > 1:
+                h0 = T.zeros((x.shape[1], self.n_out), dtype=theano.config.floatX)
+            else:
+                h0 = T.zeros((self.n_out * (self.order + 1),), dtype=theano.config.floatX)
+        h, _ = theano.scan(
+            fn=self.forward,
+            sequences=[x, mask],
+            outputs_info=[h0]
+        )
+        if return_c:
+            return h
+        elif x.ndim > 1:
+            return h[:, :, self.n_out:]
+        else:
+            return h[:, self.n_out * self.order:]
+
+    def copy_params(self, from_obj):
+        self.internal_layers = from_obj.internal_layers
+
+
+class HLLSTM(LSTM):
+    def forward(self, x_t, mask_t, hc_tm1):
+        hc_t = super(HLLSTM, self).forward(x_t, hc_tm1)
+        hc_t = mask_t * hc_t + (1 - mask_t) * hc_tm1
+        return hc_t
+
+    def forward_all(self, x, mask, h0=None, return_c=False):
+        if h0 is None:
+            if x.ndim > 1:
+                h0 = T.zeros((x.shape[1], self.n_out), dtype=theano.config.floatX)
+            else:
+                h0 = T.zeros((self.n_out * (self.order + 1),), dtype=theano.config.floatX)
+        h, _ = theano.scan(
+            fn=self.forward,
+            sequences=[x, mask],
+            outputs_info=[h0]
+        )
+        return h[-1, :]
 
     def copy_params(self, from_obj):
         self.internal_layers = from_obj.internal_layers

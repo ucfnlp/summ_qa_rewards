@@ -13,7 +13,7 @@ import myio
 import summarization_args
 from nn.advanced import RCNN
 from nn.basic import LSTM, apply_dropout
-from nn.extended_layers import ExtRCNN, ZLayer, ExtLSTM
+from nn.extended_layers import ExtRCNN, ZLayer, ExtLSTM, HLLSTM
 from nn.initialization import get_activation_by_name
 from nn.optimization import create_optimization_updates
 from util import say, get_ngram
@@ -125,128 +125,148 @@ class Generator(object):
         self.l2_cost = l2_cost
 
 
-def ready(self):
-    generator = self.generator
-    embedding_layer = self.embedding_layer
-    args = self.args
-    padding_id = embedding_layer.vocab_map["<padding>"]
+class Encoder(object):
 
-    dropout = generator.dropout
+    def __init__(self, args, nclasses, generator):
+        self.args = args
+        self.embedding_layer = generator.embedding_layer
+        self.nclasses = nclasses
+        self.generator = generator
 
-    # len*batch
-    x = generator.x
-    z = generator.z_pred
-    z = z.dimshuffle((0, 1, "x"))
+    def ready(self):
+        generator = self.generator
+        embedding_layer = self.embedding_layer
+        args = self.args
+        padding_id = embedding_layer.vocab_map["<padding>"]
 
-    # batch*nclasses
-    y = self.y = T.fmatrix()
+        dropout = generator.dropout
 
-    n_d = args.hidden_dimension
-    n_e = embedding_layer.n_d
-    activation = get_activation_by_name(args.activation)
+        # len*batch
+        x = generator.x
+        z = generator.z_pred
+        z = z.dimshuffle((0, 1, "x"))
 
-    layers = self.layers = []
-    depth = args.depth
-    layer_type = args.layer.lower()
-    for i in xrange(depth):
-        if layer_type == "rcnn":
-            l = ExtRCNN(
-                n_in=n_e if i == 0 else n_d,
-                n_out=n_d,
-                activation=activation,
-                order=args.order
-            )
-        elif layer_type == "lstm":
-            l = ExtLSTM(
+        # n*hl_len*batch
+        y = self.y = T.imatrix()
+
+        n_d = args.hidden_dimension
+        n_e = embedding_layer.n_d
+        activation = get_activation_by_name(args.activation)
+
+        hl_h = []
+
+        for i in xrange(args.n):
+
+            rnn_fw = HLLSTM(
                 n_in=n_e if i == 0 else n_d,
                 n_out=n_d,
                 activation=activation
             )
-        layers.append(l)
 
-    # len * batch * 1
-    masks = T.cast(T.neq(x, padding_id).dimshuffle((0, 1, "x")) * z, theano.config.floatX)
-    # batch * 1
-    cnt_non_padding = T.sum(masks, axis=0) + 1e-8
+            rnn_rv = HLLSTM(
+                n_in=n_e if i == 0 else n_d,
+                n_out=n_d,
+                activation=activation
+            )
 
-    # len*batch*n_e
-    embs = generator.word_embs
+            # len * batch
+            mask = T.cast(T.neq(y[i], padding_id), theano.config.floatX)
 
-    pooling = args.pooling
-    lst_states = []
-    h_prev = embs
-    for l in layers:
-        # len*batch*n_d
-        h_next = l.forward_all(h_prev, z)
-        if pooling:
-            # batch * n_d
-            masked_sum = T.sum(h_next * masks, axis=0)
-            lst_states.append(masked_sum / cnt_non_padding)  # mean pooling
+            embs = embedding_layer.forward(y[i].ravel())
+            embs = embs.reshape((y[i].shape[0], y[i].shape[1], n_e))
+            flipped_embs = embs[::-1]
+            flipped_mask = mask[::-1]
+
+            # 1 * batch
+            h_f = rnn_fw.forward_all(embs, mask)
+            h_r = rnn_rv.forward_all(flipped_embs, flipped_mask)
+
+            h_concat = T.concatenate([h_f, h_r], axis=2)
+            hl_h.append(h_concat)
+
+        # len * batch * 1
+        masks = T.cast(T.neq(x, padding_id).dimshuffle((0, 1, "x")) * z, theano.config.floatX)
+        # batch * 1
+        cnt_non_padding = T.sum(masks, axis=0) + 1e-8
+
+        # len*batch*n_e
+        embs = generator.word_embs
+
+        pooling = args.pooling
+        lst_states = []
+        h_prev = embs
+        for l in layers:
+            # len*batch*n_d
+            h_next = l.forward_all(h_prev, z)
+            if pooling:
+                # batch * n_d
+                masked_sum = T.sum(h_next * masks, axis=0)
+                lst_states.append(masked_sum / cnt_non_padding)  # mean pooling
+            else:
+                lst_states.append(h_next[-1])  # last state
+            h_prev = apply_dropout(h_next, dropout)
+
+        if args.use_all:
+            size = depth * n_d
+            # batch * size (i.e. n_d*depth)
+            h_final = T.concatenate(lst_states, axis=1)
         else:
-            lst_states.append(h_next[-1])  # last state
-        h_prev = apply_dropout(h_next, dropout)
+            size = n_d
+            h_final = lst_states[-1]
+        h_final = apply_dropout(h_final, dropout)
 
-    if args.use_all:
-        size = depth * n_d
-        # batch * size (i.e. n_d*depth)
-        h_final = T.concatenate(lst_states, axis=1)
-    else:
-        size = n_d
-        h_final = lst_states[-1]
-    h_final = apply_dropout(h_final, dropout)
+        output_layer = self.output_layer = Layer(
+            n_in=size,
+            n_out=self.nclasses,
+            activation=sigmoid
+        )
 
-    output_layer = self.output_layer = Layer(
-        n_in=size,
-        n_out=self.nclasses,
-        activation=sigmoid
-    )
+        # batch * nclasses
+        preds = self.preds = output_layer.forward(h_final)
 
-    # batch * nclasses
-    preds = self.preds = output_layer.forward(h_final)
+        # batch
+        loss_mat = self.loss_mat = (preds - y) ** 2
 
-    # batch
-    loss_mat = self.loss_mat = (preds - y) ** 2
+        pred_diff = self.pred_diff = T.mean(T.max(preds, axis=1) - T.min(preds, axis=1))
 
-    pred_diff = self.pred_diff = T.mean(T.max(preds, axis=1) - T.min(preds, axis=1))
-
-    if args.aspect < 0:
-        loss_vec = T.mean(loss_mat, axis=1)
-    else:
-        assert args.aspect < self.nclasses
-        loss_vec = loss_mat[:, args.aspect]
-    self.loss_vec = loss_vec
-
-    zsum = generator.zsum
-    zdiff = generator.zdiff
-    logpz = generator.logpz
-
-    coherent_factor = args.sparsity * args.coherent
-    loss = self.loss = T.mean(loss_vec)
-    sparsity_cost = self.sparsity_cost = T.mean(zsum) * args.sparsity + \
-                                         T.mean(zdiff) * coherent_factor
-    cost_vec = loss_vec + zsum * args.sparsity + zdiff * coherent_factor
-    cost_logpz = T.mean(cost_vec * T.sum(logpz, axis=0))
-    self.obj = T.mean(cost_vec)
-
-    params = self.params = []
-    for l in layers + [output_layer]:
-        for p in l.params:
-            params.append(p)
-    nparams = sum(len(x.get_value(borrow=True).ravel()) \
-                  for x in params)
-    say("total # parameters: {}\n".format(nparams))
-
-    l2_cost = None
-    for p in params:
-        if l2_cost is None:
-            l2_cost = T.sum(p ** 2)
+        if args.aspect < 0:
+            loss_vec = T.mean(loss_mat, axis=1)
         else:
-            l2_cost = l2_cost + T.sum(p ** 2)
-    l2_cost = l2_cost * args.l2_reg
-    self.l2_cost = l2_cost
+            assert args.aspect < self.nclasses
+            loss_vec = loss_mat[:, args.aspect]
+        self.loss_vec = loss_vec
 
-    self.cost_g = cost_logpz * 10 + generator.l2_cost
-    self.cost_e = loss * 10 + l2_cost
+        zsum = generator.zsum
+        zdiff = generator.zdiff
+        logpz = generator.logpz
+
+        coherent_factor = args.sparsity * args.coherent
+        loss = self.loss = T.mean(loss_vec)
+        sparsity_cost = self.sparsity_cost = T.mean(zsum) * args.sparsity + \
+                                             T.mean(zdiff) * coherent_factor
+        cost_vec = loss_vec + zsum * args.sparsity + zdiff * coherent_factor
+        cost_logpz = T.mean(cost_vec * T.sum(logpz, axis=0))
+        self.obj = T.mean(cost_vec)
+
+        params = self.params = []
+        for l in layers + [output_layer]:
+            for p in l.params:
+                params.append(p)
+        nparams = sum(len(x.get_value(borrow=True).ravel()) \
+                      for x in params)
+        say("total # parameters: {}\n".format(nparams))
+
+        l2_cost = None
+        for p in params:
+            if l2_cost is None:
+                l2_cost = T.sum(p ** 2)
+            else:
+                l2_cost = l2_cost + T.sum(p ** 2)
+        l2_cost = l2_cost * args.l2_reg
+        self.l2_cost = l2_cost
+
+        self.cost_g = cost_logpz * 10 + generator.l2_cost
+        self.cost_e = loss * 10 + l2_cost
 
 
 class Model(object):
