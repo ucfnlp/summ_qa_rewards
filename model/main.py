@@ -195,7 +195,7 @@ class Encoder(object):
         # softmax can take in max 2 axis
         # 32 x 4 x 400 -> 128 x 400
         masked_dot_hl = masked_dot_hl.dimshuffle((0,2,1))
-        # ???
+        masked_dot_hl.reshape((masked_dot_hl.shape[0] * masked_dot_hl.shpae[1], masked_dot_hl.shape[2]))
 
         # 128 x 400
         alpha = T.nnet.softmax(masked_dot_hl)
