@@ -76,7 +76,7 @@ class Generator(object):
         h1 = layers[0].forward_all(embs)
         h2 = layers[1].forward_all(flipped_embs)
         h_final = T.concatenate([h1, h2[::-1]], axis=2)
-        h_final = apply_dropout(h_final, dropout)
+        self.h_final = h_final = apply_dropout(h_final, dropout)
         size = n_d * 2
 
         output_layer = self.output_layer = ZLayer(
@@ -144,48 +144,72 @@ class Encoder(object):
         # len*batch
         x = generator.x
         z = generator.z_pred
-        z = z.dimshuffle((0, 1, "x"))
 
-        # n*hl_len*batch
+        masks = T.cast(T.neq(x, padding_id) * z, theano.config.floatX)
+
+        # hl_len x (batch * n)
         y = self.y = T.imatrix()
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
         activation = get_activation_by_name(args.activation)
 
-        hl_h = []
+        rnn_fw = HLLSTM(
+            n_in=n_e,
+            n_out=n_d,
+            activation=activation
+        )
 
-        for i in xrange(args.n):
+        rnn_rv = HLLSTM(
+            n_in=n_e,
+            n_out=n_d,
+            activation=activation
+        )
 
-            rnn_fw = HLLSTM(
-                n_in=n_e if i == 0 else n_d,
-                n_out=n_d,
-                activation=activation
-            )
+        # len * batch
+        mask = T.cast(T.neq(y, padding_id), theano.config.floatX)
 
-            rnn_rv = HLLSTM(
-                n_in=n_e if i == 0 else n_d,
-                n_out=n_d,
-                activation=activation
-            )
+        embs = embedding_layer.forward(y.ravel())
+        embs = embs.reshape((y.shape[0], y.shape[1], n_e))
 
-            # len * batch
-            mask = T.cast(T.neq(y[i], padding_id), theano.config.floatX)
+        flipped_embs = embs[::-1]
+        flipped_mask = mask[::-1]
 
-            embs = embedding_layer.forward(y[i].ravel())
-            embs = embs.reshape((y[i].shape[0], y[i].shape[1], n_e))
-            flipped_embs = embs[::-1]
-            flipped_mask = mask[::-1]
+        # (batch * n) x n_d
+        h_f = rnn_fw.forward_all(embs, mask)
+        h_r = rnn_rv.forward_all(flipped_embs, flipped_mask)
 
-            # 1 * batch
-            h_f = rnn_fw.forward_all(embs, mask)
-            h_r = rnn_rv.forward_all(flipped_embs, flipped_mask)
+        # (batch * n) x (n_d * 2)
+        h_concat = T.concatenate([h_f, h_r], axis=1)
 
-            h_concat = T.concatenate([h_f, h_r], axis=2)
-            hl_h.append(h_concat)
+        # batch x n x n_d
+        h_concat = h_concat.reshape((args.batch, args.n, h_concat.shape[1]))
 
-        # len * batch * 1
-        masks = T.cast(T.neq(x, padding_id).dimshuffle((0, 1, "x")) * z, theano.config.floatX)
+        # RESHAPE since dot product looks at last 2 axis
+        # (32 x 400 x 100 dot 32 x 100 x 4) -> 32 x 400 x 4
+        gen_h_final = generator.h_final.dimshuffle((1, 0, 2))
+        inp_dot_hl = T.dot(gen_h_final, h_concat.dimshuffle((0, 2, 1)))
+
+        # 32 x 400 x 4 * mask-> 32 x 400 x 4
+        masked_dot_hl = inp_dot_hl * masks.dimshuffle((1,0))
+        # softmax can take in max 2 axis
+        # 32 x 4 x 400 -> 128 x 400
+        masked_dot_hl = masked_dot_hl.dimshuffle((0,2,1))
+        # ???
+
+        # 128 x 400
+        alpha = T.nnet.softmax(masked_dot_hl)
+        alpha = alpha.reshape((args.batch, args.n, alpha.shape[1]))
+
+        # In the case of a single hl o = T.sum(gen_h_final * alpha, axis=1)
+        # In the case of a single document with multiple highlights
+        # o = T.dot(alpha, gen_h_final)
+
+        # gen_h_final : 32 x 400 x n_d, alpha = 32 x n x 400
+        # alpha_i * h_i -> 32 x 4 x n_d
+        o = T.dot(alpha, gen_h_final)
+
+
         # batch * 1
         cnt_non_padding = T.sum(masks, axis=0) + 1e-8
 
@@ -270,16 +294,15 @@ class Encoder(object):
 
 
 class Model(object):
-    def __init__(self, args, embedding_layer, embedding_layer_y, nclasses):
+    def __init__(self, args, embedding_layer, nclasses):
         self.args = args
         self.embedding_layer = embedding_layer
-        self.embedding_layer_y = embedding_layer_y
         self.nclasses = nclasses
 
     def ready(self):
-        args, embedding_layer_y, embedding_layer, nclasses = self.args, self.embedding_layer_y, self.embedding_layer, self.nclasses
+        args, embedding_layer, nclasses = self.args, self.embedding_layer, self.nclasses
         self.generator = Generator(args, embedding_layer, nclasses)
-        self.encoder = Encoder(args, embedding_layer, embedding_layer_y, nclasses, self.generator)
+        self.encoder = Encoder(args, nclasses, self.generator)
         self.generator.ready()
         self.encoder.ready()
         self.dropout = self.generator.dropout
@@ -689,7 +712,6 @@ def main():
         model = Model(
             args=args,
             embedding_layer=embedding_layer,
-            embedding_layer_y=embedding_layer_y,
             nclasses=n_classes
         )
         model.ready()

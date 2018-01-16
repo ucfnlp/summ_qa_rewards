@@ -137,13 +137,12 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
     assert min(len(x) for x in lstx) > 0
 
     # padded y
-    lsty, unigrams = process_hl(args,lsty, padding_id)
+    by, unigrams = process_hl(args,lsty, padding_id)
     lstve = process_ent(n_classes, lstve)
     bm = create_unigram_masks(lstx, unigrams)
 
     bx = np.column_stack(
         [np.pad(x[:max_len], (max_len - len(x), 0), "constant", constant_values=padding_id) for x in lstx])
-    by = np.column_stack([y for y in lsty])
     be = np.column_stack([e for e in lste])
     bm = np.column_stack([m for m in bm])
 
@@ -160,15 +159,18 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
 
 def process_hl(args, lsty, padding_id):
     max_len_y = args.hl_len
-    y_processed = []
+    y_processed = [[] for i in xrange(args.n)]
     unigrams = []
 
     for i in xrange(len(lsty)):
         sample_y = []
         sample_u = set()
 
-        for y in lsty[i]:
-            sample_y.append(np.pad(y[:max_len_y], (max_len_y - len(y), 0), "constant", constant_values=padding_id))
+        for j in xrange(len(lsty[i])):
+            y = lsty[i][j]
+            single_hl = np.pad(y[:max_len_y], (max_len_y - len(y), 0), "constant", constant_values=padding_id)
+
+            y_processed[j].append(single_hl)
 
             for token in y:
                 sample_u.add(token)
@@ -176,7 +178,11 @@ def process_hl(args, lsty, padding_id):
         y_processed.append(sample_y)
         unigrams.append(sample_u)
 
-    return y_processed, unigrams
+    by = []
+    for hl_set in y_processed:
+        by.append(np.column_stack([y for y in hl_set]))
+
+    return by, unigrams
 
 
 def create_unigram_masks(lstx, unigrams):

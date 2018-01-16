@@ -111,15 +111,20 @@ class HLLSTM(LSTM):
     def forward_all(self, x, mask, h0=None, return_c=False):
         if h0 is None:
             if x.ndim > 1:
-                h0 = T.zeros((x.shape[1], self.n_out), dtype=theano.config.floatX)
+                h0 = T.zeros((x.shape[1], self.n_out * 2), dtype=theano.config.floatX)
             else:
-                h0 = T.zeros((self.n_out * (self.order + 1),), dtype=theano.config.floatX)
+                h0 = T.zeros((self.n_out * 2,), dtype=theano.config.floatX)
         h, _ = theano.scan(
             fn=self.forward,
             sequences=[x, mask],
             outputs_info=[h0]
         )
-        return h[-1, :]
+        if return_c:
+            return h[-1, :]
+        elif x.ndim > 1:
+            return h[-1 :, :, self.n_out:]
+        else:
+            return h[-1 :, self.n_out:]
 
     def copy_params(self, from_obj):
         self.internal_layers = from_obj.internal_layers
