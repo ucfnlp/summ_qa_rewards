@@ -174,10 +174,7 @@ class Encoder(object):
 
         inp_dot_hl = T.batched_dot(gen_h_final, h_concat)
 
-        masked_dot_hl = inp_dot_hl * tiled_x_mask
-
-        masked_dot_hl = masked_dot_hl.ravel()
-        alpha = T.nnet.softmax(masked_dot_hl.reshape((args.n * args.batch, args.inp_len)))
+        alpha = self.masked_softmax(inp_dot_hl.reshape((args.n * args.batch, args.inp_len)), tiled_x_mask)
 
         o = T.batched_dot(alpha, gen_h_final)
 
@@ -230,6 +227,11 @@ class Encoder(object):
         self.cost_g = cost_logpz * 10 + generator.l2_cost
         self.cost_e = loss * 10 + l2_cost
 
+    def masked_softmax(self, a, m, axis=0):
+        e_a = T.exp(a)
+        masked_e = e_a * m
+        sum_masked_e = T.sum(masked_e, axis, keepdims=True)
+        return masked_e / sum_masked_e
 
 class Model(object):
     def __init__(self, args, embedding_layer, nclasses):
