@@ -12,7 +12,7 @@ from sklearn.metrics import jaccard_similarity_score
 import myio
 import summarization_args
 from nn.advanced import RCNN
-from nn.basic import LSTM, apply_dropout
+from nn.basic import LSTM, apply_dropout, Layer
 from nn.extended_layers import ExtRCNN, ZLayer, ExtLSTM, HLLSTM
 from nn.initialization import get_activation_by_name
 from nn.optimization import create_optimization_updates
@@ -43,21 +43,13 @@ class Generator(object):
         activation = get_activation_by_name(args.activation)
 
         layers = self.layers = [ ]
-        layer_type = args.layer.lower()
+
         for i in xrange(2):
-            if layer_type == "rcnn":
-                l = RCNN(
-                        n_in = n_e,
-                        n_out = n_d,
-                        activation = activation,
-                        order = args.order
-                    )
-            elif layer_type == "lstm":
-                l = LSTM(
-                        n_in = n_e,
-                        n_out = n_d,
-                        activation = activation
-                    )
+            l = LSTM(
+                    n_in = n_e,
+                    n_out = n_d,
+                    activation = activation
+                )
             layers.append(l)
 
         # len * batch
@@ -139,119 +131,65 @@ class Encoder(object):
         args = self.args
         padding_id = embedding_layer.vocab_map["<padding>"]
 
+        y = self.y = T.imatrix('y')
+        gold_standard_entities = self.gold_standard_entities = T.imatrix('gs')
+        ve = self.ve = T.imatrix('ve')
+
         dropout = generator.dropout
 
         # len*batch
         x = generator.x
         z = generator.z_pred
 
-        masks = T.cast(T.neq(x, padding_id) * z, theano.config.floatX)
+        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0,1,'x'))
+        tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0))
+        mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
 
-        # hl_len x (batch * n)
-        y = self.y = T.imatrix()
+        # Duplicate both x, and valid entity masks
+        gen_h_final = T.tile(generator.h_final, (args.n, 1)).dimshuffle((1, 0, 2))
+        ve = T.tile(ve, (args.n, 1)).dimshuffle((1, 0))
 
-        n_d = args.hidden_dimension
+        n_d = args.hidden_dimension/2
         n_e = embedding_layer.n_d
-        activation = get_activation_by_name(args.activation)
 
         rnn_fw = HLLSTM(
             n_in=n_e,
-            n_out=n_d,
-            activation=activation
+            n_out=n_d
         )
-
         rnn_rv = HLLSTM(
             n_in=n_e,
-            n_out=n_d,
-            activation=activation
+            n_out=n_d
         )
-
-        # len * batch
-        mask = T.cast(T.neq(y, padding_id), theano.config.floatX)
 
         embs = embedding_layer.forward(y.ravel())
         embs = embs.reshape((y.shape[0], y.shape[1], n_e))
 
         flipped_embs = embs[::-1]
-        flipped_mask = mask[::-1]
+        flipped_mask = mask_y[::-1]
 
-        # (batch * n) x n_d
-        h_f = rnn_fw.forward_all(embs, mask)
+        h_f = rnn_fw.forward_all(embs, mask_y)
         h_r = rnn_rv.forward_all(flipped_embs, flipped_mask)
 
-        # (batch * n) x (n_d * 2)
-        h_concat = T.concatenate([h_f, h_r], axis=1)
+        h_concat = T.concatenate([h_f, h_r], axis=2).dimshuffle((1, 2, 0))
 
-        # batch x n x n_d
-        h_concat = h_concat.reshape((args.batch, args.n, h_concat.shape[1]))
+        inp_dot_hl = T.batched_dot(gen_h_final, h_concat)
 
-        # RESHAPE since dot product looks at last 2 axis
-        # (32 x 400 x 100 dot 32 x 100 x 4) -> 32 x 400 x 4
-        gen_h_final = generator.h_final.dimshuffle((1, 0, 2))
-        inp_dot_hl = T.dot(gen_h_final, h_concat.dimshuffle((0, 2, 1)))
+        masked_dot_hl = inp_dot_hl * tiled_x_mask
 
-        # 32 x 400 x 4 * mask-> 32 x 400 x 4
-        masked_dot_hl = inp_dot_hl * masks.dimshuffle((1,0))
-        # softmax can take in max 2 axis
-        # 32 x 4 x 400 -> 128 x 400
-        masked_dot_hl = masked_dot_hl.dimshuffle((0,2,1))
-        masked_dot_hl.reshape((masked_dot_hl.shape[0] * masked_dot_hl.shpae[1], masked_dot_hl.shape[2]))
+        masked_dot_hl = masked_dot_hl.ravel()
+        alpha = T.nnet.softmax(masked_dot_hl.reshape((args.n * args.batch, args.inp_len)))
 
-        # 128 x 400
-        alpha = T.nnet.softmax(masked_dot_hl)
-        alpha = alpha.reshape((args.batch, args.n, alpha.shape[1]))
+        o = T.batched_dot(alpha, gen_h_final)
 
-        # In the case of a single hl o = T.sum(gen_h_final * alpha, axis=1)
-        # In the case of a single document with multiple highlights
-        # o = T.dot(alpha, gen_h_final)
-
-        # gen_h_final : 32 x 400 x n_d, alpha = 32 x n x 400
-        # alpha_i * h_i -> 32 x 4 x n_d
-        o = T.dot(alpha, gen_h_final)
-
-
-        # batch * 1
-        cnt_non_padding = T.sum(masks, axis=0) + 1e-8
-
-        # len*batch*n_e
-        embs = generator.word_embs
-
-        pooling = args.pooling
-        lst_states = []
-        h_prev = embs
-        for l in layers:
-            # len*batch*n_d
-            h_next = l.forward_all(h_prev, z)
-            if pooling:
-                # batch * n_d
-                masked_sum = T.sum(h_next * masks, axis=0)
-                lst_states.append(masked_sum / cnt_non_padding)  # mean pooling
-            else:
-                lst_states.append(h_next[-1])  # last state
-            h_prev = apply_dropout(h_next, dropout)
-
-        if args.use_all:
-            size = depth * n_d
-            # batch * size (i.e. n_d*depth)
-            h_final = T.concatenate(lst_states, axis=1)
-        else:
-            size = n_d
-            h_final = lst_states[-1]
-        h_final = apply_dropout(h_final, dropout)
-
-        output_layer = self.output_layer = Layer(
-            n_in=size,
-            n_out=self.nclasses,
-            activation=sigmoid
+        output_layer = Layer(
+            n_in=o.shape[1],
+            n_out=args.nclasses,
+            activation="softmax"
         )
 
-        # batch * nclasses
-        preds = self.preds = output_layer.forward(h_final)
+        preds = output_layer.forward(o) * masks
+        pred_diff = self.pred_diff = T.nnet.categorical_crossentropy(preds, gold_standard_entities)
 
-        # batch
-        loss_mat = self.loss_mat = (preds - y) ** 2
-
-        pred_diff = self.pred_diff = T.mean(T.max(preds, axis=1) - T.min(preds, axis=1))
 
         if args.aspect < 0:
             loss_vec = T.mean(loss_mat, axis=1)
