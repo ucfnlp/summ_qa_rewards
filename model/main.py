@@ -184,16 +184,11 @@ class Encoder(object):
             activation="softmax"
         )
 
-        preds = output_layer.forward(o) * masks
-        pred_diff = self.pred_diff = T.nnet.categorical_crossentropy(preds, gold_standard_entities)
+        preds = output_layer.forward(o) * ve
+        cross_entropy = T.nnet.categorical_crossentropy(preds, gold_standard_entities)
+        loss_mat = cross_entropy.reshape((args.batch, args.n))
 
-
-        if args.aspect < 0:
-            loss_vec = T.mean(loss_mat, axis=1)
-        else:
-            assert args.aspect < self.nclasses
-            loss_vec = loss_mat[:, args.aspect]
-        self.loss_vec = loss_vec
+        self.loss_vec = loss_vec = T.mean(loss_mat, axis=1)
 
         zsum = generator.zsum
         zdiff = generator.zdiff
