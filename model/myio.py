@@ -136,6 +136,9 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
 
     assert min(len(x) for x in lstx) > 0
 
+    if len(lstx) < b_len:
+        lstx, lsty, lstve, lste = round_batch(lstx, lsty, lstve, lste, b_len)
+
     # padded y
     by, unigrams, be = process_hl(args, lsty, lste, padding_id, n_classes)
     lstve = process_ent(n_classes, lstve)
@@ -148,7 +151,7 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
     bm = np.column_stack([m for m in bm])
     by = np.column_stack([y for y in by])
 
-    bve = np.column_stack([e for e in lstve])
+    # bve = np.column_stack([e for e in lstve])
 
     if bigrams:
         lstbv = bigram_vectorize(lstx, lsty, padding_id)
@@ -156,7 +159,22 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
 
         return bx, by, bv
 
-    return bx, by, bve, be, bm
+    return bx, by, lstve, be, bm
+
+
+def round_batch(lstx, lsty, lstve, lste, b_len):
+    lstx_rounded, lsty_rounded, lstve_rounded, lste_rounded = [],[],[], []
+    missing = b_len - len(lstx)
+
+    while missing > 0:
+        missing = b_len - len(lstx_rounded)
+        lstx_rounded.extend(lstx[:])
+        lsty_rounded.extend(lsty[:])
+        lstve_rounded.extend(lstve[:])
+        lste_rounded.extend(lste[:])
+
+    return lstx_rounded[:b_len], lsty_rounded[:b_len], lstve_rounded[:b_len], lste_rounded[:b_len]
+
 
 
 def process_hl(args, lsty, lste, padding_id, n_classes):

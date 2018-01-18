@@ -98,7 +98,8 @@ def get_args():
 
     parser.add_argument("--dev",
                         type=str,
-                        default="../data/dev_model.json",
+                        # default="../data/dev_model.json",
+                        default=None,
                         help="path to development data"
                         )
 

@@ -152,8 +152,7 @@ class Encoder(object):
 
         # Duplicate both x, and valid entity masks
         gen_h_final = T.tile(generator.h_final, (args.n, 1)).dimshuffle((1, 0, 2))
-        ve = ve.dimshuffle((1,0))
-        ve = T.tile(ve, (args.n, 1))
+        ve_tiled = T.tile(ve, (args.n, 1))
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -196,7 +195,7 @@ class Encoder(object):
         layers.append(rnn_rv)
         layers.append(output_layer)
 
-        preds = output_layer.forward(o) * ve
+        preds = output_layer.forward(o) * ve_tiled
         cross_entropy = T.nnet.categorical_crossentropy(preds, gold_standard_entities)
         loss_mat = cross_entropy.reshape((args.batch, args.n))
 
@@ -205,10 +204,9 @@ class Encoder(object):
 
         valid_bg = z * z_shift
         bigram_ol = valid_bg * bm
-        bigram_ol = bigram_ol.dimshuffle((1,0))
 
-        total_z_bg_per_sample = T.sum(bigram_ol, axis=1)
-        total_bg_per_sample = T.sum(bm, axis=1) + args.bigram_smoothing
+        total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
+        total_bg_per_sample = T.sum(bm, axis=0) + args.bigram_smoothing
         bigram_loss = total_z_bg_per_sample / total_bg_per_sample
 
         self.loss_vec = loss_vec = T.mean(loss_mat, axis=1) + bigram_loss
@@ -414,12 +412,20 @@ class Model(object):
                 start_time = time.time()
 
                 N = len(train_batches_x)
+                print N, 'batches'
                 for i in xrange(N):
                     if (i + 1) % 32 == 0:
                         say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
 
                     bx, by, bve, be, bm = train_batches_x[i], train_batches_y[i], train_batches_ve[i], train_batches_e[i], train_batches_bm[i]
                     mask = bx != padding_id
+
+                    if len(bx[0]) != args.batch:
+                        print 'B_len',len(bx[0])
+                        break
+                    else:
+                        print i
+
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bm, be, bve)
 
                     k = len(by)
@@ -459,7 +465,7 @@ class Model(object):
                     continue
 
                 last_train_avg_cost = cur_train_avg_cost
-                if dev: last_dev_avg_cost = cur_dev_avg_cost
+                # if dev: last_dev_avg_cost = cur_dev_avg_cost
 
                 say("\n")
                 say(("Generator Epoch {:.2f}  costg={:.4f}  scost={:.4f}  lossg={:.4f}  " +
