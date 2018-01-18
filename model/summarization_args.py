@@ -108,36 +108,43 @@ def get_args():
                         default=1,
                         help="Get baseline ROUGE for dev set, based on BG."
                         )
+
     parser.add_argument("--test",
                         type=str,
                         default="",
                         help="path to test data"
                         )
+
     parser.add_argument("--dump",
                         type=str,
                         default="",
                         help="path to dump rationale"
                         )
+
     parser.add_argument("--max_epochs",
                         type=int,
                         default=1,
                         help="maximum # of epochs"
                         )
+
     parser.add_argument("--eval_period",
                         type=int,
                         default=-1,
                         help="evaluate model every k examples"
                         )
+
     parser.add_argument("--batch",
                         type=int,
                         default=32,
                         help="mini-batch size"
                         )
+
     parser.add_argument("--learning",
                         type=str,
                         default="adam",
                         help="learning method"
                         )
+
     parser.add_argument("--learning_rate",
                         type=float,
                         default=0.005,
@@ -155,21 +162,37 @@ def get_args():
                         default=0.1,
                         help="dropout rate"
                         )
+
     parser.add_argument("--l2_reg",
                         type=float,
                         default=1e-6,
                         help="L2 regularization weight"
                         )
+
     parser.add_argument("-act", "--activation",
                         type=str,
                         default="tanh",
                         help="type of activatioin function"
                         )
+
     parser.add_argument("-d", "--hidden_dimension",
                         type=int,
-                        default=200,
+                        default=256,
                         help="hidden dimension"
                         )
+
+    parser.add_argument("-n",
+                        type=int,
+                        default=4,
+                        help="HL per sample"
+                        )
+
+    parser.add_argument("-bigram_smoothing",
+                        type=float,
+                        default=0.0001,
+                        help="Prevent div by 0"
+                        )
+
     parser.add_argument("-d2", "--hidden_dimension2",
                         type=int,
                         default=30,

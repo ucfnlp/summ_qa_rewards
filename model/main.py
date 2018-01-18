@@ -14,7 +14,7 @@ import summarization_args
 from nn.advanced import RCNN
 from nn.basic import LSTM, apply_dropout, Layer
 from nn.extended_layers import ExtRCNN, ZLayer, ExtLSTM, HLLSTM
-from nn.initialization import get_activation_by_name
+from nn.initialization import get_activation_by_name, softmax
 from nn.optimization import create_optimization_updates
 from util import say, get_ngram
 
@@ -131,9 +131,11 @@ class Encoder(object):
         args = self.args
         padding_id = embedding_layer.vocab_map["<padding>"]
 
+        layers = []
         y = self.y = T.imatrix('y')
-        gold_standard_entities = self.gold_standard_entities = T.imatrix('gs')
+        gold_standard_entities = self.gold_standard_entities= T.imatrix('gs')
         ve = self.ve = T.imatrix('ve')
+        bm = self.bm = T.imatrix('bm')
 
         dropout = generator.dropout
 
@@ -141,9 +143,12 @@ class Encoder(object):
         x = generator.x
         z = generator.z_pred
 
-        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0,1,'x'))
+        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX)
         tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0))
         mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
+
+        softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
+        softmax_mask = softmax_mask * (tiled_x_mask - 1) * -1
 
         # Duplicate both x, and valid entity masks
         gen_h_final = T.tile(generator.h_final, (args.n, 1)).dimshuffle((1, 0, 2))
@@ -174,21 +179,36 @@ class Encoder(object):
 
         inp_dot_hl = T.batched_dot(gen_h_final, h_concat)
 
-        alpha = self.masked_softmax(inp_dot_hl.reshape((args.n * args.batch, args.inp_len)), tiled_x_mask)
+        alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * args.batch, args.inp_len)) - softmax_mask)
 
         o = T.batched_dot(alpha, gen_h_final)
 
         output_layer = Layer(
-            n_in=o.shape[1],
-            n_out=args.nclasses,
-            activation="softmax"
+            n_in=n_d,
+            n_out=self.nclasses,
+            activation=softmax
         )
+        layers.append(rnn_fw)
+        layers.append(rnn_rv)
+        layers.append(output_layer)
 
         preds = output_layer.forward(o) * ve
         cross_entropy = T.nnet.categorical_crossentropy(preds, gold_standard_entities)
         loss_mat = cross_entropy.reshape((args.batch, args.n))
 
-        self.loss_vec = loss_vec = T.mean(loss_mat, axis=1)
+        padded = T.shape_padaxis(T.zeros_like(z[0]), axis=1).dimshuffle((1, 0))
+        z_shift = T.concatenate(
+            [z[1:], padded], axis=0)
+
+        valid_bg = z * z_shift
+        bigram_ol = valid_bg * bm
+        bigram_ol = bigram_ol.dimshuffle((1,0))
+
+        total_z_bg_per_sample = T.sum(bigram_ol, axis=1)
+        total_bg_per_sample = T.sum(bm, axis=1) + args.bigram_smoothing
+        bigram_loss = total_z_bg_per_sample / total_bg_per_sample
+
+        self.loss_vec = loss_vec = T.mean(loss_mat, axis=1) + bigram_loss
 
         zsum = generator.zsum
         zdiff = generator.zdiff
@@ -203,7 +223,7 @@ class Encoder(object):
         self.obj = T.mean(cost_vec)
 
         params = self.params = []
-        for l in layers + [output_layer]:
+        for l in layers:
             for p in l.params:
                 params.append(p)
         nparams = sum(len(x.get_value(borrow=True).ravel()) \
@@ -222,11 +242,11 @@ class Encoder(object):
         self.cost_g = cost_logpz * 10 + generator.l2_cost
         self.cost_e = loss * 10 + l2_cost
 
-    def masked_softmax(self, a, m, axis=0):
-        e_a = T.exp(a)
-        masked_e = e_a * m
-        sum_masked_e = T.sum(masked_e, axis, keepdims=True)
-        return masked_e / sum_masked_e
+    # def masked_softmax(self, a, m, axis=0):
+    #     e_a = T.exp(a)
+    #     masked_e = e_a * m
+    #     sum_masked_e = T.sum(masked_e, axis, keepdims=True)
+    #     return masked_e / sum_masked_e
 
 class Model(object):
     def __init__(self, args, embedding_layer, nclasses):
@@ -243,8 +263,10 @@ class Model(object):
         self.dropout = self.generator.dropout
         self.x = self.generator.x
         self.y = self.encoder.y
-        self.bv = self.encoder.bv
-        self.z = self.generator.z_pred_combined
+        self.bm = self.encoder.bm
+        self.gold_standard_entities = self.encoder.gold_standard_entities
+        self.ve = self.encoder.ve
+        self.z = self.generator.z_pred
         self.params = self.encoder.params + self.generator.params
 
     def evaluate_rnn_weights(self, args, e, b):
