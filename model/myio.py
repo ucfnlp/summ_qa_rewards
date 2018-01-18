@@ -137,14 +137,16 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
     assert min(len(x) for x in lstx) > 0
 
     # padded y
-    by, unigrams = process_hl(args,lsty, padding_id)
+    by, unigrams, be = process_hl(args, lsty, lste, padding_id, n_classes)
     lstve = process_ent(n_classes, lstve)
-    bm = create_unigram_masks(lstx, unigrams)
 
-    bx = np.column_stack(
-        [np.pad(x[:max_len], (max_len - len(x), 0), "constant", constant_values=padding_id) for x in lstx])
-    be = np.column_stack([e for e in lste])
+    bx = np.column_stack([np.pad(x[:max_len], (max_len - len(x) if len(x) <= max_len else 0, 0), "constant",
+                                 constant_values=padding_id).astype('int32') for x in lstx])
+
+    bm = create_unigram_masks(lstx, unigrams, max_len)
+    # be = np.column_stack([e for e in be])
     bm = np.column_stack([m for m in bm])
+    by = np.column_stack([y for y in by])
 
     bve = np.column_stack([e for e in lstve])
 
@@ -157,40 +159,45 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, padding_id, b_len
     return bx, by, bve, be, bm
 
 
-def process_hl(args, lsty, padding_id):
+def process_hl(args, lsty, lste, padding_id, n_classes):
     max_len_y = args.hl_len
     y_processed = [[] for i in xrange(args.n)]
+    e_processed = [[] for i in xrange(args.n)]
     unigrams = []
 
     for i in xrange(len(lsty)):
-        sample_y = []
         sample_u = set()
 
         for j in xrange(len(lsty[i])):
-            y = lsty[i][j]
-            single_hl = np.pad(y[:max_len_y], (max_len_y - len(y), 0), "constant", constant_values=padding_id)
+            y = lsty[i][j][:max_len_y]
+            single_hl = np.pad(y, (max_len_y - len(y), 0), "constant", constant_values=padding_id).astype('int32')
+
+            single_e_1h = np.zeros((n_classes,), dtype='int32')
+            single_e_1h[lste[i][j]] = 1
 
             y_processed[j].append(single_hl)
+            e_processed[j].append(single_e_1h)
 
             for token in y:
                 sample_u.add(token)
 
-        y_processed.append(sample_y)
         unigrams.append(sample_u)
 
     by = []
-    for hl_set in y_processed:
-        by.append(np.column_stack([y for y in hl_set]))
+    be = []
+    for i in xrange(len(y_processed)):
+        by.extend(y_processed[i])
+        be.extend(e_processed[i])
 
-    return by, unigrams
+    return by, unigrams, be
 
 
-def create_unigram_masks(lstx, unigrams):
+def create_unigram_masks(lstx, unigrams, max_len):
     masks = []
 
     for i in xrange(len(lstx)):
         len_x = len(lstx[i])
-        m = np.zeros((len_x,), dtype=np.int8)
+        m = np.zeros((max_len,),dtype='int32')
 
         for j in xrange(len_x - 1):
             if lstx[i][j] in unigrams[i] and lstx[i][j+1] in unigrams[i]:
@@ -205,7 +212,7 @@ def process_ent(n_classes, lste):
     ret_e = []
 
     for e in lste:
-        e_mask = np.zeros((n_classes,))
+        e_mask = np.zeros((n_classes,),dtype='int32')
 
         for e_idx in e:
             e_mask[e_idx] = 1

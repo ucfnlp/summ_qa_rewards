@@ -133,7 +133,7 @@ class Encoder(object):
 
         layers = []
         y = self.y = T.imatrix('y')
-        gold_standard_entities = self.gold_standard_entities= T.imatrix('gs')
+        gold_standard_entities = self.gold_standard_entities = T.imatrix('gs')
         ve = self.ve = T.imatrix('ve')
         bm = self.bm = T.imatrix('bm')
 
@@ -154,7 +154,7 @@ class Encoder(object):
         gen_h_final = T.tile(generator.h_final, (args.n, 1)).dimshuffle((1, 0, 2))
         ve = T.tile(ve, (args.n, 1)).dimshuffle((1, 0))
 
-        n_d = args.hidden_dimension/2
+        n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
 
         rnn_fw = HLLSTM(
@@ -323,7 +323,7 @@ class Model(object):
         args = self.args
         dropout = self.dropout
         padding_id = self.embedding_layer.vocab_map["<padding>"]
-        # (args, n_classes, x, y, ve, e, batch_size, padding_id, sort=True):
+
         if dev is not None:
             dev_batches_x, dev_batches_y, dev_batches_ve, dev_batches_e, dev_batches_bm = myio.create_batches(
                 args, self.nclasses, dev[0], dev[1], dev[2], dev[3], args.batch,  padding_id
@@ -331,14 +331,6 @@ class Model(object):
         if test is not None:
             test_batches_x, test_batches_y = myio.create_batches(
                 test[0], test[1], args.batch, padding_id
-            )
-        if rationale_data is not None:
-            valid_batches_x, valid_batches_y = myio.create_batches(
-                [u["xids"] for u in rationale_data],
-                [u["y"] for u in rationale_data],
-                args.batch,
-                padding_id,
-                sort=False
             )
 
         # start_time = time.time()
@@ -373,20 +365,14 @@ class Model(object):
             updates=self.generator.sample_updates
         )
 
-        # get_loss_and_pred = theano.function(
-        #     inputs=[self.x, self.y],
-        #     outputs=[self.encoder.loss_vec, self.z],
-        #     updates=self.generator.sample_updates + self.generator.sample_updates_sent
-        # )
-        #
         eval_generator = theano.function(
-            inputs=[self.x, self.y, self.bv],
+            inputs=[self.x, self.y, self.bm, self.gold_standard_entities, self.ve],
             outputs=[self.z, self.encoder.obj, self.encoder.loss],
             updates=self.generator.sample_updates
         )
 
         train_generator = theano.function(
-            inputs=[self.x, self.y, self.bv],
+            inputs=[self.x, self.y, self.bm, self.gold_standard_entities, self.ve],
             outputs=[self.encoder.obj, self.encoder.loss, self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
@@ -400,33 +386,16 @@ class Model(object):
         tolerance = 0.10 + 1e-3
         dropout_prob = np.float64(args.dropout).astype(theano.config.floatX)
 
-        metric_output = open(args.train_output_readable + '_METRICS' + '_sparcity_' + str(args.sparsity) + '.out', 'w+')
-
-        if args.dev_baseline:
-            ofp1 = open(args.train_output_readable + '_METRICS' + '_sparcity_' + str(args.sparsity) + '_baseline.out', 'w+')
-            ofp2 = open(args.train_output_readable + '_sparcity_' + str(args.sparsity) + '_baseline.out', 'w+')
-
-            dz = myio.convert_bv_to_z(dev_batches_bv)
-
-            myio.write_train_results(dz[0], dev_batches_x[0], dev_batches_y[0], self.embedding_layer, ofp2, padding_id)
-            myio.write_summ_for_rouge(args, dz, dev_batches_x, dev_batches_y, self.embedding_layer)
-            myio.write_metrics(-1, -1, ofp1, -1, args)
-
-            ofp1.close()
-            ofp2.close()
-
         for epoch in xrange(args.max_epochs):
             read_output = open(args.train_output_readable + '_e_' + str(epoch) + '_sparcity_' + str(args.sparsity) + '.out', 'w+')
             total_words_per_epoch = 0
             total_summaries_per_epoch = 0
             unchanged += 1
             if unchanged > 20:
-                metric_output.write("PROBLEM TRAINING, NO DEV IMPROVEMENT")
-                metric_output.close()
                 break
 
-            train_batches_x, train_batches_y, train_batches_bv = myio.create_batches(
-                train[0], train[1], args.batch, padding_id
+            train_batches_x, train_batches_y, train_batches_ve, train_batches_e, train_batches_bm = myio.create_batches(
+                args, self.nclasses, train[0], train[1], train[2], train[3], args.batch, padding_id
             )
 
             more = True
@@ -446,13 +415,9 @@ class Model(object):
                     if (i + 1) % 32 == 0:
                         say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
 
-                    bx, by, bv = train_batches_x[i], train_batches_y[i], train_batches_bv[i]
+                    bx, by, bve, be, bm = train_batches_x[i], train_batches_y[i], train_batches_ve[i], train_batches_e[i], train_batches_bm[i]
                     mask = bx != padding_id
-
-                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bv)
-
-                    if i % 64 == 0:
-                        self.evaluate_rnn_weights(args, epoch, i)
+                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bm, be, bve)
 
                     if i % 8 == 0:
                         myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)
@@ -469,21 +434,8 @@ class Model(object):
 
                 cur_train_avg_cost = train_cost / N
 
-                if dev:
-                    self.dropout.set_value(0.0)
-                    dev_obj, dev_loss, dev_p1, dev_v, dev_x, dev_y = self.evaluate_data(
-                        dev_batches_x, dev_batches_y, dev_batches_bv, eval_generator, sampling=True)
-
-                    self.dropout.set_value(dropout_prob)
-                    cur_dev_avg_cost = dev_obj
-
-                    myio.write_train_results(dev_v[0], dev_x[0], dev_y[0], self.embedding_layer, read_output, padding_id)
-                    myio.write_summ_for_rouge(args, dev_v, dev_x, dev_y, self.embedding_layer)
-                    myio.write_metrics(total_summaries_per_epoch, total_words_per_epoch, metric_output, epoch, args)
-
-                    metric_output.flush()
-
                 more = False
+
                 if args.decay_lr and last_train_avg_cost is not None:
                     if cur_train_avg_cost > last_train_avg_cost * (1 + tolerance):
                         more = True
@@ -527,38 +479,7 @@ class Model(object):
                 say("\t" + str(["{:.2f}".format(np.linalg.norm(x.get_value(borrow=True))) \
                                 for x in self.generator.params]) + "\n")
 
-                if dev:
-                    if dev_obj < best_dev:
-                        best_dev = dev_obj
-                        unchanged = 0
-                        # if args.dump and rationale_data:
-                        #     self.dump_rationales(args.dump, valid_batches_x, valid_batches_y,
-                        #                          get_loss_and_pred, sample_generator)
-                        #
-                        # if args.save_model:
-                        #     self.save_model(args.save_model, args)
 
-                    say(("\tsampling devg={:.4f}  mseg={:.4f}" +
-                         "  p[1]g={:.2f}  best_dev={:.4f}\n").format(
-                        dev_obj,
-                        dev_loss,
-                        dev_p1,
-                        best_dev
-                    ))
-
-                    # if rationale_data is not None:
-                    #     self.dropout.set_value(0.0)
-                    #     r_mse, r_p1, r_prec1, r_prec2 = self.evaluate_rationale(
-                    #         rationale_data, valid_batches_x,
-                    #         valid_batches_y, eval_generator)
-                    #     self.dropout.set_value(dropout_prob)
-                    #     say(("\trationale mser={:.4f}  p[1]r={:.2f}  prec1={:.4f}" +
-                    #          "  prec2={:.4f}\n").format(
-                    #         r_mse,
-                    #         r_p1,
-                    #         r_prec1,
-                    #         r_prec2
-                    #     ))
 
             read_output.close()
 

@@ -15,7 +15,7 @@ def get_args():
 
     parser.add_argument('--embedding',
                         type=str,
-                        default='../data/cnn_w2v_tmp.txt',
+                        default='../data/emb/glove.6B/glove.6B.200d.txt',
                         help='w2v model name and path')
 
     parser.add_argument('--full_test',
@@ -32,7 +32,6 @@ def get_args():
                         type=int,
                         default=50000,
                         help='Vocab size')
-
 
     parser.add_argument('--inp_len',
                         type=int,
@@ -177,7 +176,7 @@ def get_args():
 
     parser.add_argument("-d", "--hidden_dimension",
                         type=int,
-                        default=256,
+                        default=128,
                         help="hidden dimension"
                         )
 
