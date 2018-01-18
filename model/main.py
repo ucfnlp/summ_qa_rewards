@@ -144,7 +144,7 @@ class Encoder(object):
         z = generator.z_pred
 
         mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX)
-        tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0))
+        tiled_x_mask = T.tile(mask_x.dimshuffle(0,1,'x'), (args.n, 1)).dimshuffle((1, 0, 2))
         mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
 
         softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
@@ -152,7 +152,8 @@ class Encoder(object):
 
         # Duplicate both x, and valid entity masks
         gen_h_final = T.tile(generator.h_final, (args.n, 1)).dimshuffle((1, 0, 2))
-        ve = T.tile(ve, (args.n, 1)).dimshuffle((1, 0))
+        ve = ve.dimshuffle((1,0))
+        ve = T.tile(ve, (args.n, 1))
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -178,16 +179,19 @@ class Encoder(object):
         h_concat = T.concatenate([h_f, h_r], axis=2).dimshuffle((1, 2, 0))
 
         inp_dot_hl = T.batched_dot(gen_h_final, h_concat)
+        inp_dot_hl = inp_dot_hl - softmax_mask
+        inp_dot_hl = inp_dot_hl.ravel()
 
-        alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * args.batch, args.inp_len)) - softmax_mask)
+        alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * args.batch, args.inp_len)))
 
         o = T.batched_dot(alpha, gen_h_final)
 
         output_layer = Layer(
-            n_in=n_d,
+            n_in=n_d*2,
             n_out=self.nclasses,
             activation=softmax
         )
+
         layers.append(rnn_fw)
         layers.append(rnn_rv)
         layers.append(output_layer)
@@ -197,8 +201,7 @@ class Encoder(object):
         loss_mat = cross_entropy.reshape((args.batch, args.n))
 
         padded = T.shape_padaxis(T.zeros_like(z[0]), axis=1).dimshuffle((1, 0))
-        z_shift = T.concatenate(
-            [z[1:], padded], axis=0)
+        z_shift = T.concatenate([z[1:], padded], axis=0)
 
         valid_bg = z * z_shift
         bigram_ol = valid_bg * bm
@@ -419,9 +422,6 @@ class Model(object):
                     mask = bx != padding_id
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bm, be, bve)
 
-                    if i % 8 == 0:
-                        myio.write_train_results(bz, bx, by, self.embedding_layer, read_output, padding_id)
-
                     k = len(by)
                     processed += k
                     train_cost += cost
@@ -479,11 +479,6 @@ class Model(object):
                 say("\t" + str(["{:.2f}".format(np.linalg.norm(x.get_value(borrow=True))) \
                                 for x in self.generator.params]) + "\n")
 
-
-
-            read_output.close()
-
-        metric_output.close()
 
     def evaluate_data(self, batches_x, batches_y, batches_bv, eval_func, sampling=False):
         padding_id = self.embedding_layer.vocab_map["<padding>"]

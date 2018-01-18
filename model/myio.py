@@ -101,7 +101,7 @@ def create_batches(args, n_classes, x, y, ve, e, batch_size, padding_id, sort=Tr
         batches_x.append(bx)
         batches_y.append(by)
         batches_ve.append(bve)
-        batches_e.append(e)
+        batches_e.append(be)
         batches_bm.append(bm)
 
 
