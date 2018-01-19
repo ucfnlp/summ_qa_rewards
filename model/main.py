@@ -196,7 +196,8 @@ class Encoder(object):
         layers.append(output_layer)
 
         preds = output_layer.forward(o) * ve_tiled
-        cross_entropy = T.nnet.categorical_crossentropy(preds, gold_standard_entities)
+        preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
+        cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
         loss_mat = cross_entropy.reshape((args.batch, args.n))
 
         padded = T.shape_padaxis(T.zeros_like(z[0]), axis=1).dimshuffle((1, 0))
@@ -387,6 +388,8 @@ class Model(object):
         tolerance = 0.10 + 1e-3
         dropout_prob = np.float64(args.dropout).astype(theano.config.floatX)
 
+        ofp = open('../data/results.out', 'w+')
+
         for epoch in xrange(args.max_epochs):
             read_output = open(args.train_output_readable + '_e_' + str(epoch) + '_sparcity_' + str(args.sparsity) + '.out', 'w+')
             total_words_per_epoch = 0
@@ -428,6 +431,8 @@ class Model(object):
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bm, be, bve)
 
+                    ofp.write('Epoch ' + str(epoch+1) + ' batch ' +str(i+1) + ' ')
+                    ofp.write('Cost ' + str(cost) + ' loss ' + str(loss) + '\n')
                     k = len(by)
                     processed += k
                     train_cost += cost
@@ -485,6 +490,7 @@ class Model(object):
                 say("\t" + str(["{:.2f}".format(np.linalg.norm(x.get_value(borrow=True))) \
                                 for x in self.generator.params]) + "\n")
 
+        ofp.close()
 
     def evaluate_data(self, batches_x, batches_y, batches_bv, eval_func, sampling=False):
         padding_id = self.embedding_layer.vocab_map["<padding>"]

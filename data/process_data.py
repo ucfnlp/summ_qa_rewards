@@ -17,7 +17,7 @@ def process_data(args):
     if args.pipeline: # takes a long-o-time
         core_nlp(args, train[0], dev[0], test[0])
     else:
-        word_counts = [50000]
+        word_counts = [100000]
         emb_set = get_embedding_set(args)
 
         for count in word_counts:

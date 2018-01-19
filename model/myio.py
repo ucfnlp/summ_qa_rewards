@@ -176,7 +176,6 @@ def round_batch(lstx, lsty, lstve, lste, b_len):
     return lstx_rounded[:b_len], lsty_rounded[:b_len], lstve_rounded[:b_len], lste_rounded[:b_len]
 
 
-
 def process_hl(args, lsty, lste, padding_id, n_classes):
     max_len_y = args.hl_len
     y_processed = [[] for i in xrange(args.n)]
