@@ -347,7 +347,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     json.dump(final_json_dev, ofp_dev)
     ofp_dev.close()
 
-    filename_test = args.dev if args.full_test else "small_" + args.test
+    filename_test = args.test if args.full_test else "small_" + args.test
     filename_test = str(count) + '_' + filename_test
 
     ofp_test = open(filename_test, 'w+')
