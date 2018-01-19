@@ -36,8 +36,8 @@ def get_args():
 
     parser.add_argument('--raw_data_cnn',
                         type=str,
-                        # default='/data1/corpora/cnn_dailymail/cnn-dailymail/cnn_stories_tokenized/',
-                        default='cnn/stories/',
+                        default='/data1/corpora/cnn_dailymail/cnn-dailymail/cnn_stories_tokenized/',
+                        # default='cnn/stories/',
                         help='Raw data CNN')
 
     parser.add_argument('--raw_data_dm',
@@ -60,7 +60,7 @@ def get_args():
 
     parser.add_argument('--embedding_file',
                         type=str,
-                        default='../data/emb/glove.6B/glove.6B.200d.txt',
+                        default='emb/glove.6B.200d.txt',
                         help='w2v model name and path')
 
     parser.add_argument('--inp_len',
