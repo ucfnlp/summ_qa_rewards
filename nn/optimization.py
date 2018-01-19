@@ -15,8 +15,8 @@ from collections import OrderedDict
 import numpy as np
 import theano
 import theano.tensor as T
-from theano.sandbox.cuda.basic_ops import HostFromGpu
-from theano.sandbox.cuda.var import CudaNdarraySharedVariable
+from theano.gpuarray.basic_ops import HostFromGpu
+from theano.gpuarray import GpuArraySharedVariable as CudaNdarraySharedVariable
 
 from initialization import default_mrng
 

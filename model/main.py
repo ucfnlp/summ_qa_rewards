@@ -426,8 +426,7 @@ class Model(object):
                     if len(bx[0]) != args.batch:
                         print 'B_len',len(bx[0])
                         break
-                    else:
-                        print i
+
 
                     cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bm, be, bve)
 
