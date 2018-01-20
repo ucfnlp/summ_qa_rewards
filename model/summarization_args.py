@@ -45,7 +45,7 @@ def get_args():
 
     parser.add_argument("--train_output_readable",
                         type=str,
-                        default="../data/results/results",
+                        default="../data/results/readable/",
                         help="path to annotated train results"
                         )
 
@@ -98,8 +98,7 @@ def get_args():
 
     parser.add_argument("--dev",
                         type=str,
-                        # default="../data/dev_model.json",
-                        default=None,
+                        default="../data/dev_model.json",
                         help="path to development data"
                         )
 

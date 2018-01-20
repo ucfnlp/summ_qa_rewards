@@ -239,77 +239,110 @@ def process_ent(n_classes, lste):
     return ret_e
 
 
-def write_train_results(bz, bx, by, emb_layer, ofp, padding_id):
-    ofp.write("BULLET POINTS :\n")
+def create_json_filename(args):
+    path = '../data/results/'
+    filename = 'train_data_embdim_' + str(args.embedding_dim) + '_vocab_size_' + str(args.vocab_size) + '_batch_' + str(
+        args.batch) + '_epochs_' + str(args.max_epochs) + '_spar_' + str(args.sparsity) + '_coh_' + str(
+        args.coherent) + '.json'
 
-    for i in xrange(4):
-        ofp.write("BP # " + str(i) + "\n")
-        for j in xrange(15):
-
-            idx = i*15 + j
-            if by[idx][0] != padding_id:
-                ofp.write(emb_layer.lst_words[by[idx][0]] + " ")
-
-        ofp.write("\n")
-
-    ofp.write("SUMMARY :\n\n")
-
-    for i in xrange(10):
-        did_write = False
-
-        for j in xrange(30):
-            idx = i * 30 + j
-
-            if bz[idx][0] > 0 and bx[idx][0] != padding_id:
-                did_write = True
-                ofp.write(emb_layer.lst_words[bx[idx][0]] + " ")
-
-        if did_write:
-            ofp.write("\n")
-
-    ofp.write("\n")
+    return path + filename
 
 
-def write_summ_for_rouge(args, bz, bx, by, emb_layer):
+def get_readable_file(args, epoch):
+    path = args.train_output_readable
+    filename = 'train_data_embdim_' + str(args.embedding_dim) + '_vocab_size_' + str(args.vocab_size) + '_batch_' + str(
+        args.batch) + '_epochs_' + str(args.max_epochs) + '_spar_' + str(args.sparsity) + '_coh_' + str(
+        args.coherent) +'_e_' + str(epoch + 1) + '.out'
+
+    return path + filename
+
+
+def record_observations(ofp_json, epoch, loss, obj, zsum, bigram_loss, loss_vec, z_diff):
+    epoch_data = dict()
+
+    epoch_data['loss'] = loss
+    epoch_data['obj'] = obj
+    epoch_data['zsum'] = zsum
+    epoch_data['bigram_loss'] = bigram_loss
+    epoch_data['loss_vec'] = loss_vec
+    epoch_data['zdiff'] = z_diff
+
+    ofp_json['e' + str(epoch)] = epoch_data
+
+
+def save_dev_results(args, epoch, dev_obj, dev_z, dev_batches_x, dev_batches_y, emb_layer):
     s_num = 1
-    for z in xrange(len(bx)):
-        for i in xrange(len(bx[z][0])):
-            ofp = open(args.system_summ_path + str(args.sparsity) + 's.' + str(s_num) + '.txt', 'w+')
 
-            for j in xrange(len(bx[z])):
-                word = emb_layer.lst_words[bx[z][j][i]]
+    filename = get_readable_file(args, epoch)
+    ofp_samples = open(filename, 'w+')
+    ofp_samples_system = []
+    ofp_samples_gs = []
+    for i in xrange(len(dev_z)):
 
-                if word == '<padding>' or word == '<unk>' or bz[z][j][i] == 0:
+        for j in xrange(len(dev_z[i][0])):
+
+            ofp_for_rouge = open(args.system_summ_path + 'e_' + str(epoch + 1) + '.' + str(s_num) + '.txt', 'w+')
+            ofp_system_output = []
+
+            for k in xrange(len(dev_z[i])):
+                word = emb_layer.lst_words[dev_batches_x[i][k][j]]
+
+                if word == '<padding>' or word == '<unk>' or word == '<placeholder>' or dev_z[i][k][j] == 0:
                     continue
 
-                ofp.write(word + ' ')
+                ofp_for_rouge.write(word + ' ')
+                ofp_system_output.append(word)
 
-            ofp.close()
+            ofp_samples_system.append(' '.join(ofp_system_output))
+            ofp_for_rouge.close()
             s_num += 1
 
     s_num = 1
-    for batch in by:
-        for i in xrange(len(batch[0])):
-            ofp = open(args.model_summ_path + str(args.sparsity) + 's.' + str(s_num) + '.txt', 'w+')
+    for i in xrange(len(dev_z)):
 
-            for j in xrange(len(batch)):
-                word = emb_layer.lst_words[batch[j][i]]
+        for j in xrange(len(dev_z[i][0])):
 
-                if word == '<padding>' or word == '<unk>':
-                    continue
+            ofp_for_rouge = open(args.model_summ_path + 'e_' + str(epoch + 1) + '.' + str(s_num) + '.txt', 'w+')
+            ofp_gs_output = []
 
-                ofp.write(word + ' ')
+            for n in xrange(args.n):
+                for k in xrange(len(dev_batches_y[i])):
+                    word = emb_layer.lst_words[dev_batches_y[i][k][j + n * args.batch]]
 
-            ofp.close()
+                    if word == '<padding>' or word == '<unk>' or word == '<placeholder>':
+                        continue
+
+                    ofp_for_rouge.write(word + ' ')
+                    ofp_gs_output.append(word)
+                ofp_gs_output.append('\n')
+
+            ofp_samples_gs.append(' '.join(ofp_gs_output))
+            ofp_for_rouge.close()
             s_num += 1
 
+    for i in xrange(len(ofp_samples_gs)):
 
-def get_rouge(args):
+        ofp_samples.write('Bullet Points :\n')
+        ofp_samples.write(ofp_samples_gs[i])
+        ofp_samples.write('\nSystem Summary :')
+
+        if len(ofp_samples_system[i]) == 0:
+            ofp_samples.write('**No SUmmary**')
+        else:
+            ofp_samples.write(ofp_samples_system[i])
+
+        ofp_samples.write('\n\n')
+
+    ofp_samples.close()
+
+
+
+def get_rouge(args, epoch):
     r = Rouge155()
     r.system_dir = args.system_summ_path
     r.model_dir = args.model_summ_path
-    r.system_filename_pattern = str(args.sparsity) + 's.(\d+).txt'
-    r.model_filename_pattern = str(args.sparsity) + 's.#ID#.txt'
+    r.system_filename_pattern = 'e_' + str(epoch + 1) + '.(\d+).txt'
+    r.model_filename_pattern = 'e_' + str(epoch + 1) + '.#ID#.txt'
 
     return r.convert_and_evaluate()
 

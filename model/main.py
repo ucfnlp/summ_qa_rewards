@@ -7,16 +7,14 @@ import time
 import numpy as np
 import theano
 import theano.tensor as T
-from sklearn.metrics import jaccard_similarity_score
 
 import myio
 import summarization_args
-from nn.advanced import RCNN
 from nn.basic import LSTM, apply_dropout, Layer
 from nn.extended_layers import ExtRCNN, ZLayer, ExtLSTM, HLLSTM
 from nn.initialization import get_activation_by_name, softmax
 from nn.optimization import create_optimization_updates
-from util import say, get_ngram
+from util import say
 
 
 class Generator(object):
@@ -103,9 +101,6 @@ class Generator(object):
         for l in layers + [ output_layer ]:
             for p in l.params:
                 params.append(p)
-        nparams = sum(len(x.get_value(borrow=True).ravel()) \
-                                        for x in params)
-        say("total # parameters: {}\n".format(nparams))
 
         l2_cost = None
         for p in params:
@@ -208,19 +203,21 @@ class Encoder(object):
 
         total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
         total_bg_per_sample = T.sum(bm, axis=0) + args.bigram_smoothing
-        bigram_loss = total_z_bg_per_sample / total_bg_per_sample
+        self.bigram_loss = bigram_loss = total_z_bg_per_sample / total_bg_per_sample
 
-        self.loss_vec = loss_vec = T.mean(loss_mat, axis=1) + bigram_loss
+        self.loss_vec = loss_vec = T.mean(loss_mat, axis=1)
 
         zsum = generator.zsum
         zdiff = generator.zdiff
         logpz = generator.logpz
 
-        coherent_factor = args.sparsity * args.coherent
         loss = self.loss = T.mean(loss_vec)
-        sparsity_cost = self.sparsity_cost = T.mean(zsum) * args.sparsity + \
-                                             T.mean(zdiff) * coherent_factor
-        cost_vec = loss_vec + zsum * args.sparsity + zdiff * coherent_factor
+        self.zsum = zsum = T.abs_(zsum / T.sum(T.neq(x, padding_id), axis=0, dtype=theano.config.floatX) - 0.15)
+
+        cost_vec = loss_vec + args.sparsity*(zsum - bigram_loss) + zdiff * args.coherent
+        baseline = T.mean(cost_vec)
+        cost_vec = cost_vec - baseline
+
         cost_logpz = T.mean(cost_vec * T.sum(logpz, axis=0))
         self.obj = T.mean(cost_vec)
 
@@ -228,9 +225,6 @@ class Encoder(object):
         for l in layers:
             for p in l.params:
                 params.append(p)
-        nparams = sum(len(x.get_value(borrow=True).ravel()) \
-                      for x in params)
-        say("total # parameters: {}\n".format(nparams))
 
         l2_cost = None
         for p in params:
@@ -330,18 +324,6 @@ class Model(object):
             dev_batches_x, dev_batches_y, dev_batches_ve, dev_batches_e, dev_batches_bm = myio.create_batches(
                 args, self.nclasses, dev[0], dev[1], dev[2], dev[3], args.batch,  padding_id
             )
-        if test is not None:
-            test_batches_x, test_batches_y = myio.create_batches(
-                test[0], test[1], args.batch, padding_id
-            )
-
-        # start_time = time.time()
-        # train_batches_x, train_batches_y = myio.create_batches(
-        #     train[0], train[1], args.batch, padding_id
-        # )
-        # say("{:.2f}s to create training batches\n\n".format(
-        #     time.time() - start_time
-        # ))
 
         updates_e, lr_e, gnorm_e = create_optimization_updates(
             cost=self.encoder.cost_e,
@@ -361,12 +343,6 @@ class Model(object):
             lr=args.learning_rate
         )[:3]
 
-        sample_generator = theano.function(
-            inputs=[self.x],
-            outputs=self.z,
-            updates=self.generator.sample_updates
-        )
-
         eval_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities, self.ve],
             outputs=[self.z, self.encoder.obj, self.encoder.loss],
@@ -375,25 +351,27 @@ class Model(object):
 
         train_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities, self.ve],
-            outputs=[self.encoder.obj, self.encoder.loss, self.encoder.sparsity_cost, self.z, gnorm_e, gnorm_g],
+            outputs=[self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.bigram_loss, self.encoder.loss_vec, self.generator.zdiff],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
 
-        eval_period = args.eval_period
         unchanged = 0
         best_dev = 1e+2
-        best_dev_e = 1e+2
         last_train_avg_cost = None
         last_dev_avg_cost = None
         tolerance = 0.10 + 1e-3
         dropout_prob = np.float64(args.dropout).astype(theano.config.floatX)
 
-        ofp = open('../data/results.out', 'w+')
+        filename = myio.create_json_filename(args)
+        ofp_train = open(filename, 'w+')
+        json_train = dict()
 
         for epoch in xrange(args.max_epochs):
             total_words_per_epoch = 0
             total_summaries_per_epoch = 0
             unchanged += 1
+            more_count = 0
+
             if unchanged > 20:
                 break
 
@@ -409,40 +387,60 @@ class Model(object):
                 processed = 0
                 train_cost = 0.0
                 train_loss = 0.0
-                train_sparsity_cost = 0.0
                 p1 = 0.0
+                more_count += 1
+
+                if more_count > 10:
+                    break
                 start_time = time.time()
+
+                loss_all = []
+                obj_all = []
+                zsum_all = []
+                bigram_loss_all = []
+                loss_vec_all = []
+                z_diff_all = []
 
                 N = len(train_batches_x)
                 print N, 'batches'
                 for i in xrange(N):
-                    if (i + 1) % 32 == 0:
+                    if (i + 1) % 100 == 0:
                         say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
 
                     bx, by, bve, be, bm = train_batches_x[i], train_batches_y[i], train_batches_ve[i], train_batches_e[i], train_batches_bm[i]
                     mask = bx != padding_id
 
                     if len(bx[0]) != args.batch:
-                        print 'B_len',len(bx[0])
+                        print 'B_len', len(bx[0])
                         break
 
+                    cost, loss, z, zsum, bigram_loss, loss_vec, zdiff = train_generator(bx, by, bm, be, bve)
+                    obj_all.append(cost)
+                    loss_all.append(loss)
+                    zsum_all.append(zsum)
+                    bigram_loss_all.append(bigram_loss)
+                    loss_vec_all.append(loss_vec)
+                    z_diff_all.append(zdiff)
 
-                    cost, loss, sparsity_cost, bz, gl2_e, gl2_g = train_generator(bx, by, bm, be, bve)
-
-                    ofp.write('Epoch ' + str(epoch+1) + ' batch ' +str(i+1) + ' ')
-                    ofp.write('Cost ' + str(cost) + ' loss ' + str(loss) + '\n')
                     k = len(by)
                     processed += k
                     train_cost += cost
                     train_loss += loss
-                    train_sparsity_cost += sparsity_cost
-                    p1 += np.sum(bz * mask) / (np.sum(mask) + 1e-8)
+                    p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
 
                     total_summaries_per_epoch += args.batch
-                    total_words_per_epoch += myio.total_words(bz)
+                    total_words_per_epoch += myio.total_words(z)
 
                 cur_train_avg_cost = train_cost / N
 
+                if dev:
+                    self.dropout.set_value(0.0)
+                    dev_obj, dev_z = self.evaluate_data(dev_batches_x, dev_batches_y, dev_batches_ve, dev_batches_e,
+                                                        dev_batches_bm, eval_generator)
+                    self.dropout.set_value(dropout_prob)
+                    cur_dev_avg_cost = dev_obj
+
+                    myio.save_dev_results(args, epoch, dev_obj, dev_z, dev_batches_x, dev_batches_y, self.embedding_layer)
                 more = False
 
                 if args.decay_lr and last_train_avg_cost is not None:
@@ -467,113 +465,54 @@ class Model(object):
                         p.set_value(v)
                     continue
 
+                myio.record_observations(json_train, epoch + 1, loss_all, obj_all, zsum_all, bigram_loss_all,
+                                         loss_vec_all, z_diff_all)
+
                 last_train_avg_cost = cur_train_avg_cost
-                # if dev: last_dev_avg_cost = cur_dev_avg_cost
 
                 say("\n")
-                say(("Generator Epoch {:.2f}  costg={:.4f}  scost={:.4f}  lossg={:.4f}  " +
-                     "p[1]={:.2f}  |g|={:.4f} {:.4f}\t[{:.2f}m / {:.2f}m]\n").format(
+                say(("Generator Epoch {:.2f}  costg={:.4f}  lossg={:.4f}  " +
+                     "\t[{:.2f}m / {:.2f}m]\n").format(
                     epoch + (i + 1.0) / N,
                     train_cost / N,
-                    train_sparsity_cost / N,
                     train_loss / N,
-                    p1 / N,
-                    float(gl2_e),
-                    float(gl2_g),
                     (time.time() - start_time) / 60.0,
                     (time.time() - start_time) / 60.0 / (i + 1) * N
                 ))
-                say("\t" + str(["{:.2f}".format(np.linalg.norm(x.get_value(borrow=True))) \
-                                for x in self.encoder.params]) + "\n")
-                say("\t" + str(["{:.2f}".format(np.linalg.norm(x.get_value(borrow=True))) \
-                                for x in self.generator.params]) + "\n")
 
-        ofp.close()
+                if dev:
+                    last_dev_avg_cost = cur_dev_avg_cost
+                    if dev_obj < best_dev:
+                        best_dev = dev_obj
+                        unchanged = 0
+                        if args.save_model:
+                            self.save_model(args.save_model, args)
 
-    def evaluate_data(self, batches_x, batches_y, batches_bv, eval_func, sampling=False):
-        padding_id = self.embedding_layer.vocab_map["<padding>"]
-        tot_obj, tot_mse, p1 = 0.0, 0.0, 0.0
-        dev_v = []
-        dev_x = []
-        dev_y = []
+            if more_count > 10:
+                json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
+                json.dump(json_train, ofp_train)
+                ofp_train.close()
+                return
 
-        for bx, by, bv in zip(batches_x, batches_y, batches_bv):
-            if not sampling:
-                e, d = eval_func(bx, by)
-            else:
-                mask = bx != padding_id
-                bz, o, e = eval_func(bx, by, bv)
-                p1 += np.sum(bz * mask) / (np.sum(mask) + 1e-8)
-                tot_obj += o
+        if unchanged > 0:
+            json_train['UNCHANGED'] = unchanged
 
-            tot_mse += e
+        json.dump(json_train, ofp_train)
+        ofp_train.close()
 
-            dev_v.append(bz)
-            dev_y.append(by)
-            dev_x.append(bx)
+    def evaluate_data(self, batches_x, batches_y, batches_ve, batches_e, batches_bm, eval_func):
+        tot_obj = 0.0
+        dev_z = []
 
-        n = len(batches_x)
+        for bx, by, bve, be, bm in zip(batches_x, batches_y, batches_ve, batches_e, batches_bm):
+            bz, o, e = eval_func(bx, by, bm, be, bve)
+            tot_obj += o
 
-        if not sampling:
-            return tot_mse / n
-        return tot_obj / n, tot_mse / n, p1 / n, dev_v, dev_x, dev_y
+            dev_z.append(bz)
 
-    def evaluate_rationale(self, reviews, batches_x, batches_y, eval_func):
-        args = self.args
-        padding_id = self.embedding_layer.vocab_map["<padding>"]
-        aspect = str(args.aspect)
-        p1, tot_mse, tot_prec1, tot_prec2 = 0.0, 0.0, 0.0, 0.0
-        tot_z, tot_n = 1e-10, 1e-10
-        cnt = 0
-        for bx, by in zip(batches_x, batches_y):
-            mask = bx != padding_id
-            bz, o, e, d = eval_func(bx, by)
-            tot_mse += e
-            p1 += np.sum(bz * mask) / (np.sum(mask) + 1e-8)
-            if args.aspect >= 0:
-                for z, m in zip(bz.T, mask.T):
-                    z = [vz for vz, vm in zip(z, m) if vm]
-                    assert len(z) == len(reviews[cnt]["xids"])
-                    truez_intvals = reviews[cnt][aspect]
-                    prec = sum(1 for i, zi in enumerate(z) if zi > 0 and \
-                               any(i >= u[0] and i < u[1] for u in truez_intvals))
-                    nz = sum(z)
-                    if nz > 0:
-                        tot_prec1 += prec / (nz + 0.0)
-                        tot_n += 1
-                    tot_prec2 += prec
-                    tot_z += nz
-                    cnt += 1
-        # assert cnt == len(reviews)
-        n = len(batches_x)
-        return tot_mse / n, p1 / n, tot_prec1 / tot_n, tot_prec2 / tot_z
+        n = float(len(batches_x))
 
-    def dump_rationales(self, path, batches_x, batches_y, eval_func, sample_func):
-        embedding_layer = self.embedding_layer
-        padding_id = self.embedding_layer.vocab_map["<padding>"]
-        lst = []
-        for bx, by in zip(batches_x, batches_y):
-            loss_vec_r, preds_r, bz = eval_func(bx, by)
-            assert len(loss_vec_r) == bx.shape[1]
-            for loss_r, p_r, x, y, z in zip(loss_vec_r, preds_r, bx.T, by, bz.T):
-                loss_r = float(loss_r)
-                p_r, x, y, z = p_r.tolist(), x.tolist(), y.tolist(), z.tolist()
-                w = embedding_layer.map_to_words(x)
-                r = [u if v == 1 else "__" for u, v in zip(w, z)]
-                diff = max(y) - min(y)
-                lst.append((diff, loss_r, r, w, x, y, z, p_r))
-
-        # lst = sorted(lst, key=lambda x: (len(x[3]), x[2]))
-        with open(path, "w") as fout:
-            for diff, loss_r, r, w, x, y, z, p_r in lst:
-                fout.write(json.dumps({"diff": diff,
-                                       "loss_r": loss_r,
-                                       "rationale": " ".join(r),
-                                       "text": " ".join(w),
-                                       "x": x,
-                                       "z": z,
-                                       "y": y,
-                                       "p_r": p_r}) + "\n")
+        return tot_obj / n, dev_z
 
 
 def main():
@@ -601,7 +540,7 @@ def main():
 
         model.train(
             (train_x, train_y, train_e_idxs, train_e),
-            (dev_x, dev_y, dev_e_idxs, dev_e) if args.dev else None,
+            (dev_x, dev_y, dev_e_idxs, dev_e),
             None,  # (test_x, test_y),
             None,
         )
