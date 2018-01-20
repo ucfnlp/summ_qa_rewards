@@ -20,7 +20,7 @@ def get_args():
 
     parser.add_argument('--full_test',
                         type='bool',
-                        default=False,
+                        default=True,
                         help='Process full selection of CNN data')
 
     parser.add_argument('--embedding_dim',

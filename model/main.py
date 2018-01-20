@@ -391,7 +391,6 @@ class Model(object):
         ofp = open('../data/results.out', 'w+')
 
         for epoch in xrange(args.max_epochs):
-            read_output = open(args.train_output_readable + '_e_' + str(epoch) + '_sparcity_' + str(args.sparsity) + '.out', 'w+')
             total_words_per_epoch = 0
             total_summaries_per_epoch = 0
             unchanged += 1
