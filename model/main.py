@@ -75,18 +75,12 @@ class Generator(object):
                 activation = activation
             )
 
-        # sample z given text (i.e. x)
         z_pred, sample_updates = output_layer.sample_all(h_final)
 
-        # we are computing approximated gradient by sampling z;
-        # so should mark sampled z not part of the gradient propagation path
-        #
         z_pred = self.z_pred = theano.gradient.disconnected_grad(z_pred)
         self.sample_updates = sample_updates
-        print "z_pred", z_pred.ndim
 
         probs = output_layer.forward_all(h_final, z_pred)
-        print "probs", probs.ndim
 
         logpz = - T.nnet.binary_crossentropy(probs, z_pred) * masks
         logpz = self.logpz = logpz.reshape(x.shape)
@@ -321,8 +315,8 @@ class Model(object):
         padding_id = self.embedding_layer.vocab_map["<padding>"]
 
         if dev is not None:
-            dev_batches_x, dev_batches_y, dev_batches_ve, dev_batches_e, dev_batches_bm = myio.create_batches(
-                args, self.nclasses, dev[0], dev[1], dev[2], dev[3], args.batch,  padding_id
+            dev_batches_x, dev_batches_y, dev_batches_ve, dev_batches_e, dev_batches_bm, dev_batches_cy = myio.create_batches(
+                args, self.nclasses, dev[0], dev[1], dev[2], dev[3], dev[4], args.batch,  padding_id
             )
 
         updates_e, lr_e, gnorm_e = create_optimization_updates(
@@ -375,8 +369,8 @@ class Model(object):
             if unchanged > 20:
                 break
 
-            train_batches_x, train_batches_y, train_batches_ve, train_batches_e, train_batches_bm = myio.create_batches(
-                args, self.nclasses, train[0], train[1], train[2], train[3], args.batch, padding_id
+            train_batches_x, train_batches_y, train_batches_ve, train_batches_e, train_batches_bm, _ = myio.create_batches(
+                args, self.nclasses, train[0], train[1], train[2], train[3], None, args.batch, padding_id
             )
 
             more = True
@@ -440,7 +434,7 @@ class Model(object):
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
-                    myio.save_dev_results(args, epoch, dev_obj, dev_z, dev_batches_x, dev_batches_y, self.embedding_layer)
+                    myio.save_dev_results(args, epoch, dev_obj, dev_z, dev_batches_x,  dev_batches_cy,  self.embedding_layer)
                 more = False
 
                 if args.decay_lr and last_train_avg_cost is not None:
@@ -528,7 +522,7 @@ def main():
         train_x, train_y, train_e_idxs, train_e = myio.read_docs(args, 'train')
 
     if args.dev:
-        dev_x, dev_y, dev_e_idxs, dev_e = myio.read_docs(args, 'dev')
+        dev_x, dev_y, dev_e_idxs, dev_e, dev_cy = myio.read_docs(args, 'dev')
 
     if args.train:
         model = Model(
@@ -540,7 +534,7 @@ def main():
 
         model.train(
             (train_x, train_y, train_e_idxs, train_e),
-            (dev_x, dev_y, dev_e_idxs, dev_e),
+            (dev_x, dev_y, dev_e_idxs, dev_e, dev_cy),
             None,  # (test_x, test_y),
             None,
         )

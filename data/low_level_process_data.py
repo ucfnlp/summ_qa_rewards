@@ -9,16 +9,16 @@ def process_data(args):
 
 
 def prune_hl(args):
-    train_x, train_y, train_e, train_ve = load_json(args, args.train)
-    dev_x, dev_y, dev_e, dev_ve = load_json(args, args.dev)
+    train_x, train_y, train_e, train_ve, train_cly = load_json(args, args.train)
+    dev_x, dev_y, dev_e, dev_ve, dev_cly = load_json(args, args.dev)
 
     entity_map = get_entities(args)
 
-    updated_train_y, updated_train_e, updated_train_x, updated_train_ve = prune_type(train_x, train_y, train_e, train_ve, entity_map)
-    updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve = prune_type(dev_x, dev_y, dev_e, dev_ve, entity_map)
+    updated_train_y, updated_train_e, updated_train_x, updated_train_ve, updated_train_cly = prune_type(train_x, train_y, train_e, train_ve, train_cly, entity_map)
+    updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve, updated_dev_cly = prune_type(dev_x, dev_y, dev_e, dev_ve, dev_cly, entity_map)
 
-    return (updated_train_x, updated_train_y, updated_train_e, updated_train_ve), \
-           (updated_dev_x, updated_dev_y, updated_dev_e, updated_dev_ve)
+    return (updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly), \
+           (updated_dev_x, updated_dev_y, updated_dev_e, updated_dev_ve, updated_dev_cly)
 
 
 def write_model_ready(args, train, dev):
@@ -32,6 +32,7 @@ def write_model_ready(args, train, dev):
     final_json_train['y'] = train[1]
     final_json_train['e'] = train[2]
     final_json_train['valid_e'] = train[3]
+    final_json_train['clean_y'] = train[4]
 
     json.dump(final_json_train, ofp_train)
     ofp_train.close()
@@ -46,14 +47,16 @@ def write_model_ready(args, train, dev):
     final_json_dev['y'] = dev[1]
     final_json_dev['e'] = dev[2]
     final_json_dev['valid_e'] = dev[3]
+    final_json_dev['clean_y'] = dev[4]
 
     json.dump(final_json_dev, ofp_dev)
     ofp_dev.close()
 
 
-def prune_type(x, y, e, ve, entity_map):
+def prune_type(x, y, e, ve, cy, entity_map):
     length = len(y)
     updated_y = []
+    updated_cy = []
     updated_e = []
     updated_ve = []
     updated_x = []
@@ -110,9 +113,10 @@ def prune_type(x, y, e, ve, entity_map):
         updated_y.append(updated_y_ls[:args.n])
         updated_e.append(updated_e_ls[:args.n])
         updated_ve.append(ve[i])
+        updated_cy.append(cy[i])
         updated_x.append([w for sent in x[i] for w in sent])
 
-    return updated_y, updated_e, updated_x, updated_ve
+    return updated_y, updated_e, updated_x, updated_ve, updated_cy
 
 
 def load_json(args, type):
@@ -125,9 +129,9 @@ def load_json(args, type):
     ifp.close()
 
     if 'test' in type:
-        return data['x'], data['y']
+        return data['x'], data['y'], data['clean_y']
     else:
-        return data['x'], data['y'], data['e'], data['valid_e']
+        return data['x'], data['y'], data['e'], data['valid_e'], data['clean_y']
 
 
 def get_entities(args):

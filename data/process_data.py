@@ -17,7 +17,7 @@ def process_data(args):
     if args.pipeline: # takes a long-o-time
         core_nlp(args, train[0], dev[0], test[0])
     else:
-        word_counts = [100000]
+        word_counts = [args.vocab_size]
         emb_set = get_embedding_set(args)
 
         for count in word_counts:
@@ -54,7 +54,7 @@ def split_data(args):
                     continue
 
                 sha = file_in.split('.')[0]
-                file_in = open(subdir + '/' + file_in, 'r')
+                file_in = open(subdir + file_in, 'r')
                 incoming_hl = False
 
                 for line in file_in:
@@ -70,6 +70,10 @@ def split_data(args):
                         incoming_hl = False
                     else:
                         current_article.append(line)
+
+                if len(current_highlights) < 3:
+                    print 'short',len(current_highlights)
+                    print file_in.name
 
                 current_article, current_highlights = tokenize(args, current_article, current_highlights, unique_words)
 
@@ -141,8 +145,16 @@ def core_nlp(args, train, dev, test):
 def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, unk):
     inp_seqs = []
     inp_ents = []
+    counter = 0
+
+    total_samples = len(inp)
+    print total_samples, 'total samples'
 
     for article in inp:
+        if (total_samples / 10) > 0 and counter % (total_samples / 10) == 0:
+            print '..', counter
+        counter += 1
+
         single_inp_seqs = []
         entities_in_article = set()
 
@@ -192,6 +204,7 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
 def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, first_word_map,  type, placeholder, unk):
     input_hl_seqs = []
     input_hl_entities = []
+    input_hl_clean = []
 
     tag_ls = ['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC']
 
@@ -209,6 +222,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             print '..', sample
 
         single_inp_hl = []
+        single_inp_clean = []
         single_inp_hl_entity_ls = []
 
         highlight = inp[sample]
@@ -249,6 +263,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
                     first_word_map[root_org].append(root_org)
 
             clean_hl_vec = create_hl_vector(args, vocab, tokens_ls, unk)
+            single_inp_clean.append(clean_hl_vec)
 
             hl_vec = clean_hl_vec[:]
             hl_vec[root_idx - 1] = placeholder
@@ -286,8 +301,9 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
 
         input_hl_seqs.append(single_inp_hl)
         input_hl_entities.append(single_inp_hl_entity_ls)
+        input_hl_clean.append(single_inp_clean)
 
-    return input_hl_seqs, input_hl_entities, entity_counter
+    return input_hl_seqs, input_hl_entities, input_hl_clean, entity_counter
 
 
 def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
@@ -298,13 +314,13 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     entity_counter = 0
 
     print 'Train data NER HL proc..'
-    seqs_train_hl, seqs_train_e, entity_counter = seqs_hl(args, train[0], vocab, entity_set, entity_counter, raw_entity_mapping,
+    seqs_train_hl, seqs_train_e, seqs_clean_train, entity_counter = seqs_hl(args, train[0], vocab, entity_set, entity_counter, raw_entity_mapping,
                                           first_word_map, 'train', placeholder, unk)
     print 'Dev data NER HL proc..'
-    seqs_dev_hl, seqs_dev_e, entity_counter = seqs_hl(args, dev[0], vocab, entity_set, entity_counter, raw_entity_mapping,
+    seqs_dev_hl, seqs_dev_e, seqs_clean_dev, entity_counter = seqs_hl(args, dev[0], vocab, entity_set, entity_counter, raw_entity_mapping,
                                       first_word_map, 'dev', placeholder, unk)
     print 'Test data NER HL proc..'
-    seqs_test_hl, seqs_test_e, entity_counter = seqs_hl(args, test[0], vocab, entity_set, entity_counter, raw_entity_mapping,
+    seqs_test_hl, seqs_test_e, seqs_clean_test, entity_counter = seqs_hl(args, test[0], vocab, entity_set, entity_counter, raw_entity_mapping,
                                         first_word_map, 'test', placeholder, unk)
 
     sorted_first_word_map = sort_entries(first_word_map)
@@ -329,6 +345,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     final_json_train['y'] = seqs_train_hl
     final_json_train['e'] = seqs_train_e
     final_json_train['valid_e'] = seq_train_art_ents
+    final_json_train['clean_y'] = seqs_clean_train
 
     json.dump(final_json_train, ofp_train)
     ofp_train.close()
@@ -343,6 +360,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     final_json_dev['y'] = seqs_dev_hl
     final_json_dev['e'] = seqs_dev_e
     final_json_dev['valid_e'] = seq_dev_art_ents
+    final_json_dev['clean_y'] = seqs_clean_dev
 
     json.dump(final_json_dev, ofp_dev)
     ofp_dev.close()
@@ -355,6 +373,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
 
     final_json_test['x'] = seqs_test_articles
     final_json_test['y'] = seqs_test_hl
+    final_json_test['clean_y'] = seqs_clean_test
 
     json.dump(final_json_test, ofp_test)
     ofp_test.close()
