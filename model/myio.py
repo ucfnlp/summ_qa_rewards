@@ -272,15 +272,15 @@ def get_readable_file(args, epoch):
     return path + filename
 
 
-def record_observations(ofp_json, epoch, loss, obj, zsum, bigram_loss, loss_vec, z_diff):
+def record_observations(ofp_json, epoch, loss, obj, zsum, bigram_loss, loss_vec_all, z_diff):
     epoch_data = dict()
 
-    epoch_data['loss'] = loss
-    epoch_data['obj'] = obj
-    epoch_data['zsum'] = zsum
-    epoch_data['bigram_loss'] = bigram_loss
-    epoch_data['loss_vec'] = loss_vec
-    epoch_data['zdiff'] = z_diff
+    epoch_data['loss'] = [l.tolist() for l in loss]
+    epoch_data['obj'] = [l.tolist() for l in obj]
+    epoch_data['zsum'] = [l.tolist() for l in zsum]
+    epoch_data['bigram_loss'] = [l.tolist() for l in bigram_loss]
+    epoch_data['loss_vec'] = [l.tolist() for l in loss_vec_all]
+    epoch_data['zdiff'] = [l.tolist() for l in z_diff]
 
     ofp_json['e' + str(epoch)] = epoch_data
 

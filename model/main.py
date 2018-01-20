@@ -398,8 +398,9 @@ class Model(object):
                 N = len(train_batches_x)
                 print N, 'batches'
                 for i in xrange(N):
-                    if (i + 1) % 100 == 0:
+                    if (i + 1) % 10 == 0:
                         say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
+                        break
 
                     bx, by, bve, be, bm = train_batches_x[i], train_batches_y[i], train_batches_ve[i], train_batches_e[i], train_batches_bm[i]
                     mask = bx != padding_id
