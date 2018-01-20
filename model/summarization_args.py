@@ -15,7 +15,7 @@ def get_args():
 
     parser.add_argument('--embedding',
                         type=str,
-                        default='../data/emb/glove.6B/glove.6B.200d.txt',
+                        default='../data/emb/glove.6B.200d.txt',
                         help='w2v model name and path')
 
     parser.add_argument('--full_test',
