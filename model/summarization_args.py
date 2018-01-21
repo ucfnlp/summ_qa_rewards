@@ -226,17 +226,17 @@ def get_args():
 
     parser.add_argument("--coeff_summ_len",
                         type=float,
-                        default=20
+                        default=5
                         )
 
     parser.add_argument("--coeff_adequacy",
                         type=float,
-                        default=20
+                        default=5
                         )
 
     parser.add_argument("--coeff_fluency",
                         type=float,
-                        default=20
+                        default=100
                         )
 
     parser.add_argument("--aspect",
