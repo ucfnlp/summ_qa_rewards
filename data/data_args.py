@@ -123,6 +123,12 @@ def get_args():
                         default=False,
                         help='Whether to use a given highlight only once, or all its permutations.')
 
+    parser.add_argument("--model_summ_path",
+                        type=str,
+                        default="results/summaries/model/",
+                        help="gold standard summaries"
+                        )
+
     # URLS FOR SPLITS
 
     parser.add_argument('--train_urls',

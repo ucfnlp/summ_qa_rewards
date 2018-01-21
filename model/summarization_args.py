@@ -122,7 +122,7 @@ def get_args():
 
     parser.add_argument("--max_epochs",
                         type=int,
-                        default=1,
+                        default=10,
                         help="maximum # of epochs"
                         )
 
@@ -134,7 +134,7 @@ def get_args():
 
     parser.add_argument("--batch",
                         type=int,
-                        default=32,
+                        default=64,
                         help="mini-batch size"
                         )
 
@@ -224,14 +224,21 @@ def get_args():
                         help="whether to use the states of all layers"
                         )
 
-    parser.add_argument("--sparsity",
+    parser.add_argument("--coeff_summ_len",
                         type=float,
-                        default=0.0003
+                        default=20
                         )
-    parser.add_argument("--coherent",
+
+    parser.add_argument("--coeff_adequacy",
                         type=float,
-                        default=2.0
+                        default=20
                         )
+
+    parser.add_argument("--coeff_fluency",
+                        type=float,
+                        default=20
+                        )
+
     parser.add_argument("--aspect",
                         type=int,
                         default=-1

@@ -14,6 +14,9 @@ sys.setdefaultencoding('utf8')
 def process_data(args):
     train, dev, test, unique_w = split_data(args)
 
+    prepare_rouge(args, test[0], 'test')
+    prepare_rouge(args, dev[0], 'dev')
+
     if args.pipeline: # takes a long-o-time
         core_nlp(args, train[0], dev[0], test[0])
     else:
@@ -71,10 +74,6 @@ def split_data(args):
                     else:
                         current_article.append(line)
 
-                if len(current_highlights) < 3:
-                    print 'short',len(current_highlights)
-                    print file_in.name
-
                 current_article, current_highlights = tokenize(args, current_article, current_highlights, unique_words)
 
                 if len(current_article) == 0:
@@ -104,6 +103,25 @@ def split_data(args):
 
     return (highlights_train, articles_train), (highlights_dev, articles_dev), (highlights_test, articles_test), unique_words
 
+
+def prepare_rouge(args, inp, type):
+    file_part = args.model_summ_path + type + '_'
+    rouge_counter = 0
+
+    for item in inp:
+        ofp = open(file_part + str(rouge_counter).zfill(6) + '.txt', 'w+')
+
+        for i in xrange(len(item)):
+
+            text = ' '.join(item[i]) + ' .'
+
+            ofp.write(text)
+
+            if i <= len(item) - 1:
+                ofp.write(' ')
+
+        ofp.close()
+        rouge_counter += 1
 
 def core_nlp(args, train, dev, test):
 

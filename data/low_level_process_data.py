@@ -83,7 +83,7 @@ def prune_type(x, y, e, ve, cy, entity_map):
                 if total_entries >= args.n:
                     break
 
-                if perm in valid_entities and keep_perm_type(perm, restricted_types, entity_map):
+                if keep_perm_type(perm, restricted_types, entity_map):
                     updated_y_ls.append(y[i][y_idx])
                     updated_e_ls.append(perm)
                     total_entries += 1

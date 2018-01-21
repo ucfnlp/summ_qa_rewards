@@ -30,16 +30,11 @@ def read_docs(args, type):
 
     data_x = data['x']
     data_y = data['y']
-    data_ve = data['valid_e']
     data_e = data['e']
-    data_cy = data['clean_y']
 
     data_file.close()
 
-    if type == 'dev':
-        return data_x, data_y, data_ve, data_e, data_cy
-    else:
-        return data_x, data_y, data_ve, data_e
+    return data_x, data_y, data_e
 
 
 def load_e(args):
@@ -80,8 +75,8 @@ def create_embedding_layer(args, path, vocab):
     return embedding_layer
 
 
-def create_batches(args, n_classes, x, y, ve, e, cy, batch_size, padding_id, sort=True):
-    batches_x, batches_y, batches_e, batches_ve, batches_bm, batches_cy = [], [], [], [], [], []
+def create_batches(args, n_classes, x, y, e, batch_size, padding_id, sort=True):
+    batches_x, batches_y, batches_e, batches_bm  = [], [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
 
@@ -90,34 +85,23 @@ def create_batches(args, n_classes, x, y, ve, e, cy, batch_size, padding_id, sor
         perm = sorted(perm, key=lambda i: len(x[i]))
         x = [x[i] for i in perm]
         y = [y[i] for i in perm]
-        ve = [ve[i] for i in perm]
         e = [e[i] for i in perm]
 
-        if cy is not None:
-            cy = [cy[i] for i in perm]
-
     for i in xrange(M):
-        bx, by, bve, be, bm, bcy = create_one_batch(
+        bx, by, be, bm = create_one_batch(
             args,
             n_classes,
             x[i * batch_size:(i + 1) * batch_size],
             y[i * batch_size:(i + 1) * batch_size],
-            ve[i * batch_size:(i + 1) * batch_size],
             e[i * batch_size:(i + 1) * batch_size],
-            cy[i * batch_size:(i + 1) * batch_size] if cy is not None else None,
             padding_id,
             batch_size
         )
 
         batches_x.append(bx)
         batches_y.append(by)
-        batches_ve.append(bve)
         batches_e.append(be)
         batches_bm.append(bm)
-
-        if cy is not None:
-            batches_cy.append(bcy)
-
 
     if sort:
         random.seed(5817)
@@ -125,17 +109,13 @@ def create_batches(args, n_classes, x, y, ve, e, cy, batch_size, padding_id, sor
         random.shuffle(perm2)
         batches_x = [batches_x[i] for i in perm2]
         batches_y = [batches_y[i] for i in perm2]
-        batches_ve = [batches_ve[i] for i in perm2]
         batches_e = [batches_e[i] for i in perm2]
         batches_bm = [batches_bm[i] for i in perm2]
 
-        if cy is not None:
-            batches_cy = [batches_cy[i] for i in perm2]
-
-    return batches_x, batches_y, batches_ve, batches_e, batches_bm, batches_cy
+    return batches_x, batches_y, batches_e, batches_bm
 
 
-def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, lstcy, padding_id, b_len):
+def create_one_batch(args, n_classes, lstx, lsty, lste, padding_id, b_len):
     """
     Parameters
     ----------
@@ -154,11 +134,10 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, lstcy, padding_id
     assert min(len(x) for x in lstx) > 0
 
     if len(lstx) < b_len:
-        lstx, lsty, lstve, lste, lstcy = round_batch(lstx, lsty, lstve, lste, lstcy, b_len)
+        lstx, lsty, lste = round_batch(lstx, lsty, lste, b_len)
 
     # padded y
     by, unigrams, be = process_hl(args, lsty, lste,padding_id, n_classes)
-    lstve = process_ent(n_classes, lstve)
 
     bx = np.column_stack([np.pad(x[:max_len], (max_len - len(x) if len(x) <= max_len else 0, 0), "constant",
                                  constant_values=padding_id).astype('int32') for x in lstx])
@@ -168,27 +147,20 @@ def create_one_batch(args, n_classes, lstx, lsty, lstve, lste, lstcy, padding_id
     bm = np.column_stack([m for m in bm])
     by = np.column_stack([y for y in by])
 
-    return bx, by, lstve, be, bm, lstcy
+    return bx, by, be, bm
 
 
-def round_batch(lstx, lsty, lstve, lste, lstcy, b_len):
-    lstx_rounded, lsty_rounded, lstve_rounded, lste_rounded, lstcy_rounded = [],[],[],[],[]
+def round_batch(lstx, lsty, lste, b_len):
+    lstx_rounded, lsty_rounded, lste_rounded = [],[],[]
     missing = b_len - len(lstx)
 
     while missing > 0:
         missing = b_len - len(lstx_rounded)
         lstx_rounded.extend(lstx[:])
         lsty_rounded.extend(lsty[:])
-        lstve_rounded.extend(lstve[:])
         lste_rounded.extend(lste[:])
 
-        if lstcy is not None:
-            lstcy_rounded.extend(lstcy[:])
-
-    if lstcy is not None:
-        return lstx_rounded[:b_len], lsty_rounded[:b_len], lstve_rounded[:b_len], lste_rounded[:b_len], lstcy_rounded[:b_len]
-    else:
-        return lstx_rounded[:b_len], lsty_rounded[:b_len], lstve_rounded[:b_len], lste_rounded[:b_len], None
+    return lstx_rounded[:b_len], lsty_rounded[:b_len], lste_rounded[:b_len]
 
 
 def process_hl(args, lsty, lste, padding_id, n_classes):
@@ -254,20 +226,26 @@ def process_ent(n_classes, lste):
     return ret_e
 
 
+def create_fname_identifier(args):
+    return 'train_data_embdim_' + str(args.embedding_dim) + \
+           '_vocab_size_' + str(args.vocab_size) + \
+           '_batch_' + str(args.batch) + \
+           '_epochs_' + str(args.max_epochs) + \
+           '_coeff_summ_len_' + str(args.coeff_summ_len) + \
+           '_coeff_adequacy_' + str(args.coeff_adequacy) + \
+           '_coeff_fluency_' + str(args.coeff_fluency)
+
+
 def create_json_filename(args):
     path = '../data/results/'
-    filename = 'train_data_embdim_' + str(args.embedding_dim) + '_vocab_size_' + str(args.vocab_size) + '_batch_' + str(
-        args.batch) + '_epochs_' + str(args.max_epochs) + '_spar_' + str(args.sparsity) + '_coh_' + str(
-        args.coherent) + '.json'
+    filename = create_fname_identifier(args) + '.json'
 
     return path + filename
 
 
 def get_readable_file(args, epoch):
     path = args.train_output_readable
-    filename = 'train_data_embdim_' + str(args.embedding_dim) + '_vocab_size_' + str(args.vocab_size) + '_batch_' + str(
-        args.batch) + '_epochs_' + str(args.max_epochs) + '_spar_' + str(args.sparsity) + '_coh_' + str(
-        args.coherent) +'_e_' + str(epoch + 1) + '.out'
+    filename = create_fname_identifier(args) +'_e_' + str(epoch + 1) + '.out'
 
     return path + filename
 
@@ -285,13 +263,13 @@ def record_observations(ofp_json, epoch, loss, obj, zsum, bigram_loss, loss_vec_
     ofp_json['e' + str(epoch)] = epoch_data
 
 
-def save_dev_results(args, epoch, dev_obj, dev_z, dev_batches_x, dev_batches_cy, emb_layer):
-    s_num = 1
+def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer):
+    s_num = 0
 
     filename = get_readable_file(args, epoch)
     ofp_samples = open(filename, 'w+')
     ofp_samples_system = []
-    ofp_samples_gs = []
+
     for i in xrange(len(dev_z)):
 
         for j in xrange(len(dev_z[i][0])):
@@ -302,7 +280,7 @@ def save_dev_results(args, epoch, dev_obj, dev_z, dev_batches_x, dev_batches_cy,
             for k in xrange(len(dev_z[i])):
                 word = emb_layer.lst_words[dev_batches_x[i][k][j]]
 
-                if word == '<padding>' or word == '<unk>' or word == '<placeholder>' or dev_z[i][k][j] == 0:
+                if word == '<padding>' or word == '<unk>' or dev_z[i][k][j] == 0:
                     continue
 
                 ofp_for_rouge.write(word + ' ')
@@ -312,44 +290,18 @@ def save_dev_results(args, epoch, dev_obj, dev_z, dev_batches_x, dev_batches_cy,
             ofp_for_rouge.close()
             s_num += 1
 
-    s_num = 1
-    for i in xrange(len(dev_batches_cy)):
+    for i in xrange(len(ofp_samples_system)):
 
-        for j in xrange(len(dev_batches_cy[i])):
-
-            ofp_for_rouge = open(args.model_summ_path + 'e_' + str(epoch + 1) + '.' + str(s_num) + '.txt', 'w+')
-            ofp_gs_output = []
-
-            for k in xrange(len(dev_batches_cy[i][j])):
-                for l in xrange(len(dev_batches_cy[i][j][k])):
-                    word = emb_layer.lst_words[dev_batches_cy[i][j][k][l]]
-
-                    if word == '<padding>' or word == '<unk>' or word == '<placeholder>':
-                        continue
-
-                    ofp_for_rouge.write(word + ' ')
-                    ofp_gs_output.append(word)
-                ofp_gs_output.append('\n')
-
-            ofp_samples_gs.append(' '.join(ofp_gs_output))
-            ofp_for_rouge.close()
-            s_num += 1
-
-    for i in xrange(len(ofp_samples_gs)):
-
-        ofp_samples.write('Bullet Points :\n')
-        ofp_samples.write(ofp_samples_gs[i])
-        ofp_samples.write('\nSystem Summary :')
+        ofp_samples.write('System Summary :')
 
         if len(ofp_samples_system[i]) == 0:
-            ofp_samples.write('\n**No Summary**')
+            ofp_samples.write('**No Summary**')
         else:
             ofp_samples.write(ofp_samples_system[i])
 
         ofp_samples.write('\n\n')
 
     ofp_samples.close()
-
 
 
 def get_rouge(args, epoch):
