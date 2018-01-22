@@ -34,6 +34,9 @@ def read_docs(args, type):
 
     data_file.close()
 
+    if type == 'test':
+        return data_x
+
     return data_x, data_y, data_e
 
 
@@ -73,6 +76,24 @@ def create_embedding_layer(args, path, vocab):
         # fix_init_embs=False
     )
     return embedding_layer
+
+
+def create_test(args, x, padding_id):
+    batches_x = []
+    batch_size = args.batch
+    max_len = args.inp_len
+
+    N = len(x)
+    M = (N - 1) / batch_size + 1
+
+    for i in xrange(M):
+        lstx = x[i * batch_size:(i + 1) * batch_size]
+        bx = np.column_stack([np.pad(x[:max_len], (max_len - len(x) if len(x) <= max_len else 0, 0), "constant",
+                                     constant_values=padding_id).astype('int32') for x in lstx])
+
+        batches_x.append(bx)
+
+    return batches_x
 
 
 def create_batches(args, n_classes, x, y, e, batch_size, padding_id, sort=True):
@@ -300,6 +321,27 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer):
         ofp_samples.write('\n\n')
 
     ofp_samples.close()
+
+
+def save_test_results_rouge(args, z, test_batches_x, emb_layer):
+    s_num = 0
+
+    for i in xrange(len(z)):
+
+        for j in xrange(len(z[i][0])):
+
+            ofp_for_rouge = open(args.system_summ_path + 'test.' + str(s_num) + '.txt', 'w+')
+
+            for k in xrange(len(z[i])):
+                word = emb_layer.lst_words[test_batches_x[i][k][j]]
+
+                if word == '<padding>' or word == '<unk>' or z[i][k][j] == 0:
+                    continue
+
+                ofp_for_rouge.write(word + ' ')
+
+            ofp_for_rouge.close()
+            s_num += 1
 
 
 def get_rouge(args, epoch):

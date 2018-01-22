@@ -19,10 +19,9 @@ from util import say
 
 class Generator(object):
 
-    def __init__(self, args, embedding_layer, nclasses):
+    def __init__(self, args, embedding_layer):
         self.args = args
         self.embedding_layer = embedding_layer
-        self.nclasses = nclasses
 
     def ready(self):
         embedding_layer = self.embedding_layer
@@ -234,15 +233,16 @@ class Encoder(object):
         self.cost_g = cost_logpz * 10 + generator.l2_cost
         self.cost_e = loss * 10 + l2_cost
 
+
 class Model(object):
-    def __init__(self, args, embedding_layer, nclasses):
+    def __init__(self, args, embedding_layer, nclasses, build_test=False):
         self.args = args
         self.embedding_layer = embedding_layer
         self.nclasses = nclasses
 
     def ready(self):
         args, embedding_layer, nclasses = self.args, self.embedding_layer, self.nclasses
-        self.generator = Generator(args, embedding_layer, nclasses)
+        self.generator = Generator(args, embedding_layer)
         self.encoder = Encoder(args, nclasses, self.generator)
         self.generator.ready()
         self.encoder.ready()
@@ -253,6 +253,14 @@ class Model(object):
         self.gold_standard_entities = self.encoder.gold_standard_entities
         self.z = self.generator.z_pred
         self.params = self.encoder.params + self.generator.params
+
+    def ready_test(self):
+        args, embedding_layer= self.args, self.embedding_layer
+        self.generator = Generator(args, embedding_layer)
+        self.generator.ready()
+        self.dropout = self.generator.dropout
+        self.x = self.generator.x
+        self.z = self.generator.z_pred
 
     def evaluate_rnn_weights(self, args, e, b):
         fout= gzip.open(args.weight_eval + 'e_' + str(e) + '_b_' + str(b) + '_weights.pkl.gz', 'wb+')
@@ -304,7 +312,23 @@ class Model(object):
         for x, v in zip(self.generator.params, gparams):
             x.set_value(v)
 
-    def train(self, train, dev, test, rationale_data):
+    def test(self, test):
+        args = self.args
+
+        test_generator = theano.function(
+            inputs=[self.x],
+            outputs=self.z
+        )
+
+        padding_id = self.embedding_layer.vocab_map["<padding>"]
+        test_batches_x = myio.create_test(args, test, padding_id)
+
+        self.dropout.set_value(0.0)
+        z = self.evaluate_test_data(test_batches_x, test_generator)
+
+        myio.save_test_results_rouge(args, z, test_batches_x, self.embedding_layer)
+
+    def train(self, train, dev):
         args = self.args
         dropout = self.dropout
         padding_id = self.embedding_layer.vocab_map["<padding>"]
@@ -373,7 +397,6 @@ class Model(object):
                 param_bak = [p.get_value(borrow=False) for p in self.params]
 
             while more:
-                processed = 0
                 train_cost = 0.0
                 train_loss = 0.0
                 p1 = 0.0
@@ -499,6 +522,16 @@ class Model(object):
 
         return tot_obj / n, dev_z
 
+    def evaluate_test_data(self, batches_x, eval_func):
+        dev_z = []
+
+        for bx in zip(batches_x):
+            bz = eval_func(bx)
+
+            dev_z.append(bz)
+
+        return dev_z
+
 
 def main():
     assert args.embedding, "Pre-trained word embeddings required."
@@ -515,6 +548,9 @@ def main():
     if args.dev:
         dev_x, dev_y, dev_e = myio.read_docs(args, 'dev')
 
+    if args.test:
+        test_x = myio.read_docs(args, 'test')
+
     if args.train:
         model = Model(
             args=args,
@@ -525,10 +561,19 @@ def main():
 
         model.train(
             (train_x, train_y, train_e),
-            (dev_x, dev_y, dev_e),
-            None,  # (test_x, test_y),
-            None,
+            (dev_x, dev_y, dev_e)
         )
+
+    if args.test:
+        model = Model(
+            args = args,
+            embedding_layer = embedding_layer,
+            n_classes=None,
+            build_test = True
+        )
+        model.ready_test()
+
+        model.test(test_x)
 
 
 if __name__ == "__main__":
