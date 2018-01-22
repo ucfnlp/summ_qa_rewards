@@ -293,7 +293,7 @@ class Model(object):
                 protocol=pickle.HIGHEST_PROTOCOL
             )
 
-    def load_model(self, path):
+    def load_model(self, path, test=False):
         if not os.path.exists(path):
             if path.endswith(".pkl"):
                 path += ".gz"
@@ -306,9 +306,14 @@ class Model(object):
         # construct model/network using saved configuration
         self.args = args
         self.nclasses = nclasses
-        self.ready()
-        for x, v in zip(self.encoder.params, eparams):
-            x.set_value(v)
+
+        if test:
+            self.ready_test()
+        else:
+            self.ready()
+            for x, v in zip(self.encoder.params, eparams):
+                x.set_value(v)
+
         for x, v in zip(self.generator.params, gparams):
             x.set_value(v)
 
@@ -416,15 +421,15 @@ class Model(object):
                 N = len(train_batches_x)
                 print N, 'batches'
                 for i in xrange(N):
-                    if (i + 1) % 100 == 0:
-                        say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
+
+                    if args.full_test:
+                        if (i + 1) % 100 == 0:
+                            say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
+                    elif (i + 1) % 10 == 0:
+                            say("\r{}/{} {:.2f}       ".format(i + 1, N, p1 / (i + 1)))
 
                     bx, by, be, bm = train_batches_x[i], train_batches_y[i], train_batches_e[i], train_batches_bm[i]
                     mask = bx != padding_id
-
-                    if len(bx[0]) != args.batch:
-                        print 'B_len', len(bx[0])
-                        break
 
                     cost, loss, z, zsum, zdiff, bigram_loss, loss_vec = train_generator(bx, by, bm, be)
                     obj_all.append(cost)
@@ -571,7 +576,7 @@ def main():
             n_classes=None,
             build_test = True
         )
-        model.ready_test()
+        model.load_model(args.save_model + args.load_file, True)
 
         model.test(test_x)
 
