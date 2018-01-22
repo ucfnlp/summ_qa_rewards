@@ -68,7 +68,7 @@ def get_args():
 
     parser.add_argument("--save_model",
                         type=str,
-                        default="",
+                        default="save_models/",
                         help="path to save model parameters"
                         )
 

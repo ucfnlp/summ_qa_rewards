@@ -224,7 +224,8 @@ def process_ent(n_classes, lste):
 
 
 def create_fname_identifier(args):
-    return 'train_data_embdim_' + str(args.embedding_dim) + \
+    return 'source_' + str(args.source) + \
+           '_train_data_embdim_' + str(args.embedding_dim) + \
            '_vocab_size_' + str(args.vocab_size) + \
            '_batch_' + str(args.batch) + \
            '_epochs_' + str(args.max_epochs) + \

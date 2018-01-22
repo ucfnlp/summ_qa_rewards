@@ -470,7 +470,8 @@ class Model(object):
                         best_dev = dev_obj
                         unchanged = 0
                         if args.save_model:
-                            self.save_model(args.save_model, args)
+                            filename = args.save_model + myio.create_fname_identifier(args)
+                            self.save_model(filename, args)
 
             if more_count > 2:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
