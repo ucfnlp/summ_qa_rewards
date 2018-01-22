@@ -168,7 +168,7 @@ class Encoder(object):
         inp_dot_hl = inp_dot_hl - softmax_mask
         inp_dot_hl = inp_dot_hl.ravel()
 
-        alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * args.batch, args.inp_len)))
+        alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], args.inp_len)))
 
         o = T.batched_dot(alpha, gen_h_final)
 
@@ -185,7 +185,7 @@ class Encoder(object):
         preds = output_layer.forward(o)
         preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
         cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
-        loss_mat = cross_entropy.reshape((args.batch, args.n))
+        loss_mat = cross_entropy.reshape((x.shape[1], args.n))
 
         padded = T.shape_padaxis(T.zeros_like(z[0]), axis=1).dimshuffle((1, 0))
         z_shift = T.concatenate([z[1:], padded], axis=0)
@@ -356,12 +356,12 @@ class Model(object):
         json_train = dict()
 
         for epoch in xrange(args.max_epochs):
-            total_words_per_epoch = 0
-            total_summaries_per_epoch = 0
             unchanged += 1
             more_count = 0
 
-            if unchanged > 20:
+            say("Unchanged : {}\n".format(unchanged))
+
+            if unchanged > 5:
                 break
 
             train_batches_x, train_batches_y, train_batches_e, train_batches_bm = myio.create_batches(
@@ -379,7 +379,7 @@ class Model(object):
                 p1 = 0.0
                 more_count += 1
 
-                if more_count > 10:
+                if more_count > 2:
                     break
                 start_time = time.time()
 
@@ -411,14 +411,9 @@ class Model(object):
                     loss_vec_all.append(loss_vec)
                     z_diff_all.append(zdiff)
 
-                    k = len(by)
-                    processed += k
                     train_cost += cost
                     train_loss += loss
                     p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
-
-                    total_summaries_per_epoch += args.batch
-                    total_words_per_epoch += myio.total_words(z)
 
                 cur_train_avg_cost = train_cost / N
 
@@ -477,13 +472,13 @@ class Model(object):
                         if args.save_model:
                             self.save_model(args.save_model, args)
 
-            if more_count > 1:
+            if more_count > 2:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
                 json.dump(json_train, ofp_train)
                 ofp_train.close()
                 return
 
-        if unchanged > 0:
+        if unchanged > 5:
             json_train['UNCHANGED'] = unchanged
 
         json.dump(json_train, ofp_train)

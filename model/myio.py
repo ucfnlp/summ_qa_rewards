@@ -133,9 +133,6 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, padding_id, b_len):
 
     assert min(len(x) for x in lstx) > 0
 
-    if len(lstx) < b_len:
-        lstx, lsty, lste = round_batch(lstx, lsty, lste, b_len)
-
     # padded y
     by, unigrams, be = process_hl(args, lsty, lste,padding_id, n_classes)
 

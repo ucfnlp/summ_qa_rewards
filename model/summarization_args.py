@@ -15,8 +15,13 @@ def get_args():
 
     parser.add_argument('--embedding',
                         type=str,
-                        default='../data/emb/glove.6B.200d.txt',
-                        help='w2v model name and path')
+                        default='../data/emb/glove.6B.100d.txt',
+                        help='glove model name and path')
+
+    parser.add_argument('--source',
+                        type=str,
+                        default='cnn',
+                        help='Data source cnn/dm')
 
     parser.add_argument('--full_test',
                         type='bool',
@@ -25,7 +30,7 @@ def get_args():
 
     parser.add_argument('--embedding_dim',
                         type=int,
-                        default=200,
+                        default=100,
                         help='Size of word vectors')
 
     parser.add_argument('--vocab_size',
@@ -61,12 +66,6 @@ def get_args():
                         help="gold standard summaries"
                         )
 
-    parser.add_argument("--load_rationale",
-                        type=str,
-                        default="",
-                        help="path to annotated rationale data"
-                        )
-
     parser.add_argument("--save_model",
                         type=str,
                         default="",
@@ -84,6 +83,7 @@ def get_args():
                         default="",
                         help="path to load model"
                         )
+
     parser.add_argument("--train",
                         type=str,
                         default="../data/training_model.json",
@@ -114,22 +114,10 @@ def get_args():
                         help="path to test data"
                         )
 
-    parser.add_argument("--dump",
-                        type=str,
-                        default="",
-                        help="path to dump rationale"
-                        )
-
     parser.add_argument("--max_epochs",
                         type=int,
-                        default=10,
+                        default=25,
                         help="maximum # of epochs"
-                        )
-
-    parser.add_argument("--eval_period",
-                        type=int,
-                        default=-1,
-                        help="evaluate model every k examples"
                         )
 
     parser.add_argument("--batch",
@@ -150,15 +138,9 @@ def get_args():
                         help="learning rate"
                         )
 
-    parser.add_argument("--jaccard_smoothing",
-                        type=float,
-                        default=0.001,
-                        help="Prevent /0"
-                        )
-
     parser.add_argument("--dropout",
                         type=float,
-                        default=0.1,
+                        default=0.2,
                         help="dropout rate"
                         )
 
@@ -171,7 +153,7 @@ def get_args():
     parser.add_argument("-act", "--activation",
                         type=str,
                         default="tanh",
-                        help="type of activatioin function"
+                        help="type of activation function"
                         )
 
     parser.add_argument("-d", "--hidden_dimension",
@@ -188,7 +170,7 @@ def get_args():
 
     parser.add_argument("-bigram_smoothing",
                         type=float,
-                        default=0.0001,
+                        default=1e-8,
                         help="Prevent div by 0"
                         )
 
@@ -198,26 +180,18 @@ def get_args():
                         help="hidden dimension"
                         )
 
-    parser.add_argument("--layer",
-                        type=str,
-                        default="rcnn",
-                        help="type of recurrent layer"
-                        )
-    parser.add_argument("--depth",
-                        type=int,
-                        default=2,
-                        help="number of layers"
-                        )
     parser.add_argument("--pooling",
                         type=int,
                         default=0,
                         help="whether to use mean pooling or the last state"
                         )
+
     parser.add_argument("--order",
                         type=int,
                         default=2,
                         help="feature filter width"
                         )
+
     parser.add_argument("--use_all",
                         type=int,
                         default=1,
@@ -226,12 +200,12 @@ def get_args():
 
     parser.add_argument("--coeff_summ_len",
                         type=float,
-                        default=5
+                        default=100
                         )
 
     parser.add_argument("--coeff_adequacy",
                         type=float,
-                        default=5
+                        default=10
                         )
 
     parser.add_argument("--coeff_fluency",
@@ -239,22 +213,21 @@ def get_args():
                         default=100
                         )
 
-    parser.add_argument("--aspect",
-                        type=int,
-                        default=-1
-                        )
     parser.add_argument("--beta1",
                         type=float,
                         default=0.9
                         )
+
     parser.add_argument("--beta2",
                         type=float,
                         default=0.999
                         )
+
     parser.add_argument("--decay_lr",
                         type=int,
                         default=1
                         )
+
     parser.add_argument("--fix_emb",
                         type=int,
                         default=1

@@ -73,16 +73,6 @@ def get_args():
                         default=25,
                         help='length of single sentence in highlights')
 
-    parser.add_argument('--max_sentences_hl',
-                        type=int,
-                        default=4,
-                        help='Number of total sentences for highlights')
-
-    parser.add_argument('--embedding_dim',
-                        type=int,
-                        default=200,
-                        help='Size of word vectors')
-
     parser.add_argument('--n',
                         type=int,
                         default=4,
@@ -93,26 +83,6 @@ def get_args():
                         default=True,
                         help='Whether to use the ROOT based entity in the data.')
 
-    parser.add_argument('--use_person',
-                        type='bool',
-                        default=True,
-                        help='Whether to use the PERSON based entity in the data.')
-
-    parser.add_argument('--use_location',
-                        type='bool',
-                        default=True,
-                        help='Whether to use the LOCATION based entity in the data.')
-
-    parser.add_argument('--use_org',
-                        type='bool',
-                        default=True,
-                        help='Whether to use the ORGANIZATION based entity in the data.')
-
-    parser.add_argument('--use_misc',
-                        type='bool',
-                        default=True,
-                        help='Whether to use the MISC based entity in the data.')
-
     parser.add_argument('--use_all',
                         type='bool',
                         default=True,
@@ -120,7 +90,7 @@ def get_args():
 
     parser.add_argument('--use_hl_once',
                         type='bool',
-                        default=False,
+                        default=True,
                         help='Whether to use a given highlight only once, or all its permutations.')
 
     parser.add_argument("--model_summ_path",

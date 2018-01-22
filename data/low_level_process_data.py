@@ -83,6 +83,10 @@ def prune_type(x, y, e, ve, cy, entity_map):
                 if total_entries >= args.n:
                     break
 
+                if args.use_hl_once and is_root(perm, entity_map):
+                    y_idx += len(highlight)
+                    continue
+
                 if keep_perm_type(perm, restricted_types, entity_map):
                     updated_y_ls.append(y[i][y_idx])
                     updated_e_ls.append(perm)
@@ -183,6 +187,12 @@ def keep_perm_type(perm, restricted_types, entities):
     corresponding_e = entities[perm]
 
     return corresponding_e[1] in restricted_types
+
+
+def is_root(perm, entities):
+    corresponding_e = entities[perm]
+
+    return corresponding_e[1] == 'ROOT'
 
 
 if __name__ == '__main__':
