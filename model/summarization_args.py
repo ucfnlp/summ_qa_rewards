@@ -28,6 +28,12 @@ def get_args():
                         default=True,
                         help='Process full selection of CNN data')
 
+    parser.add_argument("--sanity_check",
+                        type='bool',
+                        default=False,
+                        help="Test overfitting on a single/few samples"
+                        )
+
     parser.add_argument('--embedding_dim',
                         type=int,
                         default=100,

@@ -101,6 +101,11 @@ def create_batches(args, n_classes, x, y, e, batch_size, padding_id, sort=True):
     N = len(x)
     M = (N - 1) / batch_size + 1
 
+    if args.sanity_check:
+        sort= False
+        M = 1
+        batch_size = 3
+
     if sort:
         perm = range(N)
         perm = sorted(perm, key=lambda i: len(x[i]))

@@ -343,6 +343,11 @@ class Model(object):
                 args, self.nclasses, dev[0], dev[1], dev[2], args.batch,  padding_id, sort=False
             )
 
+        if train is not None:
+            train_batches_x, train_batches_y, train_batches_e, train_batches_bm = myio.create_batches(
+                args, self.nclasses, train[0], train[1], train[2], args.batch, padding_id
+            )
+
         updates_e, lr_e, gnorm_e = create_optimization_updates(
             cost=self.encoder.cost_e,
             params=self.encoder.params,
@@ -392,10 +397,6 @@ class Model(object):
 
             if unchanged > 5:
                 break
-
-            train_batches_x, train_batches_y, train_batches_e, train_batches_bm = myio.create_batches(
-                args, self.nclasses, train[0], train[1], train[2], args.batch, padding_id
-            )
 
             more = True
             if args.decay_lr:
@@ -564,10 +565,16 @@ def main():
         )
         model.ready()
 
-        model.train(
-            (train_x, train_y, train_e),
-            (dev_x, dev_y, dev_e)
-        )
+        if args.sanity_check:
+            model.train(
+                (train_x, train_y, train_e),
+                (train_x, train_y, train_e)
+            )
+        else:
+            model.train(
+                (train_x, train_y, train_e),
+                (dev_x, dev_y, dev_e)
+            )
 
     if args.test:
         model = Model(
