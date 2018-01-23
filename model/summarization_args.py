@@ -23,6 +23,11 @@ def get_args():
                         default='cnn',
                         help='Data source cnn/dm')
 
+    parser.add_argument('--pretrain',
+                        type='bool',
+                        default=False,
+                        help='Pretrain Generator')
+
     parser.add_argument('--full_test',
                         type='bool',
                         default=True,

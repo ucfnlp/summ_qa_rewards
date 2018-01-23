@@ -274,7 +274,18 @@ def record_observations(ofp_json, epoch, loss, obj, zsum, bigram_loss, loss_vec_
     ofp_json['e' + str(epoch)] = epoch_data
 
 
-def record_observations(ofp_json, epoch, loss,obj,zsum,loss_vec,z_diff,cost_logpz,logpz,probs,z_pred,cost_vec):
+def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
+    epoch_data = dict()
+
+    epoch_data['obj'] = [l.tolist() for l in obj]
+    epoch_data['zsum'] = [l.tolist() for l in zsum]
+    epoch_data['zdiff'] = [l.tolist() for l in z_diff]
+    epoch_data['z_pred'] = [l.tolist() for l in z_pred]
+
+    ofp_json['e' + str(epoch)] = epoch_data
+
+
+def record_observations_verbose(ofp_json, epoch, loss,obj,zsum,loss_vec,z_diff,cost_logpz,logpz,probs,z_pred,cost_vec):
     epoch_data = dict()
 
     epoch_data['loss'] = [l.tolist() for l in loss]
@@ -292,7 +303,7 @@ def record_observations(ofp_json, epoch, loss,obj,zsum,loss_vec,z_diff,cost_logp
     ofp_json['e' + str(epoch)] = epoch_data
 
 
-def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer):
+def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer, pretrain=False):
     s_num = 0
 
     filename = get_readable_file(args, epoch)
@@ -303,7 +314,10 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer):
 
         for j in xrange(len(dev_z[i][0])):
 
-            ofp_for_rouge = open(args.system_summ_path + 'e_' + str(epoch + 1) + '.' + str(s_num) + '.txt', 'w+')
+            filename = args.system_summ_path + ('pretrain_' if pretrain else '') + 'e_' + str(epoch + 1) + '.' + str(
+                s_num) + '.txt'
+
+            ofp_for_rouge = open(filename, 'w+')
             ofp_system_output = []
 
             for k in xrange(len(dev_z[i])):
