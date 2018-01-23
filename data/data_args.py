@@ -46,6 +46,11 @@ def get_args():
                         # default='cnn/stories/',
                         help='Raw data Daily Mail')
 
+    parser.add_argument('--source',
+                        type=str,
+                        default='dm',
+                        help='Data source')
+
     parser.add_argument('--small_limit',
                         type=int,
                         default=4096,

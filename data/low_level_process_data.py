@@ -62,6 +62,7 @@ def prune_type(x, y, e, ve, cy, entity_map):
     updated_x = []
 
     restricted_types = generate_valid_entity_types(args)
+    invalid_articles = 0
 
     for i in xrange(length):
 
@@ -83,10 +84,6 @@ def prune_type(x, y, e, ve, cy, entity_map):
                 if total_entries >= args.n:
                     break
 
-                if args.use_hl_once and is_root(perm, entity_map):
-                    y_idx += len(highlight)
-                    continue
-
                 if keep_perm_type(perm, restricted_types, entity_map):
                     updated_y_ls.append(y[i][y_idx])
                     updated_e_ls.append(perm)
@@ -99,7 +96,7 @@ def prune_type(x, y, e, ve, cy, entity_map):
                 y_idx += 1
 
         if total_entries == 0:
-            print 'Invalid Article'
+            invalid_articles += 1
             continue
 
         if total_entries < args.n and total_entries != 0:
@@ -120,6 +117,8 @@ def prune_type(x, y, e, ve, cy, entity_map):
         updated_cy.append(cy[i])
         updated_x.append([w for sent in x[i] for w in sent])
 
+    print invalid_articles, "Invalid Articles"
+    print length, "of Articles"
     return updated_y, updated_e, updated_x, updated_ve, updated_cy
 
 
@@ -154,7 +153,7 @@ def generate_valid_entity_types(args):
     e_ls = []
 
     if args.use_all:
-        return set(['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC', 'ROOT'])
+        return set(['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC'])
 
     if args.use_person:
         e_ls.append('PERSON')

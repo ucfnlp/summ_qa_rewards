@@ -25,7 +25,7 @@ def process_data(args):
 
         for count in word_counts:
             print 'Building dataset for vocab size : ' + str(count)
-            vocab, placeholder, unk = create_vocab_map(unique_w, count, emb_set)
+            vocab, placeholder, unk = create_vocab_map(args, unique_w, count, emb_set)
             machine_ready(args, train, dev, test, vocab, count, placeholder, unk)
 
 
@@ -44,7 +44,7 @@ def split_data(args):
     articles_test = []
 
     train_urls, dev_urls, test_urls = get_url_sets(args)
-    data_dirs = [args.raw_data_cnn]
+    data_dirs = [args.raw_data_dm]
 
     for raw_data in data_dirs:
         for subdir, dirs, files in os.walk(raw_data):
@@ -109,7 +109,7 @@ def prepare_rouge(args, inp, type):
     rouge_counter = 0
 
     for item in inp:
-        ofp = open(file_part + str(rouge_counter).zfill(6) + '.txt', 'w+')
+        ofp = open(file_part + args.source + '_' + str(rouge_counter).zfill(6) + '.txt', 'w+')
 
         for i in xrange(len(item)):
 
@@ -123,11 +123,12 @@ def prepare_rouge(args, inp, type):
         ofp.close()
         rouge_counter += 1
 
+
 def core_nlp(args, train, dev, test):
 
-    ofp_train = open(args.intermediate + '_train.txt', 'w+')
-    ofp_dev = open(args.intermediate + '_dev.txt', 'w+')
-    ofp_test = open(args.intermediate + '_test.txt', 'w+')
+    ofp_train = open(args.intermediate + '_' + args.source + '_train.txt', 'w+')
+    ofp_dev = open(args.intermediate + '_' + args.source + '_dev.txt', 'w+')
+    ofp_test = open(args.intermediate + '_' + args.source + '_test.txt', 'w+')
 
     for highlight in train:
 
@@ -226,7 +227,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
 
     tag_ls = ['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC']
 
-    annotated_hl_fp = open(args.intermediate + '_' + str(type) + '.txt.json', 'r')
+    annotated_hl_fp = open(args.intermediate + '_' + args.source + '_' + str(type) + '.txt.json', 'r')
     annotated_hl_json = json.load(annotated_hl_fp)
     sentences = annotated_hl_json['sentences']
 
@@ -354,7 +355,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
                                                      sorted_first_word_map, unk)
 
     filename_train = args.train if args.full_test else "small_" + args.train
-    filename_train = str(count) + '_' + filename_train
+    filename_train = args.source + '_' + str(count) + '_' + filename_train
 
     ofp_train = open(filename_train, 'w+')
     final_json_train = dict()
@@ -369,7 +370,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     ofp_train.close()
 
     filename_dev = args.dev if args.full_test else "small_" + args.dev
-    filename_dev = str(count) + '_' + filename_dev
+    filename_dev = args.source + '_' + str(count) + '_' + filename_dev
 
     ofp_dev = open(filename_dev, 'w+')
     final_json_dev = dict()
@@ -384,7 +385,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     ofp_dev.close()
 
     filename_test = args.test if args.full_test else "small_" + args.test
-    filename_test = str(count) + '_' + filename_test
+    filename_test = args.source + '_' + str(count) + '_' + filename_test
 
     ofp_test = open(filename_test, 'w+')
     final_json_test = dict()
@@ -397,7 +398,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     ofp_test.close()
 
     filename_entities = 'entities.json' if args.full_test else "small_entities.json"
-    filename_entities = str(count) + '_' + filename_entities
+    filename_entities = args.source + '_' + str(count) + '_' + filename_entities
 
     ofp_entities = open(filename_entities, 'w+')
     final_json_entities = dict()
@@ -446,8 +447,8 @@ def tokenize(args, current_article, current_highlights, unique_w):
     return article, highlights
 
 
-def create_vocab_map(unique_w, count, emb_set):
-    ofp = open('vocab_' + str(count) + '.txt', 'w+')
+def create_vocab_map(args, unique_w, count, emb_set):
+    ofp = open(args.source + '_' + 'vocab_' + str(count) + '.txt', 'w+')
     vocab_map = dict()
     index = 0
 
