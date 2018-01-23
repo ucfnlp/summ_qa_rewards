@@ -239,4 +239,13 @@ def get_args():
                         default=1
                         )
 
+    parser.add_argument("--sparsity",
+                           type=float,
+                           default=0.0003
+                           )
+    parser.add_argument("--coherent",
+                           type=float,
+                           default=2.0
+                           )
+
     return parser.parse_args()

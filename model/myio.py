@@ -9,18 +9,6 @@ from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
 
 
-def read_rationales(path):
-    data = []
-    fopen = gzip.open if path.endswith(".gz") else open
-
-    with fopen(path) as fin:
-        for line in fin:
-            item = json.loads(line)
-            data.append(item)
-
-    return data
-
-
 def read_docs(args, type):
     filename = type + '_model.json' if args.full_test else "small_" + type + '_model.json'
     filename = '../data/' + str(args.vocab_size) + '_' + filename
@@ -104,7 +92,6 @@ def create_batches(args, n_classes, x, y, e, batch_size, padding_id, sort=True):
     if args.sanity_check:
         sort= False
         M = 1
-        batch_size = 3
 
     if sort:
         perm = range(N)
@@ -283,6 +270,24 @@ def record_observations(ofp_json, epoch, loss, obj, zsum, bigram_loss, loss_vec_
     epoch_data['bigram_loss'] = [l.tolist() for l in bigram_loss]
     epoch_data['loss_vec'] = [l.tolist() for l in loss_vec_all]
     epoch_data['zdiff'] = [l.tolist() for l in z_diff]
+
+    ofp_json['e' + str(epoch)] = epoch_data
+
+
+def record_observations(ofp_json, epoch, loss,obj,zsum,loss_vec,z_diff,cost_logpz,logpz,probs,z_pred,cost_vec):
+    epoch_data = dict()
+
+    epoch_data['loss'] = [l.tolist() for l in loss]
+    epoch_data['obj'] = [l.tolist() for l in obj]
+    epoch_data['zsum'] = [l.tolist() for l in zsum]
+    epoch_data['loss_vec'] = [l.tolist() for l in loss_vec]
+    epoch_data['zdiff'] = [l.tolist() for l in z_diff]
+
+    epoch_data['cost_logpz'] = [l.tolist() for l in cost_logpz]
+    epoch_data['logpz'] = [l.tolist() for l in logpz]
+    epoch_data['probs'] = [l.tolist() for l in probs]
+    epoch_data['z_pred'] = [l.tolist() for l in z_pred]
+    epoch_data['cost_vec'] = [l.tolist() for l in cost_vec]
 
     ofp_json['e' + str(epoch)] = epoch_data
 
