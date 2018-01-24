@@ -32,8 +32,8 @@ class Generator(object):
                 np.float64(args.dropout).astype(theano.config.floatX)
             )
 
-        # len*batch
-        x = self.x = T.imatrix()
+        # inp_len x batch
+        x = self.x = T.imatrix('x')
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -49,19 +49,15 @@ class Generator(object):
             )
             layers.append(l)
 
-        # len * batch
         self.masks = masks = T.cast(T.neq(x, padding_id), theano.config.floatX)
 
-        # (len*batch)*n_e
         embs = embedding_layer.forward(x.ravel())
-        # len*batch*n_e
-        embs = embs.reshape((x.shape[0], x.shape[1], n_e))
+
+        self.word_embs = embs = embs.reshape((x.shape[0], x.shape[1], n_e))
         embs = apply_dropout(embs, dropout)
-        self.word_embs = embs
 
         flipped_embs = embs[::-1]
 
-        # len*bacth*n_d
         h1 = layers[0].forward_all(embs)
         h2 = layers[1].forward_all(flipped_embs)
         h_final = T.concatenate([h1, h2[::-1]], axis=2)
@@ -143,13 +139,15 @@ class Encoder(object):
         padding_id = embedding_layer.vocab_map["<padding>"]
 
         layers = []
+
+        # hl_inp_len x (batch * n)
         y = self.y = T.imatrix('y')
+        # (batch * n) x n_classes
         gold_standard_entities = self.gold_standard_entities = T.imatrix('gs')
+        # inp_len x batch
         bm = self.bm = T.imatrix('bm')
 
-        dropout = generator.dropout
-
-        # len*batch
+        # inp_len x batch
         x = generator.x
         z = generator.z_pred
 
@@ -189,16 +187,27 @@ class Encoder(object):
         h_f_x = rnn_fw.forward_all_x(embs_x, mask_x)
         h_r_x = rnn_rv.forward_all_x(flipped_embs_x, flipped_mask_x)
 
-        h_concat_y = T.concatenate([h_f_y, h_r_y[::-1]], axis=2).dimshuffle((1, 2, 0))
+        # 1 x (batch * n) x n_d -> (batch * n) x (2 * n_d) x 1
+        h_concat_y = T.concatenate([h_f_y, h_r_y], axis=2).dimshuffle((1, 2, 0))
+
+        # inp_len x batch x n_d -> inp_len x batch x (2 * n_d)
         h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
 
+        # (batch * n) x inp_len x (2 * n_d)
         gen_h_final = T.tile(h_concat_x, (args.n, 1)).dimshuffle((1, 0, 2))
 
+        # (batch * n) x inp_len x 1
         inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
         inp_dot_hl = inp_dot_hl - softmax_mask
         inp_dot_hl = inp_dot_hl.ravel()
 
         alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], args.inp_len)))
+        # inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
+        # inp_dot_hl = inp_dot_hl.ravel()
+        # tiled_x_mask = tiled_x_mask.ravel()
+
+        # alpha = self.softmax_mask(inp_dot_hl.reshape((args.n * x.shape[1], args.inp_len)),
+        #                           tiled_x_mask.reshape((args.n * x.shape[1], args.inp_len)))
 
         o = T.batched_dot(alpha, gen_h_final)
 
@@ -217,11 +226,11 @@ class Encoder(object):
         cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
         loss_mat = cross_entropy.reshape((x.shape[1], args.n))
 
-        padded = T.shape_padaxis(T.zeros_like(z[0]), axis=1).dimshuffle((1, 0))
-        z_shift = T.concatenate([z[1:], padded], axis=0)
+        z_shift = z[1:]
+        z_new = z[:-1]
 
-        valid_bg = z * z_shift
-        bigram_ol = valid_bg * bm
+        valid_bg = z_new * z_shift
+        bigram_ol = valid_bg * bm[:-1]
 
         total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
         total_bg_per_sample = T.sum(bm, axis=0) + args.bigram_smoothing
@@ -263,7 +272,13 @@ class Encoder(object):
         self.l2_cost = l2_cost
 
         self.cost_g = cost_logpz * 1e-2 + generator.l2_cost
-        self.cost_e = loss * 1e-2 + l2_cost
+        self.cost_e = loss * 1e-1 + l2_cost
+
+    # def softmax_mask(self, x, mask):
+    #     x = T.nnet.softmax(x)
+    #     x = x * mask
+    #     x = x / x.sum(0, keepdims=True)
+    #     return x
 
 
 class Model(object):
@@ -377,7 +392,8 @@ class Model(object):
 
         test_generator = theano.function(
             inputs=[self.x],
-            outputs=self.z
+            outputs=self.z,
+            updates=self.generator.sample_updates
         )
 
         padding_id = self.embedding_layer.vocab_map["<padding>"]
@@ -836,6 +852,8 @@ def main():
                 (train_x, train_y, train_e)
             )
         else:
+            model.ready()
+
             model.train(
                 (train_x, train_y, train_e),
                 (dev_x, dev_y, dev_e)

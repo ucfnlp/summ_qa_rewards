@@ -285,7 +285,7 @@ def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
     ofp_json['e' + str(epoch)] = epoch_data
 
 
-def record_observations_verbose(ofp_json, epoch, loss,obj,zsum,loss_vec,z_diff,cost_logpz,logpz,probs,z_pred,cost_vec):
+def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff, cost_logpz, logpz, probs, z_pred, cost_vec):
     epoch_data = dict()
 
     epoch_data['loss'] = [l.tolist() for l in loss]
@@ -295,9 +295,9 @@ def record_observations_verbose(ofp_json, epoch, loss,obj,zsum,loss_vec,z_diff,c
     epoch_data['zdiff'] = [l.tolist() for l in z_diff]
 
     epoch_data['cost_logpz'] = [l.tolist() for l in cost_logpz]
-    epoch_data['logpz'] = [l.tolist() for l in logpz]
-    epoch_data['probs'] = [l.tolist() for l in probs]
-    epoch_data['z_pred'] = [l.tolist() for l in z_pred]
+    epoch_data['logpz'] = float(np.mean(logpz))
+    epoch_data['probs'] = float(np.mean(probs))
+    epoch_data['z_pred'] = float(np.sum(z_pred))
     epoch_data['cost_vec'] = [l.tolist() for l in cost_vec]
 
     ofp_json['e' + str(epoch)] = epoch_data
@@ -315,7 +315,7 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer, pretrain=Fals
         for j in xrange(len(dev_z[i][0])):
 
             filename = args.system_summ_path + ('pretrain_' if pretrain else '') + 'e_' + str(epoch + 1) + '.' + str(
-                s_num) + '.txt'
+                s_num).zfill(6) + '.txt'
 
             ofp_for_rouge = open(filename, 'w+')
             ofp_system_output = []
@@ -354,7 +354,7 @@ def save_test_results_rouge(args, z, test_batches_x, emb_layer):
 
         for j in xrange(len(z[i][0])):
 
-            ofp_for_rouge = open(args.system_summ_path + 'test.' + str(s_num) + '.txt', 'w+')
+            ofp_for_rouge = open(args.system_summ_path + 'test.' + str(s_num).zfill(6) + '.txt', 'w+')
 
             for k in xrange(len(z[i])):
                 word = emb_layer.lst_words[test_batches_x[i][k][j]]
