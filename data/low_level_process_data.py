@@ -23,7 +23,7 @@ def prune_hl(args):
 
 def write_model_ready(args, train, dev):
     filename_train = args.train_model if args.full_test else "small_" + args.train_model
-    filename_train = str(args.vocab_size) + '_' + filename_train
+    filename_train = args.source + '_' + str(args.vocab_size) + '_' + filename_train
 
     ofp_train = open(filename_train, 'w+')
     final_json_train = dict()
@@ -38,7 +38,7 @@ def write_model_ready(args, train, dev):
     ofp_train.close()
 
     filename_dev = args.dev_model if args.full_test else "small_" + args.dev_model
-    filename_dev = str(args.vocab_size) + '_' + filename_dev
+    filename_dev = args.source + '_' + str(args.vocab_size) + '_' + filename_dev
 
     ofp_dev = open(filename_dev, 'w+')
     final_json_dev = dict()
@@ -79,21 +79,18 @@ def prune_type(x, y, e, ve, cy, entity_map):
             if total_entries >= args.n:
                 break
 
-            for perm in highlight:
+            num_perms = len(highlight)
 
-                if total_entries >= args.n:
-                    break
+            if args.use_root or num_perms == 1:
+                updated_y_ls.append(y[i][y_idx])
+                updated_e_ls.append(highlight[0])
+                total_entries += 1
+            else:
+                updated_y_ls.append(y[i][y_idx])
+                updated_e_ls.append(highlight[1])
+                total_entries += 1
 
-                if keep_perm_type(perm, restricted_types, entity_map):
-                    updated_y_ls.append(y[i][y_idx])
-                    updated_e_ls.append(perm)
-                    total_entries += 1
-
-                if args.use_hl_once:
-                    y_idx += len(highlight)
-                    break
-
-                y_idx += 1
+            y_idx += num_perms
 
         if total_entries == 0:
             invalid_articles += 1
@@ -124,7 +121,7 @@ def prune_type(x, y, e, ve, cy, entity_map):
 
 def load_json(args, type):
     f_name = type if args.full_test else "small_" + type
-    f_name = str(args.vocab_size) + '_' + f_name
+    f_name = args.source + '_' + str(args.vocab_size) + '_' + f_name
 
     ifp = open(f_name, 'rb')
 
@@ -139,7 +136,7 @@ def load_json(args, type):
 
 def get_entities(args):
     filename = 'entities.json' if args.full_test else "small_entities.json"
-    filename = str(args.vocab_size) + '_' + filename
+    filename = args.source + '_' + str(args.vocab_size) + '_' + filename
 
     ifp = open(filename, 'rb')
     data = json.load(ifp)
@@ -153,7 +150,7 @@ def generate_valid_entity_types(args):
     e_ls = []
 
     if args.use_all:
-        return set(['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC'])
+        return set(['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC', 'ROOT'])
 
     if args.use_person:
         e_ls.append('PERSON')

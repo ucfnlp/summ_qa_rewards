@@ -93,10 +93,10 @@ def get_args():
                         default=True,
                         help='Use all entity types in the data.')
 
-    parser.add_argument('--use_hl_once',
-                        type='bool',
-                        default=True,
-                        help='Whether to use a given highlight only once, or all its permutations.')
+    # parser.add_argument('--use_hl_once',
+    #                     type='bool',
+    #                     default=True,
+    #                     help='Whether to use a given highlight only once, or all its permutations.')
 
     parser.add_argument("--model_summ_path",
                         type=str,
