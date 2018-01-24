@@ -249,7 +249,7 @@ def create_fname_identifier(args):
 
 def create_json_filename(args):
     path = '../data/results/'
-    filename = create_fname_identifier(args) + '.json'
+    filename = ('pretrain_' if args.pretrain else '') + create_fname_identifier(args) + '.json'
 
     return path + filename
 

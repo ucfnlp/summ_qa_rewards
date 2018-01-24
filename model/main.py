@@ -153,15 +153,12 @@ class Encoder(object):
         x = generator.x
         z = generator.z_pred
 
-        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX)
-        tiled_x_mask = T.tile(mask_x.dimshuffle(0,1,'x'), (args.n, 1)).dimshuffle((1, 0, 2))
+        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle(0,1,'x')
+        tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
         mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
 
         softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
         softmax_mask = softmax_mask * (tiled_x_mask - 1) * -1
-
-        # Duplicate both x, and valid entity masks
-        gen_h_final = T.tile(generator.h_final, (args.n, 1)).dimshuffle((1, 0, 2))
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -175,18 +172,29 @@ class Encoder(object):
             n_out=n_d
         )
 
-        embs = embedding_layer.forward(y.ravel())
-        embs = embs.reshape((y.shape[0], y.shape[1], n_e))
+        embs_y = embedding_layer.forward(y.ravel())
+        embs_y = embs_y.reshape((y.shape[0], y.shape[1], n_e))
 
-        flipped_embs = embs[::-1]
-        flipped_mask = mask_y[::-1]
+        embs_x = generator.word_embs
 
-        h_f = rnn_fw.forward_all(embs, mask_y)
-        h_r = rnn_rv.forward_all(flipped_embs, flipped_mask)
+        flipped_embs_x = embs_x[::-1]
+        flipped_mask_x = mask_x[::-1]
 
-        h_concat = T.concatenate([h_f, h_r], axis=2).dimshuffle((1, 2, 0))
+        flipped_embs_y = embs_y[::-1]
+        flipped_mask_y = mask_y[::-1]
 
-        inp_dot_hl = T.batched_dot(gen_h_final, h_concat)
+        h_f_y = rnn_fw.forward_all(embs_y, mask_y)
+        h_r_y = rnn_rv.forward_all(flipped_embs_y, flipped_mask_y)
+
+        h_f_x = rnn_fw.forward_all_x(embs_x, mask_x)
+        h_r_x = rnn_rv.forward_all_x(flipped_embs_x, flipped_mask_x)
+
+        h_concat_y = T.concatenate([h_f_y, h_r_y[::-1]], axis=2).dimshuffle((1, 2, 0))
+        h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
+
+        gen_h_final = T.tile(h_concat_x, (args.n, 1)).dimshuffle((1, 0, 2))
+
+        inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
         inp_dot_hl = inp_dot_hl - softmax_mask
         inp_dot_hl = inp_dot_hl.ravel()
 
@@ -254,7 +262,7 @@ class Encoder(object):
         l2_cost = l2_cost * args.l2_reg
         self.l2_cost = l2_cost
 
-        self.cost_g = cost_logpz + generator.l2_cost
+        self.cost_g = cost_logpz * 1e-2 + generator.l2_cost
         self.cost_e = loss * 1e-2 + l2_cost
 
 
@@ -309,7 +317,7 @@ class Model(object):
 
         fout.close()
 
-    def save_model(self, path, args):
+    def save_model(self, path, args, pretrain=False):
         # append file suffix
         if not path.endswith(".pkl.gz"):
             if path.endswith(".pkl"):
@@ -319,15 +327,26 @@ class Model(object):
 
         # output to path
         with gzip.open(path, "wb") as fout:
-            pickle.dump(
-                ([x.get_value() for x in self.encoder.params],  # encoder
-                 [x.get_value() for x in self.generator.params],  # generator
-                 self.nclasses,
-                 args  # training configuration
-                 ),
-                fout,
-                protocol=pickle.HIGHEST_PROTOCOL
-            )
+
+            if pretrain:
+                pickle.dump(
+                    ([x.get_value() for x in self.generator.params],  # generator
+                     self.nclasses,
+                     args  # training configuration
+                     ),
+                    fout,
+                    protocol=pickle.HIGHEST_PROTOCOL
+                )
+            else:
+                pickle.dump(
+                    ([x.get_value() for x in self.encoder.params],  # encoder
+                     [x.get_value() for x in self.generator.params],  # generator
+                     self.nclasses,
+                     args  # training configuration
+                     ),
+                    fout,
+                    protocol=pickle.HIGHEST_PROTOCOL
+                )
 
     def load_model(self, path, test=False):
         if not os.path.exists(path):
@@ -722,8 +741,8 @@ class Model(object):
                         best_dev = dev_obj
                         unchanged = 0
                         if args.save_model:
-                            filename = args.save_model + myio.create_fname_identifier(args)
-                            self.save_model(filename, args)
+                            filename = args.save_model + 'pretrain_' + myio.create_fname_identifier(args)
+                            self.save_model(filename, args, pretrain=True)
 
             if more_count > 5:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
@@ -804,12 +823,12 @@ def main():
 
         if args.pretrain:
             model.ready_pretrain()
+
             model.pretrain(
                 (train_x, train_y, train_e),
                 (dev_x, dev_y, dev_e)
             )
         elif args.sanity_check:
-
             model.ready()
 
             model.train(
