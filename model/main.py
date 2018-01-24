@@ -26,7 +26,7 @@ class Generator(object):
     def ready(self):
         embedding_layer = self.embedding_layer
         args = self.args
-        padding_id = embedding_layer.vocab_map["<padding>"]
+        self.padding_id = padding_id = embedding_layer.vocab_map["<padding>"]
 
         dropout = self.dropout = theano.shared(
                 np.float64(args.dropout).astype(theano.config.floatX)
@@ -91,37 +91,44 @@ class Generator(object):
             for p in l.params:
                 params.append(p)
 
-        l2_cost = None
-        for p in params:
-            if l2_cost is None:
-                l2_cost = T.sum(p**2)
-            else:
-                l2_cost = l2_cost + T.sum(p**2)
-        l2_cost = l2_cost * args.l2_reg
-        self.l2_cost = l2_cost
+        if not args.sanity_check:
+            l2_cost = None
+            for p in params:
+                if l2_cost is None:
+                    l2_cost = T.sum(p**2)
+                else:
+                    l2_cost = l2_cost + T.sum(p**2)
+            l2_cost = l2_cost * args.l2_reg
+            self.l2_cost = l2_cost
+        else:
+            self.l2_cost = 0
 
     def pretrain(self):
         bm = self.bm = T.imatrix('bm')
 
-        padded = T.shape_padaxis(T.zeros_like(self.z_pred[0]), axis=1).dimshuffle((1, 0))
-        z_shift = T.concatenate([self.z_pred[1:], padded], axis=0)
+        z_shift = self.z_pred[1:]
+        z_new = self.z_pred[:-1]
 
-        valid_bg = self.z_pred * z_shift
-        bigram_ol = valid_bg * bm
+        valid_bg = z_new * z_shift
+        bigram_ol = valid_bg * bm[:-1]
 
         total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
         total_bg_per_sample = T.sum(bm, axis=0) + args.bigram_smoothing
         self.bigram_loss = bigram_loss = total_z_bg_per_sample / total_bg_per_sample
 
+        z_totals = T.sum(self.masks, axis=0, dtype=theano.config.floatX)
+
+        zsum = (self.zsum / z_totals - 0.15) ** 2
+        zdiff = self.zdiff / z_totals
+
         self.logpz = logpz = T.sum(self.logpz, axis=0)
 
-        self.cost_vec = cost_vec = args.coeff_summ_len * self.zsum + args.coeff_adequacy * (
-                1 - bigram_loss) + args.coeff_fluency * self.zdiff
+        self.cost_vec = cost_vec = zsum + (1 - bigram_loss) + zdiff
 
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
 
         self.obj = T.mean(cost_vec)
-        self.cost_g = cost_logpz + self.l2_cost
+        self.cost_g = cost_logpz * 1e-3 + self.l2_cost
 
 
 class Encoder(object):
@@ -262,14 +269,17 @@ class Encoder(object):
             for p in l.params:
                 params.append(p)
 
-        l2_cost = None
-        for p in params:
-            if l2_cost is None:
-                l2_cost = T.sum(p ** 2)
-            else:
-                l2_cost = l2_cost + T.sum(p ** 2)
-        l2_cost = l2_cost * args.l2_reg
-        self.l2_cost = l2_cost
+        if not args.sanity_check:
+            l2_cost = None
+            for p in params:
+                if l2_cost is None:
+                    l2_cost = T.sum(p**2)
+                else:
+                    l2_cost = l2_cost + T.sum(p**2)
+            l2_cost = l2_cost * args.l2_reg
+            self.l2_cost = l2_cost
+        else:
+            self.l2_cost = 0
 
         self.cost_g = cost_logpz * 1e-2 + generator.l2_cost
         self.cost_e = loss * 1e-1 + l2_cost
@@ -499,6 +509,9 @@ class Model(object):
                 cost_vec_all = []
 
                 N = len(train_batches_x)
+                if args.sanity_check:
+                    self.dropout.set_value(0.0)
+
                 print N, 'batches'
                 for i in xrange(N):
 
@@ -637,7 +650,7 @@ class Model(object):
 
         train_generator = theano.function(
             inputs=[self.x, self.bm],
-            outputs=[self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff, self.generator.bigram_loss],
+            outputs=[self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff, self.generator.bigram_loss, self.generator.cost_g, self.generator.logpz],
             updates=updates_g.items() + self.generator.sample_updates
         )
 
@@ -682,6 +695,8 @@ class Model(object):
                 z_pred_all = []
 
                 N = len(train_batches_x)
+                if args.sanity_check:
+                    self.dropout.set_value(0.0)
                 print N, 'batches'
                 for i in xrange(N):
 
@@ -694,13 +709,14 @@ class Model(object):
                     bx, bm = train_batches_x[i], train_batches_bm[i]
                     mask = bx != padding_id
 
-                    obj, z, zsum, zdiff, bigram_loss = train_generator(bx, bm)
+                    obj, z, zsum, zdiff, bigram_loss,cost_g, logpz = train_generator(bx, bm)
                     zsum_all.append(zsum)
                     bigram_loss_all.append(bigram_loss)
                     z_diff_all.append(zdiff)
                     z_pred_all.append(z)
                     obj_all.append(obj)
 
+                    print 'obj, cost_g, logpz', obj, np.mean(cost_g), np.mean(logpz)
                     train_cost += obj
 
                     p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
