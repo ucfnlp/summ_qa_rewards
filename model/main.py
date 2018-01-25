@@ -75,7 +75,8 @@ class Generator(object):
         output_layer = self.output_layer = ZLayer(
                 n_in = size,
                 n_hidden = args.hidden_dimension2,
-                activation = activation
+                activation = activation,
+                layer=args.layer
             )
 
         z_pred, sample_updates = output_layer.sample_all(h_final)
