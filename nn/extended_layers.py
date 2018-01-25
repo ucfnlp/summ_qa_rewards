@@ -170,9 +170,9 @@ class LossComponent(object):
 
 
 class ZLayer(object):
-    def __init__(self, n_in, n_hidden, activation):
-        self.n_in, self.n_hidden, self.activation = \
-            n_in, n_hidden, activation
+    def __init__(self, n_in, n_hidden, activation, layer):
+        self.n_in, self.n_hidden, self.activation, self.layer = \
+            n_in, n_hidden, activation, layer
         self.MRG_rng = MRG_RandomStreams()
         self.create_parameters()
 
@@ -184,7 +184,15 @@ class ZLayer(object):
         self.w2 = create_shared(random_init((n_hidden,)), name="w2")
         bias_val = random_init((1,))[0]
         self.bias = theano.shared(np.cast[theano.config.floatX](bias_val))
+
+        rlayer = None
+        if self.layer == 'lstm':
+            rlayer = LSTM((n_in + 1), n_hidden, activation=activation)
+        else:
+            rlayer = RCNN((n_in + 1), n_hidden, activation=activation, order=2)
+
         rlayer = RCNN((n_in + 1), n_hidden, activation=activation, order=2)
+
         self.rlayer = rlayer
         self.layers = [rlayer]
 

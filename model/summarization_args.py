@@ -77,6 +77,18 @@ def get_args():
                         help="gold standard summaries"
                         )
 
+    parser.add_argument("--rouge_dir",
+                        type=str,
+                        default="../data/results/summaries/rouge/",
+                        help="Rouge Outputs"
+                        )
+
+    parser.add_argument("--rouge_tmp",
+                        type=str,
+                        default="../data/results/tmp/",
+                        help="Rouge Tmp"
+                        )
+
     parser.add_argument("--save_model",
                         type=str,
                         default="save_models/",
@@ -133,7 +145,7 @@ def get_args():
 
     parser.add_argument("--batch",
                         type=int,
-                        default=64,
+                        default=256,
                         help="mini-batch size"
                         )
 
@@ -173,13 +185,13 @@ def get_args():
                         help="hidden dimension"
                         )
 
-    parser.add_argument("-n",
+    parser.add_argument("--n",
                         type=int,
                         default=4,
                         help="HL per sample"
                         )
 
-    parser.add_argument("-bigram_smoothing",
+    parser.add_argument("--bigram_smoothing",
                         type=float,
                         default=1e-8,
                         help="Prevent div by 0"
@@ -203,6 +215,12 @@ def get_args():
                         help="feature filter width"
                         )
 
+    parser.add_argument("--layer",
+                           type=str,
+                           default="lstm",
+                           help="type of recurrent layer"
+                           )
+
     parser.add_argument("--use_all",
                         type=int,
                         default=1,
@@ -211,17 +229,25 @@ def get_args():
 
     parser.add_argument("--coeff_summ_len",
                         type=float,
-                        default=100
+                        default=100,
+                        help="Scaling zsum"
                         )
 
     parser.add_argument("--coeff_adequacy",
                         type=float,
-                        default=10
+                        default=10,
+                        help="Scaling in encoder loss"
                         )
 
     parser.add_argument("--coeff_fluency",
                         type=float,
-                        default=100
+                        default=100,
+                        help="Scaling zdiff"
+                        )
+
+    parser.add_argument("--coeff_cost_scale",
+                        type=float,
+                        default=1e-2
                         )
 
     parser.add_argument("--beta1",

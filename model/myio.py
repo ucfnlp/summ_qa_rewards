@@ -3,7 +3,7 @@ import json
 import random
 
 import numpy as np
-# from pyrouge import Rouge155
+from pyrouge import Rouge155
 
 from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
@@ -11,7 +11,7 @@ from util import load_embedding_iterator
 
 def read_docs(args, type):
     filename = type + '_model.json' if args.full_test else "small_" + type + '_model.json'
-    filename = '../data/' + str(args.vocab_size) + '_' + filename
+    filename = '../data/'+ args.source + '_' + str(args.vocab_size) + '_' + filename
 
     with open(filename, 'rb') as data_file:
         data = json.load(data_file)
@@ -30,7 +30,7 @@ def read_docs(args, type):
 
 def load_e(args):
     filename = args.entities if args.full_test else "small_" + args.entities
-    filename = '../data/' + str(args.vocab_size) + '_' + filename
+    filename = '../data/' + args.source + '_' + str(args.vocab_size) + '_' + filename
 
     with open(filename, 'rb') as data_file:
         data = json.load(data_file)
@@ -42,7 +42,7 @@ def load_e(args):
 
 
 def get_vocab(args):
-    ifp = open('../data/vocab_' + str(args.vocab_size) + '.txt', 'r')
+    ifp = open('../data/'+ str(args.source) + '_vocab_' + str(args.vocab_size) + '.txt', 'r')
     vocab = []
 
     for line in ifp:
@@ -242,9 +242,11 @@ def create_fname_identifier(args):
            '_vocab_size_' + str(args.vocab_size) + \
            '_batch_' + str(args.batch) + \
            '_epochs_' + str(args.max_epochs) + \
+           '_layer_' + str(args.layer) + \
            '_coeff_summ_len_' + str(args.coeff_summ_len) + \
            '_coeff_adequacy_' + str(args.coeff_adequacy) + \
-           '_coeff_fluency_' + str(args.coeff_fluency)
+           '_coeff_fluency_' + str(args.coeff_fluency) +\
+           '_coeff_cost_scale_' + str(args.coeff_cost_scale)
 
 
 def create_json_filename(args):
@@ -314,7 +316,7 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer, pretrain=Fals
 
         for j in xrange(len(dev_z[i][0])):
 
-            filename = args.system_summ_path + ('pretrain_' if pretrain else '') + 'e_' + str(epoch + 1) + '.' + str(
+            filename = args.system_summ_path + 'source_' + str(args.source) + ('_pretrain_' if pretrain else '') + 'e_' + str(epoch + 1) + '.' + str(
                 s_num).zfill(6) + '.txt'
 
             ofp_for_rouge = open(filename, 'w+')
@@ -354,7 +356,7 @@ def save_test_results_rouge(args, z, test_batches_x, emb_layer):
 
         for j in xrange(len(z[i][0])):
 
-            ofp_for_rouge = open(args.system_summ_path + 'test.' + str(s_num).zfill(6) + '.txt', 'w+')
+            ofp_for_rouge = open(args.system_summ_path + 'source_' + str(args.source) + '_test.' + str(s_num).zfill(6) + '.txt', 'w+')
 
             for k in xrange(len(z[i])):
                 word = emb_layer.lst_words[test_batches_x[i][k][j]]
@@ -369,13 +371,21 @@ def save_test_results_rouge(args, z, test_batches_x, emb_layer):
 
 
 def get_rouge(args, epoch):
+    file_part = args.model_summ_path + type + '_'
+    model_fname = args.system_summ_path + 'source_' + str(args.source) + (
+    'pretrain_' if args.pretrain else '') + 'e_' + str(epoch + 1)
+
     r = Rouge155()
     r.system_dir = args.system_summ_path
     r.model_dir = args.model_summ_path
-    r.system_filename_pattern = 'e_' + str(epoch + 1) + '.(\d+).txt'
-    r.model_filename_pattern = 'e_' + str(epoch + 1) + '.#ID#.txt'
+    r.system_filename_pattern = model_fname + '.(\d+).txt'
+    r.model_filename_pattern = file_part + args.source + '_' + '.#ID#.txt'
 
-    return r.convert_and_evaluate()
+    fname = args.rouge_dir + create_fname_identifier(args) + '_rouge.out'
+    ofp = open(fname, 'w+')
+
+    ofp.write(r.convert_and_evaluate())
+    ofp.close()
 
 
 def get_ngram(l, n=2):

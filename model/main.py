@@ -42,11 +42,19 @@ class Generator(object):
         layers = self.layers = [ ]
 
         for i in xrange(2):
-            l = LSTM(
-                n_in=n_e,
-                n_out=n_d,
-                activation=activation,
-            )
+            if args.layer == 'lstm':
+                l = LSTM(
+                    n_in=n_e,
+                    n_out=n_d,
+                    activation=activation,
+                )
+            else:
+                l = RCNN(
+                    n_in=n_e,
+                    n_out=n_d,
+                    activation=activation,
+                    order=args.order
+                )
             layers.append(l)
 
         self.masks = masks = T.cast(T.neq(x, padding_id), theano.config.floatX)
@@ -91,17 +99,14 @@ class Generator(object):
             for p in l.params:
                 params.append(p)
 
-        if not args.sanity_check:
-            l2_cost = None
-            for p in params:
-                if l2_cost is None:
-                    l2_cost = T.sum(p**2)
-                else:
-                    l2_cost = l2_cost + T.sum(p**2)
-            l2_cost = l2_cost * args.l2_reg
-            self.l2_cost = l2_cost
-        else:
-            self.l2_cost = 0
+        l2_cost = None
+        for p in params:
+            if l2_cost is None:
+                l2_cost = T.sum(p**2)
+            else:
+                l2_cost = l2_cost + T.sum(p**2)
+        l2_cost = l2_cost * args.l2_reg
+        self.l2_cost = l2_cost
 
     def pretrain(self):
         bm = self.bm = T.imatrix('bm')
@@ -118,17 +123,19 @@ class Generator(object):
 
         z_totals = T.sum(self.masks, axis=0, dtype=theano.config.floatX)
 
-        zsum = (self.zsum / z_totals - 0.15) ** 2
+        zsum = T.abs_(self.zsum / z_totals - 0.15)
         zdiff = self.zdiff / z_totals
 
         self.logpz = logpz = T.sum(self.logpz, axis=0)
 
-        self.cost_vec = cost_vec = zsum + (1 - bigram_loss) + zdiff
+        cost_vec = (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff
+        baseline = T.mean(cost_vec)
+        self.cost_vec = cost_vec = cost_vec - baseline
 
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
 
         self.obj = T.mean(cost_vec)
-        self.cost_g = cost_logpz * 1e-3 + self.l2_cost
+        self.cost_g = cost_logpz * args.coeff_cost_scale + self.l2_cost
 
 
 class Encoder(object):
@@ -163,7 +170,7 @@ class Encoder(object):
         mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
 
         softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
-        softmax_mask = softmax_mask * (tiled_x_mask - 1) * -1
+        softmax_mask = softmax_mask * (tiled_x_mask - 1)
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -252,14 +259,15 @@ class Encoder(object):
         loss = self.loss = T.mean(loss_vec)
 
         z_totals = T.sum(T.neq(x, padding_id), axis=0, dtype=theano.config.floatX)
-        self.zsum = zsum = (zsum / z_totals - 0.15) ** 2
+        self.zsum = zsum = T.abs_(self.zsum / z_totals - 0.15)
         self.zdiff = zdiff = zdiff / z_totals
 
-        self.cost_vec = cost_vec = loss_vec + args.coeff_summ_len * zsum + args.coeff_adequacy * (
-                1 - bigram_loss) + args.coeff_fluency * zdiff
+        cost_vec = loss_vec + args.coeff_adequacy * (
+                (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff)
 
-        # coherent_factor = args.sparsity * args.coherent
-        # self.cost_vec = cost_vec = loss_vec*1e-2 + zsum * args.sparsity + zdiff * coherent_factor
+        baseline = T.mean(cost_vec)
+        self.cost_vec = cost_vec = cost_vec - baseline
+
         self.logpz = logpz = T.sum(logpz, axis=0)
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
         self.obj = T.mean(cost_vec)
@@ -269,20 +277,17 @@ class Encoder(object):
             for p in l.params:
                 params.append(p)
 
-        if not args.sanity_check:
-            l2_cost = None
-            for p in params:
-                if l2_cost is None:
-                    l2_cost = T.sum(p**2)
-                else:
-                    l2_cost = l2_cost + T.sum(p**2)
-            l2_cost = l2_cost * args.l2_reg
-            self.l2_cost = l2_cost
-        else:
-            self.l2_cost = 0
+        l2_cost = None
+        for p in params:
+            if l2_cost is None:
+                l2_cost = T.sum(p**2)
+            else:
+                l2_cost = l2_cost + T.sum(p**2)
+        l2_cost = l2_cost * args.l2_reg
+        self.l2_cost = l2_cost
 
-        self.cost_g = cost_logpz * 1e-2 + generator.l2_cost
-        self.cost_e = loss * 1e-1 + l2_cost
+        self.cost_g = cost_logpz * args.coeff_cost_scale + generator.l2_cost
+        self.cost_e = loss * args.coeff_cost_scale + l2_cost
 
     # def softmax_mask(self, x, mask):
     #     x = T.nnet.softmax(x)
@@ -450,16 +455,14 @@ class Model(object):
         eval_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
             outputs=[self.z, self.encoder.obj, self.encoder.loss],
-            updates=self.generator.sample_updates,
-            on_unused_input = 'ignore'
+            updates=self.generator.sample_updates
         )
 
         train_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
             outputs=[self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
                      self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz, self.generator.probs, self.generator.z_pred, self.encoder.cost_vec, self.generator.masks],
-            updates=updates_e.items() + updates_g.items() + self.generator.sample_updates,
-            on_unused_input = 'ignore'
+            updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
 
         unchanged = 0
@@ -509,8 +512,6 @@ class Model(object):
                 cost_vec_all = []
 
                 N = len(train_batches_x)
-                if args.sanity_check:
-                    self.dropout.set_value(0.0)
 
                 print N, 'batches'
                 for i in xrange(N):
@@ -540,7 +541,7 @@ class Model(object):
                     train_cost += cost
                     train_loss += loss
 
-                    print 'cost_logpz, logpz, g_probs',cost_logpz, logpz,g_probs.shape, g_z_pred.shape
+                    # print 'cost_logpz, logpz, g_probs',cost_logpz, logpz,g_probs.shape, g_z_pred.shape
                     print 'sum(z)', np.sum(z)
                     # print masks
                     p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
@@ -695,8 +696,7 @@ class Model(object):
                 z_pred_all = []
 
                 N = len(train_batches_x)
-                if args.sanity_check:
-                    self.dropout.set_value(0.0)
+
                 print N, 'batches'
                 for i in xrange(N):
 
@@ -773,7 +773,7 @@ class Model(object):
                         best_dev = dev_obj
                         unchanged = 0
                         if args.save_model:
-                            filename = args.save_model + 'pretrain_' + myio.create_fname_identifier(args)
+                            filename = args.save_model + 'pretrain/' + myio.create_fname_identifier(args)
                             self.save_model(filename, args, pretrain=True)
 
             if more_count > 5:
@@ -784,6 +784,8 @@ class Model(object):
 
         if unchanged > 20:
             json_train['UNCHANGED'] = unchanged
+
+        get_rouge(args, epoch)
 
         json.dump(json_train, ofp_train)
         ofp_train.close()
