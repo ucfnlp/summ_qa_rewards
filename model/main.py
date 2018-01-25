@@ -263,7 +263,7 @@ class Encoder(object):
         self.zdiff = zdiff = zdiff / z_totals
 
         cost_vec = loss_vec + args.coeff_adequacy * (
-                (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff)
+                (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluencys * zdiff)
 
         baseline = T.mean(cost_vec)
         self.cost_vec = cost_vec = cost_vec - baseline

@@ -379,7 +379,7 @@ def get_rouge(args, epoch):
     r.system_dir = args.system_summ_path
     r.model_dir = args.model_summ_path
     r.system_filename_pattern = model_fname + '.(\d+).txt'
-    r.model_filename_pattern = file_part + args.source + '_' + '.#ID#.txt'
+    r.model_filename_pattern = 'dev_#ID#.txt'
 
     fname = args.rouge_dir + create_fname_identifier(args) + '_rouge.out'
     ofp = open(fname, 'w+')
