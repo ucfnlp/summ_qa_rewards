@@ -28,6 +28,11 @@ def get_args():
                         default=False,
                         help='Pretrain Generator')
 
+    parser.add_argument('--batch_data',
+                        type='bool',
+                        default=False,
+                        help='Pre_batch')
+
     parser.add_argument('--full_test',
                         type='bool',
                         default=True,
@@ -99,6 +104,30 @@ def get_args():
                         type=str,
                         default="../data/results/weights/",
                         help="path to save model parameters, for encoder weights"
+                        )
+
+    parser.add_argument("--batch_dir",
+                        type=str,
+                        default="../data/batches/",
+                        help="Directory to keep batched data on HDD"
+                        )
+
+    parser.add_argument("--online_batch_size",
+                        type=int,
+                        default=10,
+                        help="Number of batches to have loaded onto ram at a given time"
+                        )
+
+    parser.add_argument("--num_files_train",
+                        type=int,
+                        default=10,
+                        help="Number of batches to have loaded onto ram at a given time"
+                        )
+
+    parser.add_argument("--num_files_dev",
+                        type=int,
+                        default=None,
+                        help="Number of batches to have loaded onto ram at a given time - dev"
                         )
 
     parser.add_argument("--load_model",

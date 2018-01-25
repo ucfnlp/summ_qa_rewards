@@ -3,7 +3,8 @@ import json
 import random
 
 import numpy as np
-from pyrouge import Rouge155
+# from pyrouge import Rouge155
+import cPickle
 
 from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
@@ -82,6 +83,32 @@ def create_test(args, x, padding_id):
         batches_x.append(bx)
 
     return batches_x
+
+
+def save_batched(args, batches_x, batches_y, batches_e, batches_bm, model_type):
+
+    print 'Total batches', len(batches_x)
+    num_files = (len(batches_x) - 1) / args.online_batch_size + 1
+    fname = args.batch_dir + args.source + model_type
+
+    for i in xrange(num_files):
+        data = (
+            batches_x[i * args.batch:(i+1) * args.batch],
+            batches_y[i * args.batch:(i+1) * args.batch],
+            batches_e[i * args.batch:(i+1) * args.batch],
+            batches_bm[i * args.batch:(i+1) * args.batch]
+        )
+        with open(fname + str(i) + '.pkl.gz', 'w+') as ofp:
+            cPickle.dump(data, ofp)
+    print "Num Files :", num_files
+
+
+def load_batches(name, iteration):
+    ifp = open(name + str(iteration) + '.pkl.gz', 'rb')
+    (batches_x, batches_y, batches_e, batches_bm) = cPickle.load(ifp)
+    ifp.close()
+
+    return batches_x, batches_y, batches_e, batches_bm
 
 
 def create_batches(args, n_classes, x, y, e, batch_size, padding_id, sort=True):

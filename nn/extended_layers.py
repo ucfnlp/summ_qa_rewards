@@ -170,9 +170,9 @@ class LossComponent(object):
 
 
 class ZLayer(object):
-    def __init__(self, n_in, n_hidden, activation, layer):
-        self.n_in, self.n_hidden, self.activation, self.layer = \
-            n_in, n_hidden, activation, layer
+    def __init__(self, n_in, n_hidden, activation, layer, test=False):
+        self.n_in, self.n_hidden, self.activation, self.layer, self.test= \
+            n_in, n_hidden, activation, layer, test
         self.MRG_rng = MRG_RandomStreams()
         self.create_parameters()
 
@@ -236,7 +236,10 @@ class ZLayer(object):
 
         # batch
         pz_t = pz_t.ravel()
-        z_t = T.cast(self.MRG_rng.binomial(size=pz_t.shape,
+        if self.test:
+            z_t = T.cast(T.ge(pz_t, 0.5), theano.config.floatX)
+        else:
+            z_t = T.cast(self.MRG_rng.binomial(size=pz_t.shape,
                                            p=pz_t), theano.config.floatX)
 
         xz_t = T.concatenate([x_t, z_t.reshape((-1, 1))], axis=1)
