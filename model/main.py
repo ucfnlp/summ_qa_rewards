@@ -717,7 +717,6 @@ class Model(object):
                     z_pred_all.append(z)
                     obj_all.append(obj)
 
-                    print 'obj, cost_g, logpz', obj, np.mean(cost_g), np.mean(logpz)
                     train_cost += obj
 
                     p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
