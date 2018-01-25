@@ -779,12 +779,14 @@ class Model(object):
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
                 json.dump(json_train, ofp_train)
                 ofp_train.close()
+
+                myio.get_rouge(args, rouge_fname)
                 return
 
         if unchanged > 20:
             json_train['UNCHANGED'] = unchanged
 
-        get_rouge(args, rouge_fname)
+        myio.get_rouge(args, rouge_fname)
 
         json.dump(json_train, ofp_train)
         ofp_train.close()
