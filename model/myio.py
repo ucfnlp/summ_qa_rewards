@@ -238,6 +238,7 @@ def process_ent(n_classes, lste):
 
 def create_fname_identifier(args):
     return 'source_' + str(args.source) + \
+           'pretrain_' + str(args.pretrain) + \
            '_train_data_embdim_' + str(args.embedding_dim) + \
            '_vocab_size_' + str(args.vocab_size) + \
            '_batch_' + str(args.batch) + \
@@ -308,16 +309,17 @@ def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_di
 def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer, pretrain=False):
     s_num = 0
 
-    filename = get_readable_file(args, epoch)
-    ofp_samples = open(filename, 'w+')
+    filename_ = get_readable_file(args, epoch)
+    ofp_samples = open(filename_, 'w+')
     ofp_samples_system = []
+
+    rouge_fname = args.system_summ_path + create_fname_identifier(args) + ('e_' + str(epoch + 1) if epoch is not None else '')
 
     for i in xrange(len(dev_z)):
 
         for j in xrange(len(dev_z[i][0])):
 
-            filename = args.system_summ_path + 'source_' + str(args.source) + ('_pretrain_' if pretrain else '') + 'e_' + str(epoch + 1) + '.' + str(
-                s_num).zfill(6) + '.txt'
+            filename = '.' + str(s_num).zfill(6) + '.txt'
 
             ofp_for_rouge = open(filename, 'w+')
             ofp_system_output = []
@@ -347,6 +349,7 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer, pretrain=Fals
         ofp_samples.write('\n\n')
 
     ofp_samples.close()
+    return rouge_fname
 
 
 def save_test_results_rouge(args, z, test_batches_x, emb_layer):
@@ -370,15 +373,11 @@ def save_test_results_rouge(args, z, test_batches_x, emb_layer):
             s_num += 1
 
 
-def get_rouge(args, epoch):
-    file_part = args.model_summ_path + type + '_'
-    model_fname = args.system_summ_path + 'source_' + str(args.source) + (
-    'pretrain_' if args.pretrain else '') + 'e_' + str(epoch + 1)
-
+def get_rouge(args, system_fname):
     r = Rouge155()
     r.system_dir = args.system_summ_path
     r.model_dir = args.model_summ_path
-    r.system_filename_pattern = model_fname + '.(\d+).txt'
+    r.system_filename_pattern = system_fname + '.(\d+).txt'
     r.model_filename_pattern = 'dev_#ID#.txt'
 
     fname = args.rouge_dir + create_fname_identifier(args) + '_rouge.out'

@@ -129,9 +129,7 @@ class Generator(object):
 
         self.logpz = logpz = T.sum(self.logpz, axis=0)
 
-        cost_vec = (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff
-        baseline = T.mean(cost_vec)
-        self.cost_vec = cost_vec = cost_vec - baseline
+        self.cost_vec = cost_vec = (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff
 
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
 
@@ -666,6 +664,7 @@ class Model(object):
         filename = myio.create_json_filename(args)
         ofp_train = open(filename, 'w+')
         json_train = dict()
+        rouge_fname = None
 
         for epoch in xrange(args.max_epochs):
             unchanged += 1
@@ -729,7 +728,7 @@ class Model(object):
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
-                    myio.save_dev_results(args, epoch, dev_z, dev_batches_x, self.embedding_layer, pretrain=True)
+                    rouge_fname = myio.save_dev_results(args, None, dev_z, dev_batches_x, self.embedding_layer, pretrain=True)
                 more = False
 
                 if args.decay_lr and last_train_avg_cost is not None:
@@ -785,7 +784,7 @@ class Model(object):
         if unchanged > 20:
             json_train['UNCHANGED'] = unchanged
 
-        get_rouge(args, epoch)
+        get_rouge(args, rouge_fname)
 
         json.dump(json_train, ofp_train)
         ofp_train.close()
