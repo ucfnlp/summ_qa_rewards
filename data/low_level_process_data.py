@@ -1,4 +1,5 @@
 import json
+import numpy as np
 
 import data_args
 
@@ -84,10 +85,14 @@ def prune_type(x, y, e, ve, cy, entity_map):
             if args.use_root or num_perms == 1:
                 updated_y_ls.append(y[i][y_idx])
                 updated_e_ls.append(highlight[0])
+
                 total_entries += 1
             else:
+                rand_e_idx = np.random.randint(1, num_perms - 1)
+
                 updated_y_ls.append(y[i][y_idx])
-                updated_e_ls.append(highlight[1])
+                updated_e_ls.append(highlight[rand_e_idx])
+
                 total_entries += 1
 
             y_idx += num_perms
