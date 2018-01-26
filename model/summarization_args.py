@@ -114,19 +114,19 @@ def get_args():
 
     parser.add_argument("--online_batch_size",
                         type=int,
-                        default=10,
+                        default=32,
                         help="Number of batches to have loaded onto ram at a given time"
                         )
 
     parser.add_argument("--num_files_train",
                         type=int,
-                        default=10,
+                        default=12,
                         help="Number of batches to have loaded onto ram at a given time"
                         )
 
     parser.add_argument("--num_files_dev",
                         type=int,
-                        default=None,
+                        default=1,
                         help="Number of batches to have loaded onto ram at a given time - dev"
                         )
 
