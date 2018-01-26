@@ -525,9 +525,9 @@ class Model(object):
                     for j in xrange(cur_len):
                         if args.full_test:
                             if (i* args.online_batch_size + j + 1) % 100 == 0:
-                                say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i + 1)))
+                                say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
                         elif (i* args.online_batch_size + j + 1) % 10 == 0:
-                                say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i + 1)))
+                                say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
                         bx, by, be, bm = train_batches_x[j], train_batches_y[j], train_batches_e[j], train_batches_bm[j]
                         mask = bx != padding_id
@@ -570,7 +570,7 @@ class Model(object):
                         say("\nTrain cost {} --> {}\n".format(
                             last_train_avg_cost, cur_train_avg_cost
                         ))
-                    if dev and cur_dev_avg_cost > last_dev_avg_cost * (1 + tolerance):
+                    if args.dev and cur_dev_avg_cost > last_dev_avg_cost * (1 + tolerance):
                         more = True
                         say("\nDev cost {} --> {}\n".format(
                             last_dev_avg_cost, cur_dev_avg_cost
@@ -712,9 +712,9 @@ class Model(object):
                     for j in xrange(cur_len):
                         if args.full_test:
                             if (i * args.online_batch_size + j + 1) % 10 == 0:
-                                say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i + 1)))
+                                say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
                         elif (i * args.online_batch_size + j + 1) % 10 == 0:
-                            say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i + 1)))
+                            say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
                         bx, bm = train_batches_x[j], train_batches_bm[j]
                         mask = bx != padding_id
@@ -746,7 +746,7 @@ class Model(object):
                         say("\nTrain cost {} --> {}\n".format(
                             last_train_avg_cost, cur_train_avg_cost
                         ))
-                    if dev and cur_dev_avg_cost > last_dev_avg_cost * (1 + tolerance):
+                    if args.dev and cur_dev_avg_cost > last_dev_avg_cost * (1 + tolerance):
                         more = True
                         say("\nDev cost {} --> {}\n".format(
                             last_dev_avg_cost, cur_dev_avg_cost
