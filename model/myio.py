@@ -92,23 +92,25 @@ def save_batched(args, batches_x, batches_y, batches_e, batches_bm, model_type):
     fname = args.batch_dir + args.source + model_type
 
     for i in xrange(num_files):
-        data = (
+        print 'Creating file #', str(i + 1)
+
+        data = [
             batches_x[i * args.online_batch_size:(i+1) * args.online_batch_size],
             batches_y[i * args.online_batch_size:(i+1) * args.online_batch_size],
             batches_e[i * args.online_batch_size:(i+1) * args.online_batch_size],
             batches_bm[i * args.online_batch_size:(i+1) * args.online_batch_size]
-        )
-        with open(fname + str(i) + '.pkl.gz', 'w+') as ofp:
-            cPickle.dump(data, ofp)
+        ]
+        with open(fname + str(i), 'w+') as ofp:
+            np.save(ofp, data)
     print "Num Files :", num_files
 
 
 def load_batches(name, iteration):
-    ifp = open(name + str(iteration) + '.pkl.gz', 'rb')
-    (batches_x, batches_y, batches_e, batches_bm) = cPickle.load(ifp)
+    ifp = open(name + str(iteration), 'rb')
+    data = np.load(ifp)
     ifp.close()
 
-    return batches_x, batches_y, batches_e, batches_bm
+    return data[0], data[1], data[2], data[3]
 
 
 def create_batches(args, n_classes, x, y, e, batch_size, padding_id, sort=True):
