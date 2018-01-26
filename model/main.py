@@ -789,13 +789,13 @@ class Model(object):
                 json.dump(json_train, ofp_train)
                 ofp_train.close()
 
-                myio.get_rouge(args, rouge_fname)
+                # myio.get_rouge(args, rouge_fname)
                 return
 
         if unchanged > 20:
             json_train['UNCHANGED'] = unchanged
 
-        myio.get_rouge(args, rouge_fname)
+        # myio.get_rouge(args, rouge_fname)
 
         json.dump(json_train, ofp_train)
         ofp_train.close()
