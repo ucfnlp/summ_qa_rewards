@@ -602,7 +602,7 @@ class Model(object):
                     train_cost / N,
                     train_loss / N,
                     (time.time() - start_time) / 60.0,
-                    (time.time() - start_time) / 60.0 / (i + 1) * N
+                    (time.time() - start_time) / 60.0 / (i * args.online_batch_size + j + 1) * N
                 ))
 
                 if args.dev:

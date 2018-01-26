@@ -3,8 +3,7 @@ import json
 import random
 
 import numpy as np
-# from pyrouge import Rouge155
-import cPickle
+from pyrouge import Rouge155
 
 from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
