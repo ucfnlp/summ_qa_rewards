@@ -93,10 +93,10 @@ def save_batched(args, batches_x, batches_y, batches_e, batches_bm, model_type):
 
     for i in xrange(num_files):
         data = (
-            batches_x[i * args.batch:(i+1) * args.batch],
-            batches_y[i * args.batch:(i+1) * args.batch],
-            batches_e[i * args.batch:(i+1) * args.batch],
-            batches_bm[i * args.batch:(i+1) * args.batch]
+            batches_x[i * args.online_batch_size:(i+1) * args.online_batch_size],
+            batches_y[i * args.online_batch_size:(i+1) * args.online_batch_size],
+            batches_e[i * args.online_batch_size:(i+1) * args.online_batch_size],
+            batches_bm[i * args.online_batch_size:(i+1) * args.online_batch_size]
         )
         with open(fname + str(i) + '.pkl.gz', 'w+') as ofp:
             cPickle.dump(data, ofp)
