@@ -286,7 +286,7 @@ def create_json_filename(args):
 
 def get_readable_file(args, epoch):
     path = args.train_output_readable
-    filename = create_fname_identifier(args) +'_e_' + str(epoch + 1) + '.out'
+    filename = create_fname_identifier(args) + ('_e_' + str(epoch + 1)  if epoch is not None else '') + '.out'
 
     return path + filename
 
@@ -341,12 +341,12 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer, pretrain=Fals
     ofp_samples_system = []
 
     rouge_fname = args.system_summ_path + create_fname_identifier(args) + ('e_' + str(epoch + 1) if epoch is not None else '')
-
+    print rouge_fname
     for i in xrange(len(dev_z)):
 
         for j in xrange(len(dev_z[i][0])):
 
-            filename = '.' + str(s_num).zfill(6) + '.txt'
+            filename = rouge_fname + '.' + str(s_num).zfill(6) + '.txt'
 
             ofp_for_rouge = open(filename, 'w+')
             ofp_system_output = []

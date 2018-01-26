@@ -78,7 +78,7 @@ class Generator(object):
                 n_hidden = args.hidden_dimension2,
                 activation = activation,
                 layer=args.layer,
-                test = args.test
+                test = (len(args.test) > 0)
             )
 
         z_pred, sample_updates = output_layer.sample_all(h_final)
@@ -520,14 +520,16 @@ class Model(object):
                     train_batches_e = [train_batches_e[k] for k in perm2]
                     train_batches_bm = [train_batches_bm[k] for k in perm2]
 
-                    for j in xrange(args.online_batch_size):
+                    cur_len = len(train_batches_x)
+
+                    for j in xrange(cur_len):
                         if args.full_test:
                             if (i* args.online_batch_size + j + 1) % 100 == 0:
                                 say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i + 1)))
                         elif (i* args.online_batch_size + j + 1) % 10 == 0:
                                 say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i + 1)))
 
-                        bx, by, be, bm = train_batches_x[i], train_batches_y[i], train_batches_e[i], train_batches_bm[i]
+                        bx, by, be, bm = train_batches_x[j], train_batches_y[j], train_batches_e[j], train_batches_bm[j]
                         mask = bx != padding_id
 
                         cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, g_probs, g_z_pred, cost_vec, masks = train_generator(
@@ -705,15 +707,16 @@ class Model(object):
 
                     train_batches_x = [train_batches_x[k] for k in perm2]
                     train_batches_bm = [train_batches_bm[k] for k in perm2]
+                    cur_len = len(train_batches_x)
 
-                    for j in xrange(args.online_batch_size):
+                    for j in xrange(cur_len):
                         if args.full_test:
-                            if (i * args.online_batch_size + j + 1) % 100 == 0:
+                            if (i * args.online_batch_size + j + 1) % 10 == 0:
                                 say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i + 1)))
                         elif (i * args.online_batch_size + j + 1) % 10 == 0:
                             say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i + 1)))
 
-                        bx, bm = train_batches_x[i], train_batches_bm[i]
+                        bx, bm = train_batches_x[j], train_batches_bm[j]
                         mask = bx != padding_id
 
                         obj, z, zsum, zdiff, bigram_loss,cost_g, logpz = train_generator(bx, bm)
@@ -731,7 +734,7 @@ class Model(object):
 
                 if args.dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_z, rouge_fname = self.evaluate_data(eval_generator)
+                    dev_obj, dev_z, rouge_fname = self.evaluate_pretrain_data(eval_generator)
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
@@ -797,36 +800,49 @@ class Model(object):
         json.dump(json_train, ofp_train)
         ofp_train.close()
 
-    def evaluate_pretrain_data(self, batches_x, batches_bm, eval_func):
+    def evaluate_pretrain_data(self, eval_func):
         tot_obj = 0.0
         dev_z = []
+        x = []
+        num_files = args.num_files_dev
+        N = 0
 
-        for bx,bm in zip(batches_x, batches_bm):
-            bz, c, o = eval_func(bx, bm)
-            tot_obj += o
+        for i in xrange(num_files):
+            batches_x, _, _, batches_bm = myio.load_batches(
+                args.batch_dir + args.source + 'dev', i)
 
-            dev_z.append(bz)
+            cur_len = len(batches_x)
 
-        n = float(len(batches_x))
+            for j in xrange(cur_len):
+                for bx, bm in zip(batches_x, batches_bm):
+                    bz, l, o = eval_func(bx, bm)
+                    tot_obj += o
+                    N += len(bx)
+                    x.append(bx)
+                    dev_z.append(bz)
 
-        return tot_obj / n, dev_z
+        rouge_fname = myio.save_dev_results(args, None, dev_z, x, self.embedding_layer, pretrain=True)
+
+        return tot_obj / float(N), dev_z, rouge_fname
 
     def evaluate_data(self, eval_func):
         tot_obj = 0.0
         dev_z = []
         x = []
-        num_files = args.num_files_train
-        N = args.online_batch_size * num_files
+        num_files = args.num_files_dev
+        N = 0
 
         for i in xrange(num_files):
             batches_x, batches_y, batches_e, batches_bm = myio.load_batches(
                 args.batch_dir + args.source + 'dev', i)
 
-            for j in xrange(args.online_batch_size):
+            cur_len = len(batches_x)
+
+            for j in xrange(cur_len):
                 for bx, by, be, bm in zip(batches_x, batches_y, batches_e, batches_bm):
                     bz, o, e = eval_func(bx, by, bm, be)
                     tot_obj += o
-
+                    N += len(bx)
                     x.append(bx)
                     dev_z.append(bz)
 
