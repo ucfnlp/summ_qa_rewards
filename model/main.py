@@ -90,7 +90,7 @@ class Generator(object):
 
         logpz = - T.nnet.binary_crossentropy(probs, z_pred) * masks
         logpz = self.logpz = logpz.reshape(x.shape)
-        probs = self.probs = probs.reshape(x.shape)
+        probs = self.probs = probs.reshape(x.shape) * masks
 
         # batch
         z = z_pred
@@ -403,6 +403,22 @@ class Model(object):
         for x, v in zip(self.generator.params, gparams):
             x.set_value(v)
 
+    def load_model_pretrain(self, path):
+        if not os.path.exists(path):
+            if path.endswith(".pkl"):
+                path += ".gz"
+            else:
+                path += ".pkl.gz"
+
+        with gzip.open(path, "rb") as fin:
+            gparams, nclasses, args = pickle.load(fin)
+        self.args = args
+        self.nclasses = nclasses
+        self.ready_pretrain()
+
+        for x, v in zip(self.generator.params, gparams):
+            x.set_value(v)
+
     def test(self, test):
         args = self.args
 
@@ -419,6 +435,18 @@ class Model(object):
         z = self.evaluate_test_data(test_batches_x, test_generator)
 
         myio.save_test_results_rouge(args, z, test_batches_x, self.embedding_layer)
+
+    def dev(self):
+
+        eval_generator = theano.function(
+            inputs=[self.x, self.bm],
+            outputs=[self.z, self.generator.cost_g, self.generator.obj, self.generator.probs],
+            updates=self.generator.sample_updates
+        )
+
+        self.dropout.set_value(0.0)
+
+        self.evaluate_pretrain_data_rouge(eval_generator)
 
     def train(self):
         args = self.args
@@ -598,7 +626,7 @@ class Model(object):
                 say("\n")
                 say(("Generator Epoch {:.2f}  costg={:.4f}  lossg={:.4f}  " +
                      "\t[{:.2f}m / {:.2f}m]\n").format(
-                    epoch + (i + 1.0) / N,
+                    epoch,
                     train_cost / N,
                     train_loss / N,
                     (time.time() - start_time) / 60.0,
@@ -768,11 +796,11 @@ class Model(object):
                 say("\n")
                 say(("Generator Epoch {:.2f}  costg={:.4f}  lossg={:.4f}  " +
                      "\t[{:.2f}m / {:.2f}m]\n").format(
-                    epoch + (i + 1.0) / N,
+                    epoch,
                     train_cost / N,
                     train_loss / N,
                     (time.time() - start_time) / 60.0,
-                    (time.time() - start_time) / 60.0 / (i + 1) * N
+                    (time.time() - start_time) / 60.0 / (i * args.online_batch_size + j + 1) * N
                 ))
 
                 if args.dev:
@@ -824,6 +852,31 @@ class Model(object):
         rouge_fname = myio.save_dev_results(args, None, dev_z, x, self.embedding_layer, pretrain=True)
 
         return tot_obj / float(N), dev_z, rouge_fname
+
+    def evaluate_pretrain_data_rouge(self, eval_func):
+        tot_obj = 0.0
+        dev_z = []
+        x = []
+        num_files = args.num_files_dev
+        N = 0
+
+        for i in xrange(num_files):
+            batches_x, _, _, batches_bm = myio.load_batches(
+                args.batch_dir + args.source + 'dev', i)
+
+            cur_len = len(batches_x)
+
+            for j in xrange(cur_len):
+                for bx, bm in zip(batches_x, batches_bm):
+                    bz, l, o, probs = eval_func(bx, bm)
+                    tot_obj += o
+                    N += len(bx)
+                    x.append(bx)
+                    dev_z.append(probs)
+
+        myio.save_dev_results_r(args, dev_z, x, self.embedding_layer)
+
+        return tot_obj / float(N), dev_z
 
     def evaluate_data(self, eval_func):
         tot_obj = 0.0
@@ -900,10 +953,13 @@ def main():
         else:
             model.ready()
             model.train()
+    elif args.dev:
+        if args.pretrain:
+            model.load_model_pretrain(args.save_model + args.load_model)
+            model.dev()
 
     elif args.test:
-        model.load_model(args.save_model + args.load_file, True)
-
+        model.load_model(args.save_model + args.load_model, True)
         model.test(test_x)
 
 

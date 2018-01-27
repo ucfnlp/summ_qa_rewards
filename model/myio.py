@@ -1,4 +1,4 @@
-import gzip
+import os
 import json
 import random
 
@@ -60,8 +60,7 @@ def create_embedding_layer(args, path, vocab):
         vocab=vocab,
         embs=load_embedding_iterator(path),
         oov="<unk>",
-        fix_init_embs = True
-        # fix_init_embs=False
+        fix_init_embs = False
     )
     return embedding_layer
 
@@ -266,7 +265,7 @@ def process_ent(n_classes, lste):
 
 def create_fname_identifier(args):
     return 'source_' + str(args.source) + \
-           'pretrain_' + str(args.pretrain) + \
+           '_pretrain_' + str(args.pretrain) + \
            '_train_data_embdim_' + str(args.embedding_dim) + \
            '_vocab_size_' + str(args.vocab_size) + \
            '_batch_' + str(args.batch) + \
@@ -401,12 +400,41 @@ def save_test_results_rouge(args, z, test_batches_x, emb_layer):
             s_num += 1
 
 
+def save_dev_results_r(args, probs, x, embedding):
+    s_num = 0
+    if not os.path.exists(args.system_summ_path):
+        os.makedirs(args.system_summ_path)
+
+    for i in xrange(len(probs)):
+
+        filename = args.system_summ_path + 'a.' + str(s_num).zfill(6) + '.txt'
+        ofp_for_rouge = open(filename, 'w+')
+        for j in xrange(len(probs[i][0])):
+
+            for k in xrange(len(probs[i])):
+                word = embedding.lst_words[x[i][k][j]]
+
+                if word == '<padding>' or word == '<unk>' or probs[i][k][j] < 0.5:
+                    continue
+
+                ofp_for_rouge.write(str(word+ ' '))
+
+        ofp_for_rouge.close()
+        s_num += 1
+
+    get_rouge(args, 'a')
+
+
 def get_rouge(args, system_fname):
+    if os.path.exists(args.system_summ_path + '.DS_Store'):
+        os.remove(args.system_summ_path + '.DS_Store')
+    if os.path.exists(args.model_summ_path + '.DS_Store'):
+        os.remove(args.model_summ_path + '.DS_Store')
     r = Rouge155()
     r.system_dir = args.system_summ_path
     r.model_dir = args.model_summ_path
     r.system_filename_pattern = system_fname + '.(\d+).txt'
-    r.model_filename_pattern = 'dev_#ID#.txt'
+    r.model_filename_pattern = 'dev_cnn_#ID#.txt'
 
     fname = args.rouge_dir + create_fname_identifier(args) + '_rouge.out'
     ofp = open(fname, 'w+')

@@ -185,13 +185,10 @@ class ZLayer(object):
         bias_val = random_init((1,))[0]
         self.bias = theano.shared(np.cast[theano.config.floatX](bias_val))
 
-        rlayer = None
         if self.layer == 'lstm':
             rlayer = LSTM((n_in + 1), n_hidden, activation=activation)
         else:
             rlayer = RCNN((n_in + 1), n_hidden, activation=activation, order=2)
-
-        rlayer = RCNN((n_in + 1), n_hidden, activation=activation, order=2)
 
         self.rlayer = rlayer
         self.layers = [rlayer]

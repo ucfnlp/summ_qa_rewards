@@ -21,11 +21,10 @@ def process_data(args):
         core_nlp(args, train[0], dev[0], test[0])
     else:
         word_counts = [args.vocab_size]
-        emb_set = get_embedding_set(args)
 
         for count in word_counts:
             print 'Building dataset for vocab size : ' + str(count)
-            vocab, placeholder, unk = create_vocab_map(args, unique_w, count, emb_set)
+            vocab, placeholder, unk = create_vocab_map(args, unique_w, count)
             machine_ready(args, train, dev, test, vocab, count, placeholder, unk)
 
 
@@ -36,12 +35,15 @@ def split_data(args):
 
     highlights_train = []
     articles_train = []
+    hashes_train = []
 
     highlights_dev = []
     articles_dev = []
+    hashes_dev = []
 
     highlights_test = []
     articles_test = []
+    hashes_test = []
 
     train_urls, dev_urls, test_urls = get_url_sets(args)
     data_dirs = [args.raw_data_cnn if args.source == 'cnn' else args.raw_data_dm]
@@ -80,6 +82,7 @@ def split_data(args):
                     continue
 
                 catg = get_set(sha, train_urls, dev_urls, test_urls)
+                sha = str(sha)
 
                 if catg < 0:
                     print 'Problem with : ' + str(sha)
@@ -88,20 +91,24 @@ def split_data(args):
                 if catg == 1: #TRAIN
                     highlights_train.append(current_highlights)
                     articles_train.append(current_article)
+                    hashes_train.append(sha)
                 elif catg == 2: #DEV
                     highlights_dev.append(current_highlights)
                     articles_dev.append(current_article)
+                    hashes_dev.append(sha)
                 else:#TEST
                     highlights_test.append(current_highlights)
                     articles_test.append(current_article)
+                    hashes_test.append(sha)
 
                 small_size_counter += 1
 
                 if not args.full_test and small_size_counter >= args.small_limit:
-                    return (highlights_train, articles_train), (highlights_dev, articles_dev), (
-                    highlights_test, articles_test), unique_words
+                    return (highlights_train, articles_train, hashes_train), (highlights_dev, articles_dev, hashes_dev), (
+                    highlights_test, articles_test, hashes_test), unique_words
 
-    return (highlights_train, articles_train), (highlights_dev, articles_dev), (highlights_test, articles_test), unique_words
+    return (highlights_train, articles_train, hashes_train), (highlights_dev, articles_dev, hashes_dev), (
+    highlights_test, articles_test, hashes_test), unique_words
 
 
 def prepare_rouge(args, inp, type):
@@ -161,9 +168,11 @@ def core_nlp(args, train, dev, test):
     ofp_test.close()
 
 
-def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, unk):
+def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, unk, return_r=False):
     inp_seqs = []
+    inp_seqs_raw = []
     inp_ents = []
+
     counter = 0
 
     total_samples = len(inp)
@@ -175,11 +184,13 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
         counter += 1
 
         single_inp_seqs = []
+        single_inp_seqs_raw = []
         entities_in_article = set()
 
         for sent in article:
 
             single_inp_sent = []
+            single_inp_sent_raw = []
             for w in xrange(len(sent)):
 
                 # 1.) check if word in vocab or not
@@ -187,6 +198,9 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
 
                 index = vocab[word] if word in vocab else unk
                 single_inp_sent.append(index)
+
+                if return_r:
+                    single_inp_sent_raw.append(word)
 
                 # 2.) check if word starts NER
                 if word in first_word_map:
@@ -214,10 +228,20 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
                             break
 
             single_inp_seqs.append(single_inp_sent)
+
+            if return_r:
+                single_inp_seqs_raw.append(single_inp_sent_raw)
+
         inp_ents.append(list(entities_in_article))
         inp_seqs.append(single_inp_seqs)
 
-    return inp_seqs, inp_ents
+        if return_r:
+            inp_seqs_raw.append(single_inp_seqs_raw)
+
+    if return_r:
+        return inp_seqs, inp_ents, inp_seqs_raw
+    else:
+        return inp_seqs, inp_ents
 
 
 def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, first_word_map,  type, placeholder, unk):
@@ -348,11 +372,11 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     seqs_train_articles, seq_train_art_ents = seqs_art(args, train[1], vocab, entity_set, raw_entity_mapping,
                                                        sorted_first_word_map, unk)
     print 'Dev data indexing..'
-    seqs_dev_articles, seq_dev_art_ents = seqs_art(args, dev[1], vocab, entity_set, raw_entity_mapping,
-                                                   sorted_first_word_map, unk)
+    seqs_dev_articles, seq_dev_art_ents, seq_dev_art_raw = seqs_art(args, dev[1], vocab, entity_set, raw_entity_mapping,
+                                                   sorted_first_word_map, unk, return_r=True)
     print 'Test data indexing..'
-    seqs_test_articles, seq_test_art_ents = seqs_art(args, test[1], vocab, entity_set, raw_entity_mapping,
-                                                     sorted_first_word_map, unk)
+    seqs_test_articles, seq_test_art_ents, seq_test_art_raw = seqs_art(args, test[1], vocab, entity_set, raw_entity_mapping,
+                                                     sorted_first_word_map, unk, return_r=True)
 
     filename_train = args.train if args.full_test else "small_" + args.train
     filename_train = args.source + '_' + str(count) + '_' + filename_train
@@ -363,6 +387,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     final_json_train['x'] = seqs_train_articles
     final_json_train['y'] = seqs_train_hl
     final_json_train['e'] = seqs_train_e
+    final_json_train['sha'] = train[2]
     final_json_train['valid_e'] = seq_train_art_ents
     final_json_train['clean_y'] = seqs_clean_train
 
@@ -376,8 +401,10 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     final_json_dev = dict()
 
     final_json_dev['x'] = seqs_dev_articles
+    final_json_dev['raw_x'] = seq_dev_art_raw
     final_json_dev['y'] = seqs_dev_hl
     final_json_dev['e'] = seqs_dev_e
+    final_json_dev['sha'] = dev[2]
     final_json_dev['valid_e'] = seq_dev_art_ents
     final_json_dev['clean_y'] = seqs_clean_dev
 
@@ -392,6 +419,8 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
 
     final_json_test['x'] = seqs_test_articles
     final_json_test['y'] = seqs_test_hl
+    final_json_test['sha'] = test[2]
+    final_json_test['raw_x'] = seq_test_art_raw
     final_json_test['clean_y'] = seqs_clean_test
 
     json.dump(final_json_test, ofp_test)
@@ -447,7 +476,7 @@ def tokenize(args, current_article, current_highlights, unique_w):
     return article, highlights
 
 
-def create_vocab_map(args, unique_w, count, emb_set):
+def create_vocab_map(args, unique_w, count):
     ofp = open(args.source + '_' + 'vocab_' + str(count) + '.txt', 'w+')
     vocab_map = dict()
     index = 0
@@ -463,18 +492,15 @@ def create_vocab_map(args, unique_w, count, emb_set):
     for c in sorted(inv_map.iterkeys(), reverse=True):
         words = inv_map[c]
 
-        if index > count:
+        if index >= count:
             break
 
         for w in words:
+            ofp.write(w + '\n')
+            vocab_map[w] = index
+            index += 1
 
-            # Map only those which correspond to existing embeddings
-            if w in emb_set:
-                ofp.write(w + '\n')
-                vocab_map[w] = index
-                index += 1
-
-            if index > count:
+            if index >= count:
                 break
 
     ofp.write('<padding>\n<unk>\n<placeholder>\n')
@@ -484,23 +510,6 @@ def create_vocab_map(args, unique_w, count, emb_set):
     vocab_map['<placeholder>'] = placeholder = index + 2
 
     index += 3
-
-    for c in sorted(inv_map.iterkeys(), reverse=True):
-        words = inv_map[c]
-
-        if index > count:
-            break
-
-        for w in words:
-
-            # Map only those which correspond to existing embeddings
-            if w not in emb_set:
-                ofp.write(w + '\n')
-                vocab_map[w] = index
-                index += 1
-
-            if index > count:
-                break
 
     ofp.close()
     return vocab_map, placeholder, unk
