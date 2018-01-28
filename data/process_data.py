@@ -31,7 +31,7 @@ def process_data(args):
 def split_data(args):
     small_size_counter = 0
 
-    unique_words = dict() # word : count
+    unique_words = dict()
 
     highlights_train = []
     articles_train = []
