@@ -16,16 +16,12 @@ def read_docs(args, type):
     with open(filename, 'rb') as data_file:
         data = json.load(data_file)
 
-    data_x = data['x']
-    data_y = data['y']
-    data_e = data['e']
-
-    data_file.close()
-
     if type == 'test':
-        return data_x
-
-    return data_x, data_y, data_e
+        return data['x']
+    elif type == 'dev':
+        return data['x'], data['y'], data['e'], data['raw_x'], data['sha']
+    else:
+        return data['x'], data['y'], data['e'], data['sha']
 
 
 def load_e(args):
@@ -83,7 +79,7 @@ def create_test(args, x, padding_id):
     return batches_x
 
 
-def save_batched(args, batches_x, batches_y, batches_e, batches_bm, model_type):
+def save_batched(args, batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, model_type):
 
     print 'Total batches', len(batches_x)
     num_files = (len(batches_x) - 1) / args.online_batch_size + 1
@@ -91,13 +87,23 @@ def save_batched(args, batches_x, batches_y, batches_e, batches_bm, model_type):
 
     for i in xrange(num_files):
         print 'Creating file #', str(i + 1)
-
-        data = [
-            batches_x[i * args.online_batch_size:(i+1) * args.online_batch_size],
-            batches_y[i * args.online_batch_size:(i+1) * args.online_batch_size],
-            batches_e[i * args.online_batch_size:(i+1) * args.online_batch_size],
-            batches_bm[i * args.online_batch_size:(i+1) * args.online_batch_size]
-        ]
+        if model_type == 'train':
+            data = [
+                batches_x[i * args.online_batch_size:(i+1) * args.online_batch_size],
+                batches_y[i * args.online_batch_size:(i+1) * args.online_batch_size],
+                batches_e[i * args.online_batch_size:(i+1) * args.online_batch_size],
+                batches_bm[i * args.online_batch_size:(i+1) * args.online_batch_size],
+                batches_shax[i * args.online_batch_size:(i + 1) * args.online_batch_size]
+            ]
+        else:
+            data = [
+                batches_x[i * args.online_batch_size:(i + 1) * args.online_batch_size],
+                batches_y[i * args.online_batch_size:(i + 1) * args.online_batch_size],
+                batches_e[i * args.online_batch_size:(i + 1) * args.online_batch_size],
+                batches_bm[i * args.online_batch_size:(i + 1) * args.online_batch_size],
+                batches_sha[i * args.online_batch_size:(i + 1) * args.online_batch_size],
+                batches_rx[i * args.online_batch_size:(i + 1) * args.online_batch_size]
+            ]
         with open(fname + str(i), 'w+') as ofp:
             np.save(ofp, data)
     print "Num Files :", num_files
@@ -107,12 +113,14 @@ def load_batches(name, iteration):
     ifp = open(name + str(iteration), 'rb')
     data = np.load(ifp)
     ifp.close()
+    if len(data) == 6:
+        return data[0], data[1], data[2], data[3], data[4], data[5]
+    else:
+        return data[0], data[1], data[2], data[3], data[4]
 
-    return data[0], data[1], data[2], data[3]
 
-
-def create_batches(args, n_classes, x, y, e, batch_size, padding_id, sort=True):
-    batches_x, batches_y, batches_e, batches_bm  = [], [], [], []
+def create_batches(args, n_classes, x, y, e, sha, rx,  batch_size, padding_id, sort=True):
+    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx  = [], [], [], [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
 
@@ -126,6 +134,7 @@ def create_batches(args, n_classes, x, y, e, batch_size, padding_id, sort=True):
         x = [x[i] for i in perm]
         y = [y[i] for i in perm]
         e = [e[i] for i in perm]
+        sha = [sha[i] for i in perm]
 
     for i in xrange(M):
         bx, by, be, bm = create_one_batch(
@@ -137,11 +146,16 @@ def create_batches(args, n_classes, x, y, e, batch_size, padding_id, sort=True):
             padding_id,
             batch_size
         )
+        bsh = sha[i * batch_size:(i + 1) * batch_size]
+        if rx is not None:
+            brx = rx[i * batch_size:(i + 1) * batch_size]
+            batches_rx.append(brx)
 
         batches_x.append(bx)
         batches_y.append(by)
         batches_e.append(be)
         batches_bm.append(bm)
+        batches_sha.append(bsh)
 
     if sort:
         random.seed(5817)
@@ -151,8 +165,9 @@ def create_batches(args, n_classes, x, y, e, batch_size, padding_id, sort=True):
         batches_y = [batches_y[i] for i in perm2]
         batches_e = [batches_e[i] for i in perm2]
         batches_bm = [batches_bm[i] for i in perm2]
+        batches_sha = [batches_sha[i] for i in perm2]
 
-    return batches_x, batches_y, batches_e, batches_bm
+    return batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx
 
 
 def create_one_batch(args, n_classes, lstx, lsty, lste, padding_id, b_len):
@@ -426,10 +441,6 @@ def save_dev_results_r(args, probs, x, embedding):
 
 
 def get_rouge(args, system_fname):
-    if os.path.exists(args.system_summ_path + '.DS_Store'):
-        os.remove(args.system_summ_path + '.DS_Store')
-    if os.path.exists(args.model_summ_path + '.DS_Store'):
-        os.remove(args.model_summ_path + '.DS_Store')
     r = Rouge155()
     r.system_dir = args.system_summ_path
     r.model_dir = args.model_summ_path

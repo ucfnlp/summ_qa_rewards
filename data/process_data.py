@@ -19,7 +19,7 @@ def process_data(args):
     else:
         prepare_rouge(args, test[0], 'test')
         prepare_rouge(args, dev[0], 'dev')
-        
+
         word_counts = [args.vocab_size]
 
         for count in word_counts:
@@ -634,7 +634,6 @@ def find_ner_tokens(tokens_ls, tag_ls):
                 fw = tokens_ls[start_idx]['originalText'].lower()
                 ner = (name, start_idx, end_idx, current_ner, name_raw, fw)
                 ner_set.add(ner)
-
 
                 start_idx = i
                 current_ner = item['ner']

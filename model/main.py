@@ -726,7 +726,7 @@ class Model(object):
                 N = args.online_batch_size * num_files
 
                 for i in xrange(num_files):
-                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm = myio.load_batches(
+                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_sha = myio.load_batches(
                         args.batch_dir + args.source + 'train', i)
 
                     random.seed(5817)
@@ -817,7 +817,7 @@ class Model(object):
                 json.dump(json_train, ofp_train)
                 ofp_train.close()
 
-                # myio.get_rouge(args, rouge_fname)
+                myio.get_rouge(args, rouge_fname)
                 return
 
         if unchanged > 20:
@@ -836,17 +836,17 @@ class Model(object):
         N = 0
 
         for i in xrange(num_files):
-            batches_x, _, _, batches_bm = myio.load_batches(
+            batches_x, _, _, batches_bm, batches_sha, batches_rx = myio.load_batches(
                 args.batch_dir + args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                for bx, bm in zip(batches_x, batches_bm):
+                for bx, bm, sha, rx in zip(batches_x, batches_bm, batches_sha, batches_rx):
                     bz, l, o = eval_func(bx, bm)
                     tot_obj += o
                     N += len(bx)
-                    x.append(bx)
+                    x.append(rx)
                     dev_z.append(bz)
 
         rouge_fname = myio.save_dev_results(args, None, dev_z, x, self.embedding_layer, pretrain=True)
@@ -934,16 +934,20 @@ def main():
 
     if args.batch_data:
         if args.train:
-            train_x, train_y, train_e = myio.read_docs(args, 'train')
-            train_batches_x, train_batches_y, train_batches_e, train_batches_bm = myio.create_batches(args, model.nclasses, train_x, train_y, train_e, args.batch, embedding_layer.vocab_map["<padding>"])
-            myio.save_batched(args, train_batches_x, train_batches_y, train_batches_e, train_batches_bm, 'train')
+            train_x, train_y, train_e, train_sha = myio.read_docs(args, 'train')
+            train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_sha, _ = myio.create_batches(
+                args, model.nclasses, train_x, train_y, train_e, train_sha, None, args.batch,
+                embedding_layer.vocab_map["<padding>"])
+            myio.save_batched(args, train_batches_x, train_batches_y, train_batches_e, train_batches_bm,
+                              train_batches_sha, None, 'train')
 
         if args.dev:
-            dev_x, dev_y, dev_e = myio.read_docs(args, 'dev')
-            dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm = myio.create_batches(args, model.nclasses, dev_x, dev_y, dev_e, args.batch,
+            dev_x, dev_y, dev_e, dev_rx, dev_sha = myio.read_docs(args, 'dev')
+            dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha, dev_batches_rx = myio.create_batches(args, model.nclasses, dev_x, dev_y, dev_e, dev_sha, dev_rx, args.batch,
                                 embedding_layer.vocab_map["<padding>"], sort=False)
 
-            myio.save_batched(args, dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, 'dev')
+            myio.save_batched(args, dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha,
+                              dev_batches_rx, 'dev')
 
     elif args.train:
 
