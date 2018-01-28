@@ -51,7 +51,7 @@ def get_args():
 
     parser.add_argument('--vocab_size',
                         type=int,
-                        default=100000,
+                        default=150000,
                         help='Vocab size')
 
     parser.add_argument('--inp_len',
