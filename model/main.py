@@ -819,6 +819,8 @@ class Model(object):
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
                 json.dump(json_train, ofp_train)
                 ofp_train.close()
+
+                myio.get_rouge(args)
                 return
 
         if unchanged > 20:
@@ -826,6 +828,8 @@ class Model(object):
 
         json.dump(json_train, ofp_train)
         ofp_train.close()
+
+        myio.get_rouge(args)
 
     def evaluate_pretrain_data(self, eval_func):
         tot_obj = 0.0

@@ -78,7 +78,7 @@ def get_args():
 
     parser.add_argument("--model_summ_path",
                         type=str,
-                        default="../data/results/summaries/model/",
+                        default="../data/results/summaries/model/dev/",
                         help="gold standard summaries"
                         )
 
