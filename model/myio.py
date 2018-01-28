@@ -363,14 +363,16 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
 
     for i in xrange(len(dev_z)):
 
-        filename = rouge_fname + str(dev_sha[i]) + '.' + str(s_num).zfill(6) + '.txt'
-        ofp_for_rouge = open(filename, 'w+')
-        ofp_system_output = []
-
         for j in xrange(len(dev_z[i][0])):
+            filename = rouge_fname + str(dev_sha[i][j]) + '.' + str(s_num).zfill(6) + '.txt'
+            ofp_for_rouge = open(filename, 'w+')
+            ofp_system_output = []
 
             for k in xrange(len(dev_z[i])):
-                word = dev_batches_x[i][k][j]
+                if k >= len(dev_batches_x[i][j]):
+                    break
+
+                word = dev_batches_x[i][j][k]
 
                 if dev_z[i][k][j] == 0:
                     continue
@@ -378,9 +380,9 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
                 ofp_for_rouge.write(word + ' ')
                 ofp_system_output.append(word)
 
-        ofp_samples_system.append(' '.join(ofp_system_output))
-        ofp_for_rouge.close()
-        s_num += 1
+            ofp_samples_system.append(' '.join(ofp_system_output))
+            ofp_for_rouge.close()
+            s_num += 1
 
     for i in xrange(len(ofp_samples_system)):
 

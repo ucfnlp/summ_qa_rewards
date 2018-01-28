@@ -915,6 +915,17 @@ class Model(object):
         return dev_z
 
 
+def test_emb(test_x, embedding_layer):
+    d = test_x[0]
+    ofp = open('lol.out', 'w+')
+    for sent in d:
+
+        for w in sent:
+            word = embedding_layer.lst_words[w]
+            ofp.write(word + ' ')
+
+    ofp.close()
+
 def main():
     assert args.embedding, "Pre-trained word embeddings required."
 
