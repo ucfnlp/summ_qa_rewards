@@ -762,7 +762,7 @@ class Model(object):
 
                 if args.dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_z, rouge_fname = self.evaluate_pretrain_data(eval_generator)
+                    dev_obj, dev_z, x, sha_ls = self.evaluate_pretrain_data(eval_generator)
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
@@ -812,28 +812,29 @@ class Model(object):
                             filename = args.save_model + 'pretrain/' + myio.create_fname_identifier(args)
                             self.save_model(filename, args, pretrain=True)
 
+                            myio.save_dev_results(args, None, dev_z, x, sha_ls)
+
             if more_count > 5:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
                 json.dump(json_train, ofp_train)
                 ofp_train.close()
-
-                myio.get_rouge(args, rouge_fname)
                 return
 
         if unchanged > 20:
             json_train['UNCHANGED'] = unchanged
-
-        # myio.get_rouge(args, rouge_fname)
 
         json.dump(json_train, ofp_train)
         ofp_train.close()
 
     def evaluate_pretrain_data(self, eval_func):
         tot_obj = 0.0
+        N = 0
+
         dev_z = []
         x = []
+        sha_ls = []
+
         num_files = args.num_files_dev
-        N = 0
 
         for i in xrange(num_files):
             batches_x, _, _, batches_bm, batches_sha, batches_rx = myio.load_batches(
@@ -846,12 +847,12 @@ class Model(object):
                     bz, l, o = eval_func(bx, bm)
                     tot_obj += o
                     N += len(bx)
+
                     x.append(rx)
                     dev_z.append(bz)
+                    sha_ls.append(sha)
 
-        rouge_fname = myio.save_dev_results(args, None, dev_z, x, self.embedding_layer, pretrain=True)
-
-        return tot_obj / float(N), dev_z, rouge_fname
+        return tot_obj / float(N), dev_z, x, sha_ls
 
     def evaluate_pretrain_data_rouge(self, eval_func):
         tot_obj = 0.0

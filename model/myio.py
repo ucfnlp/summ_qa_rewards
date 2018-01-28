@@ -348,36 +348,39 @@ def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_di
     ofp_json['e' + str(epoch)] = epoch_data
 
 
-def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer, pretrain=False):
+def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
     s_num = 0
 
     filename_ = get_readable_file(args, epoch)
     ofp_samples = open(filename_, 'w+')
     ofp_samples_system = []
 
-    rouge_fname = args.system_summ_path + create_fname_identifier(args) + ('e_' + str(epoch + 1) if epoch is not None else '')
-    print rouge_fname
+    model_specific_dir = create_fname_identifier(args).replace('.', '_') + '/'
+    rouge_fname = args.system_summ_path + model_specific_dir
+
+    if not os.path.exists(rouge_fname):
+        os.mkdir(rouge_fname)
+
     for i in xrange(len(dev_z)):
+
+        filename = rouge_fname + str(dev_sha[i]) + '.' + str(s_num).zfill(6) + '.txt'
+        ofp_for_rouge = open(filename, 'w+')
+        ofp_system_output = []
 
         for j in xrange(len(dev_z[i][0])):
 
-            filename = rouge_fname + '.' + str(s_num).zfill(6) + '.txt'
-
-            ofp_for_rouge = open(filename, 'w+')
-            ofp_system_output = []
-
             for k in xrange(len(dev_z[i])):
-                word = emb_layer.lst_words[dev_batches_x[i][k][j]]
+                word = dev_batches_x[i][k][j]
 
-                if word == '<padding>' or word == '<unk>' or dev_z[i][k][j] == 0:
+                if dev_z[i][k][j] == 0:
                     continue
 
                 ofp_for_rouge.write(word + ' ')
                 ofp_system_output.append(word)
 
-            ofp_samples_system.append(' '.join(ofp_system_output))
-            ofp_for_rouge.close()
-            s_num += 1
+        ofp_samples_system.append(' '.join(ofp_system_output))
+        ofp_for_rouge.close()
+        s_num += 1
 
     for i in xrange(len(ofp_samples_system)):
 
@@ -391,7 +394,6 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, emb_layer, pretrain=Fals
         ofp_samples.write('\n\n')
 
     ofp_samples.close()
-    return rouge_fname
 
 
 def save_test_results_rouge(args, z, test_batches_x, emb_layer):
@@ -427,9 +429,9 @@ def save_dev_results_r(args, probs, x, embedding):
         for j in xrange(len(probs[i][0])):
 
             for k in xrange(len(probs[i])):
-                word = embedding.lst_words[x[i][k][j]]
+                word = x[i][k][j]
 
-                if word == '<padding>' or word == '<unk>' or probs[i][k][j] < 0.5:
+                if probs[i][k][j] < 0.5:
                     continue
 
                 ofp_for_rouge.write(str(word+ ' '))
