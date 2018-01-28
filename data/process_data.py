@@ -14,12 +14,12 @@ sys.setdefaultencoding('utf8')
 def process_data(args):
     train, dev, test, unique_w = split_data(args)
 
-    prepare_rouge(args, test[0], 'test')
-    prepare_rouge(args, dev[0], 'dev')
-
     if args.pipeline: # takes a long-o-time
         core_nlp(args, train[0], dev[0], test[0])
     else:
+        prepare_rouge(args, test[0], 'test')
+        prepare_rouge(args, dev[0], 'dev')
+        
         word_counts = [args.vocab_size]
 
         for count in word_counts:
