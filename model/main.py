@@ -77,7 +77,7 @@ class Generator(object):
                 n_in = size,
                 n_hidden = args.hidden_dimension2,
                 activation = activation,
-                layer=args.layer,
+                layer='rcnn',
                 test = (len(args.test) > 0)
             )
 
