@@ -447,6 +447,7 @@ class Model(object):
         self.dropout.set_value(0.0)
 
         self.evaluate_pretrain_data_rouge(eval_generator)
+        myio.get_rouge(args)
 
     def train(self):
         args = self.args
@@ -671,7 +672,7 @@ class Model(object):
 
         eval_generator = theano.function(
             inputs=[self.x, self.bm],
-            outputs=[self.z, self.generator.cost_g, self.generator.obj],
+            outputs=[self.z, self.generator.cost_g, self.generator.obj, self.generator.probs],
             updates=self.generator.sample_updates
         )
 
@@ -844,38 +845,43 @@ class Model(object):
 
             for j in xrange(cur_len):
                 for bx, bm, sha, rx in zip(batches_x, batches_bm, batches_sha, batches_rx):
-                    bz, l, o = eval_func(bx, bm)
+                    bz, l, o, probs = eval_func(bx, bm)
                     tot_obj += o
                     N += len(bx)
 
                     x.append(rx)
-                    dev_z.append(bz)
+                    dev_z.append(probs)
                     sha_ls.append(sha)
 
         return tot_obj / float(N), dev_z, x, sha_ls
 
     def evaluate_pretrain_data_rouge(self, eval_func):
         tot_obj = 0.0
-        dev_z = []
-        x = []
-        num_files = args.num_files_dev
         N = 0
 
+        dev_z = []
+        x = []
+        sha_ls = []
+
+        num_files = args.num_files_dev
+
         for i in xrange(num_files):
-            batches_x, _, _, batches_bm = myio.load_batches(
+            batches_x, _, _, batches_bm, batches_sha, batches_rx = myio.load_batches(
                 args.batch_dir + args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                for bx, bm in zip(batches_x, batches_bm):
+                for bx, bm, sha, rx in zip(batches_x, batches_bm, batches_sha, batches_rx):
                     bz, l, o, probs = eval_func(bx, bm)
                     tot_obj += o
                     N += len(bx)
-                    x.append(bx)
-                    dev_z.append(probs)
 
-        myio.save_dev_results_r(args, dev_z, x, self.embedding_layer)
+                    x.append(rx)
+                    dev_z.append(probs)
+                    sha_ls.append(sha)
+
+        myio.save_dev_results(args, None, dev_z, x, sha_ls)
 
         return tot_obj / float(N), dev_z
 
@@ -971,7 +977,7 @@ def main():
             model.train()
     elif args.dev:
         if args.pretrain:
-            model.load_model_pretrain(args.save_model + args.load_model)
+            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model)
             model.dev()
 
     elif args.test:

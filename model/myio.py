@@ -3,8 +3,7 @@ import json
 import random
 
 import numpy as np
-from pyrouge import Rouge155
-
+import rouge.pyrouge.Rouge155 as rouge
 from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
 
@@ -372,7 +371,7 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
                 if k >= len(dev_batches_x[i][j]):
                     break
 
-                word = dev_batches_x[i][j][k]
+                word = dev_batches_x[i][j][k].encode('utf-8')
 
                 if dev_z[i][k][j] == 0:
                     continue
@@ -444,11 +443,13 @@ def save_dev_results_r(args, probs, x, embedding):
     get_rouge(args, 'a')
 
 
-def get_rouge(args, system_fname):
-    r = Rouge155()
-    r.system_dir = args.system_summ_path
+def get_rouge(args):
+    model_specific_dir = create_fname_identifier(args).replace('.', '_') + '/'
+    rouge_fname = args.system_summ_path + model_specific_dir
+    r = rouge.Rouge155()
+    r.system_dir = rouge_fname
     r.model_dir = args.model_summ_path
-    r.system_filename_pattern = system_fname + '.(\d+).txt'
+    r.system_filename_pattern = '(\d+).txt'
     r.model_filename_pattern = 'dev_cnn_#ID#.txt'
 
     fname = args.rouge_dir + create_fname_identifier(args) + '_rouge.out'
