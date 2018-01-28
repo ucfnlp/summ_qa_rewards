@@ -245,7 +245,11 @@ class ZLayer(object):
         return z_t, h_t
 
     def sample_all(self, x):
-        h0 = T.zeros((x.shape[1], self.n_hidden * (self.rlayer.order + 1)), dtype=theano.config.floatX)
+        if self.layer == 'lstm':
+            h0 = T.zeros((x.shape[1], self.n_hidden), dtype=theano.config.floatX)
+        else:
+            h0 = T.zeros((x.shape[1], self.n_hidden * (self.rlayer.order + 1)), dtype=theano.config.floatX)
+
         z0 = T.zeros((x.shape[1],), dtype=theano.config.floatX)
         ([z, h], updates) = theano.scan(fn=self.sample, sequences=[x], outputs_info=[z0, h0])
 
