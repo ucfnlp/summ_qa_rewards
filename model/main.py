@@ -822,10 +822,10 @@ class Model(object):
                         best_dev = dev_obj
                         unchanged = 0
                         if args.save_model:
-                            filename = args.save_model + 'pretrain/' + myio.create_fname_identifier(args)
-                            self.save_model(filename, args, pretrain=True)
+                            filename = self.args.save_model + 'pretrain/' + myio.create_fname_identifier(self.args)
+                            self.save_model(filename, self.args, pretrain=True)
 
-                            myio.save_dev_results(args, None, dev_z, x, sha_ls)
+                            myio.save_dev_results(self.args, None, dev_z, x, sha_ls)
 
             if more_count > 5:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
@@ -847,11 +847,11 @@ class Model(object):
         x = []
         sha_ls = []
 
-        num_files = args.num_files_dev
+        num_files = self.args.num_files_dev
 
         for i in xrange(num_files):
             batches_x, _, _, batches_bm, batches_sha, batches_rx = myio.load_batches(
-                args.batch_dir + args.source + 'dev', i)
+                self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
@@ -875,11 +875,11 @@ class Model(object):
         x = []
         sha_ls = []
 
-        num_files = args.num_files_dev
+        num_files = self.args.num_files_dev
 
         for i in xrange(num_files):
             batches_x, _, _, batches_bm, batches_sha, batches_rx = myio.load_batches(
-                args.batch_dir + args.source + 'dev', i)
+                self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
@@ -893,7 +893,7 @@ class Model(object):
                 dev_z.append(bz)
                 sha_ls.append(sha)
 
-        myio.save_dev_results(args, None, dev_z, x, sha_ls)
+        myio.save_dev_results(self.args, None, dev_z, x, sha_ls)
 
         return tot_obj / float(N), dev_z
 
