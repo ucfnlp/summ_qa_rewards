@@ -323,10 +323,10 @@ def record_observations(ofp_json, epoch, loss, obj, zsum, bigram_loss, loss_vec_
 def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
     epoch_data = dict()
 
-    epoch_data['obj'] = [l.tolist() for l in obj]
-    epoch_data['zsum'] = [l.tolist() for l in zsum]
-    epoch_data['zdiff'] = [l.tolist() for l in z_diff]
-    epoch_data['z_pred'] = [l.tolist() for l in z_pred]
+    epoch_data['obj'] = float(np.mean(obj))
+    epoch_data['zsum'] = float(np.mean(zsum))
+    epoch_data['zdiff'] = float(np.mean(z_diff))
+    epoch_data['z_pred'] = float(np.sum(z_pred))
 
     ofp_json['e' + str(epoch)] = epoch_data
 
