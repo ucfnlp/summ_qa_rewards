@@ -77,8 +77,7 @@ class Generator(object):
                 n_in = size,
                 n_hidden = args.hidden_dimension2,
                 activation = activation,
-                layer='rcnn',
-                test = self.args.probs_only
+                layer='rcnn'
             )
 
         z_pred, sample_updates = output_layer.sample_all(h_final)
