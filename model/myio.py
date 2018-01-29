@@ -190,12 +190,12 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, padding_id, b_len):
     # padded y
     by, unigrams, be = process_hl(args, lsty, lste,padding_id, n_classes)
 
-    bx = np.column_stack([np.pad(x[:max_len], (max_len - len(x) if len(x) <= max_len else 0, 0), "constant",
+    bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=padding_id).astype('int32') for x in lstx])
+
     bm = create_unigram_masks(lstx, unigrams, max_len)
-    # be = np.column_stack([e for e in be])
-    bm = np.column_stack([np.pad(m[:max_len], (max_len - len(m) if len(m) <= max_len else 0, 0), "constant",
-                                 constant_values=0).astype('int32') for m in bm])
+
+    bm = np.column_stack([m for m in bm])
     by = np.column_stack([y for y in by])
 
     return bx, by, be, bm
@@ -252,9 +252,11 @@ def create_unigram_masks(lstx, unigrams, max_len):
 
     for i in xrange(len(lstx)):
         len_x = len(lstx[i])
-        m = np.zeros((len_x,), dtype='int32')
+        m = np.zeros((max_len,), dtype='int32')
 
         for j in xrange(len_x - 1):
+            if j >= max_len: break
+
             if lstx[i][j] in unigrams[i] and lstx[i][j+1] in unigrams[i]:
                 m[j] = 1
 
