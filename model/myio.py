@@ -324,9 +324,9 @@ def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
     epoch_data = dict()
 
     epoch_data['obj'] = float(np.mean(obj))
-    epoch_data['zsum'] = float(np.mean(zsum))
-    epoch_data['zdiff'] = float(np.mean(z_diff))
-    epoch_data['z_pred'] = float(np.sum(z_pred))
+    epoch_data['zsum'] = float(np.mean(np.ravel(zsum)))
+    epoch_data['zdiff'] = float(np.mean(np.ravel(z_diff)))
+    epoch_data['z_pred'] = float(np.sum(np.ravel(z_pred)))
 
     ofp_json['e' + str(epoch)] = epoch_data
 
