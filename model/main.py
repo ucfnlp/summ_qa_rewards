@@ -426,7 +426,7 @@ class Model(object):
         with gzip.open(path, "rb") as fin:
             gparams, nclasses, args = pickle.load(fin)
         self.args = args
-        args.probs_only = True
+        # args.probs_only = True
         self.nclasses = nclasses
         self.ready_pretrain()
 

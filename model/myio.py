@@ -467,6 +467,7 @@ def get_rouge(args):
 
     ofp.write(r.convert_and_evaluate())
     ofp.close()
+    # Clean up
     shutil.rmtree('/home/kristjan/temp')
 
 
