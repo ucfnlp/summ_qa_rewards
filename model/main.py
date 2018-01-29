@@ -461,7 +461,7 @@ class Model(object):
         self.dropout.set_value(0.0)
 
         self.evaluate_pretrain_data_rouge(eval_generator)
-        myio.get_rouge(args)
+        myio.get_rouge(self.args)
 
     def train(self):
         args = self.args
