@@ -762,10 +762,10 @@ class Model(object):
                         mask = bx != padding_id
 
                         obj, z, zsum, zdiff,cost_g = train_generator(bx, bm)
-                        zsum_all.append(zsum)
-                        z_diff_all.append(zdiff)
-                        z_pred_all.append(z)
-                        obj_all.append(obj)
+                        zsum_all.append(np.mean(zsum))
+                        z_diff_all.append(np.mean(zdiff))
+                        z_pred_all.append(np.mean(np.sum(z, axis=1)/400))
+                        obj_all.append(np.mean(obj))
 
                         train_cost += obj
 
@@ -987,6 +987,7 @@ def main():
         else:
             model.ready()
             model.train()
+
     elif args.dev:
         if args.pretrain:
             model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model)
