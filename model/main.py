@@ -117,12 +117,12 @@ class Generator(object):
         padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
         bm_shift = T.concatenate([padded, bm[1:]], axis=0)
 
-        new_bm = T.or_(bm, bm_shift)
+        new_bm = T.cast(T.or_(bm, bm_shift), theano.config.floatX)
         new_probs = self.output_layer.forward_all(self.h_final, new_bm)
 
         cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.masks
-
-        self.cost_g = cross_ent * args.coeff_cost_scale + self.l2_cost
+        self.obj = obj = T.mean(cross_ent)
+        self.cost_g = obj * args.coeff_cost_scale + self.l2_cost
 
     def pretrain_sampling(self):
         bm = self.bm = T.imatrix('bm')
@@ -692,7 +692,7 @@ class Model(object):
 
         train_generator = theano.function(
             inputs=[self.x, self.bm],
-            outputs=[self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff, self.generator.bigram_loss, self.generator.cost_g, self.generator.logpz],
+            outputs=[self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g],
             updates=updates_g.items() + self.generator.sample_updates
         )
 
@@ -733,7 +733,6 @@ class Model(object):
 
                 obj_all = []
                 zsum_all = []
-                bigram_loss_all = []
                 z_diff_all = []
                 z_pred_all = []
 
@@ -762,9 +761,8 @@ class Model(object):
                         bx, bm = train_batches_x[j], train_batches_bm[j]
                         mask = bx != padding_id
 
-                        obj, z, zsum, zdiff, bigram_loss,cost_g, logpz = train_generator(bx, bm)
+                        obj, z, zsum, zdiff,cost_g = train_generator(bx, bm)
                         zsum_all.append(zsum)
-                        bigram_loss_all.append(bigram_loss)
                         z_diff_all.append(zdiff)
                         z_pred_all.append(z)
                         obj_all.append(obj)
