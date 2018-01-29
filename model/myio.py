@@ -464,7 +464,9 @@ def get_rouge(args):
     ofp.close()
 
     tmp_dir = r._config_dir
-    print "DELETE ME", tmp_dir
+    print 'Cleaning up..', tmp_dir
+
+    shutil.rmtree(tmp_dir)
 
 
 def get_ngram(l, n=2):
