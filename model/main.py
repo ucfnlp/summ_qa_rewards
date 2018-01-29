@@ -856,14 +856,14 @@ class Model(object):
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                for bx, bm, sha, rx in zip(batches_x, batches_bm, batches_sha, batches_rx):
-                    bz, l, o = eval_func(bx, bm)
-                    tot_obj += o
-                    N += len(bx)
+                bx, bm, sha, rx = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j]
+                bz, l, o = eval_func(bx, bm)
+                tot_obj += o
+                N += len(bx)
 
-                    x.append(rx)
-                    dev_z.append(bz)
-                    sha_ls.append(sha)
+                x.append(rx)
+                dev_z.append(bz)
+                sha_ls.append(sha)
 
         return tot_obj / float(N), dev_z, x, sha_ls
 
@@ -884,14 +884,14 @@ class Model(object):
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                for bx, bm, sha, rx in zip(batches_x, batches_bm, batches_sha, batches_rx):
-                    bz, l, o = eval_func(bx, bm)
-                    tot_obj += o
-                    N += len(bx)
+                bx, bm, sha, rx = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j]
+                bz, l, o = eval_func(bx, bm)
+                tot_obj += o
+                N += len(bx)
 
-                    x.append(rx)
-                    dev_z.append(bz)
-                    sha_ls.append(sha)
+                x.append(rx)
+                dev_z.append(bz)
+                sha_ls.append(sha)
 
         myio.save_dev_results(args, None, dev_z, x, sha_ls)
 
