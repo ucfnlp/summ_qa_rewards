@@ -97,7 +97,10 @@ def prune_type(x, y, e, ve, cy, rx, sha, entity_map):
 
                 total_entries += 1
             else:
-                rand_e_idx = np.random.randint(1, num_perms - 1)
+                if num_perms == 2:
+                    rand_e_idx = 1
+                else:
+                    rand_e_idx = np.random.randint(1, num_perms - 1)
 
                 updated_y_ls.append(y[i][y_idx + rand_e_idx])
                 updated_e_ls.append(highlight[rand_e_idx])

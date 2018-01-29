@@ -85,7 +85,7 @@ def get_args():
 
     parser.add_argument('--use_root',
                         type='bool',
-                        default=True,
+                        default=False,
                         help='Whether to use the ROOT based entity in the data.')
 
     parser.add_argument('--use_all',
