@@ -78,7 +78,7 @@ class Generator(object):
                 n_hidden = args.hidden_dimension2,
                 activation = activation,
                 layer='rcnn',
-                test = (len(args.test) > 0)
+                test = args.probs_only
             )
 
         z_pred, sample_updates = output_layer.sample_all(h_final)
@@ -111,9 +111,20 @@ class Generator(object):
         l2_cost = l2_cost * args.l2_reg
         self.l2_cost = l2_cost
 
-
-
     def pretrain(self):
+        bm = self.bm = T.imatrix('bm')
+
+        padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
+        bm_shift = T.concatenate([padded, bm[1:]], axis=0)
+
+        new_bm = T.or_(bm, bm_shift)
+        new_probs = self.output_layer.forward_all(self.h_final, new_bm)
+
+        cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.masks
+
+        self.cost_g = cross_ent * args.coeff_cost_scale + self.l2_cost
+
+    def pretrain_sampling(self):
         bm = self.bm = T.imatrix('bm')
 
         z_shift = self.z_pred[1:]
@@ -415,6 +426,7 @@ class Model(object):
         with gzip.open(path, "rb") as fin:
             gparams, nclasses, args = pickle.load(fin)
         self.args = args
+        args.probs_only = True
         self.nclasses = nclasses
         self.ready_pretrain()
 
@@ -442,7 +454,7 @@ class Model(object):
 
         eval_generator = theano.function(
             inputs=[self.x, self.bm],
-            outputs=[self.z, self.generator.cost_g, self.generator.obj, self.generator.probs],
+            outputs=[self.z, self.generator.cost_g, self.generator.obj],
             updates=self.generator.sample_updates
         )
 
@@ -674,7 +686,7 @@ class Model(object):
 
         eval_generator = theano.function(
             inputs=[self.x, self.bm],
-            outputs=[self.z, self.generator.cost_g, self.generator.obj, self.generator.probs],
+            outputs=[self.z, self.generator.cost_g, self.generator.obj],
             updates=self.generator.sample_updates
         )
 
@@ -847,12 +859,12 @@ class Model(object):
 
             for j in xrange(cur_len):
                 for bx, bm, sha, rx in zip(batches_x, batches_bm, batches_sha, batches_rx):
-                    bz, l, o, probs = eval_func(bx, bm)
+                    bz, l, o = eval_func(bx, bm)
                     tot_obj += o
                     N += len(bx)
 
                     x.append(rx)
-                    dev_z.append(probs)
+                    dev_z.append(bz)
                     sha_ls.append(sha)
 
         return tot_obj / float(N), dev_z, x, sha_ls
@@ -875,12 +887,12 @@ class Model(object):
 
             for j in xrange(cur_len):
                 for bx, bm, sha, rx in zip(batches_x, batches_bm, batches_sha, batches_rx):
-                    bz, l, o, probs = eval_func(bx, bm)
+                    bz, l, o = eval_func(bx, bm)
                     tot_obj += o
                     N += len(bx)
 
                     x.append(rx)
-                    dev_z.append(probs)
+                    dev_z.append(bz)
                     sha_ls.append(sha)
 
         myio.save_dev_results(args, None, dev_z, x, sha_ls)

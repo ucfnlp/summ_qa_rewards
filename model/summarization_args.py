@@ -33,6 +33,11 @@ def get_args():
                         default=False,
                         help='Pre_batch')
 
+    parser.add_argument('--probs_only',
+                        type='bool',
+                        default=False,
+                        help='Look at summaries based on non sampled data')
+
     parser.add_argument('--full_test',
                         type='bool',
                         default=True,

@@ -173,7 +173,7 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, padding_id, b_len):
     """
     Parameters
     ----------
-    lstx : List of 1D documents.
+    lstx : List of 1-a documents.
 
     lsty : List of list of sentences
         usually a preselected limit of input Highlights
