@@ -78,7 +78,7 @@ class Generator(object):
                 n_hidden = args.hidden_dimension2,
                 activation = activation,
                 layer='rcnn',
-                test = args.probs_only
+                test = self.args.probs_only
             )
 
         z_pred, sample_updates = output_layer.sample_all(h_final)
@@ -426,7 +426,7 @@ class Model(object):
         with gzip.open(path, "rb") as fin:
             gparams, nclasses, args = pickle.load(fin)
         self.args = args
-        # args.probs_only = True
+        args.probs_only = True
         self.nclasses = nclasses
         self.ready_pretrain()
 

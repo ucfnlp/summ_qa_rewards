@@ -3,7 +3,7 @@ import json
 import random
 
 import numpy as np
-import rouge.pyrouge.Rouge155 as rouge
+from pyrouge import Rouge155
 from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
 import shutil
@@ -451,12 +451,7 @@ def get_rouge(args):
     model_specific_dir = create_fname_identifier(args).replace('.', '_') + '/'
     rouge_fname = args.system_summ_path + model_specific_dir
 
-    # if os.path.exists('/Users/kristjanarumae/Documents/Grad School/CAP7919/danqi/summarization/data/results/summaries/system/source_cnn_pretrain_True_train_data_embdim_100_vocab_size_150000_batch_256_epochs_25_layer_lstm_coeff_summ_len_100_coeff_adequacy_10_coeff_fluency_100_coeff_cost_scale_0_01/.DS_Store'):
-    #     os.remove('/Users/kristjanarumae/Documents/Grad School/CAP7919/danqi/summarization/data/results/summaries/system/source_cnn_pretrain_True_train_data_embdim_100_vocab_size_150000_batch_256_epochs_25_layer_lstm_coeff_summ_len_100_coeff_adequacy_10_coeff_fluency_100_coeff_cost_scale_0_01/.DS_Store')
-    # if os.path.exists('/Users/kristjanarumae/Documents/Grad School/CAP7919/danqi/summarization/data/results/summaries/model/dev/.DS_Store'):
-    #     os.remove('/Users/kristjanarumae/Documents/Grad School/CAP7919/danqi/summarization/data/results/summaries/model/dev/.DS_Store')
-
-    r = rouge.Rouge155()
+    r = Rouge155()
     r.system_dir = rouge_fname
     r.model_dir = args.model_summ_path
     r.system_filename_pattern = 'sum.(\d+).txt'
@@ -467,8 +462,9 @@ def get_rouge(args):
 
     ofp.write(r.convert_and_evaluate())
     ofp.close()
-    # Clean up
-    shutil.rmtree('/home/kristjan/temp')
+
+    tmp_dir = r._config_dir
+    print "DELETE ME", tmp_dir
 
 
 def get_ngram(l, n=2):
