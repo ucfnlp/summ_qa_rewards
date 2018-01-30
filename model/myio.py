@@ -337,20 +337,19 @@ def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
     ofp_json['e' + str(epoch)] = epoch_data
 
 
-def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff, cost_logpz, logpz, probs, z_pred, cost_vec):
+def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff, cost_logpz, logpz, z_pred, cost_vec):
     epoch_data = dict()
 
-    epoch_data['loss'] = [l.tolist() for l in loss]
-    epoch_data['obj'] = [l.tolist() for l in obj]
-    epoch_data['zsum'] = [l.tolist() for l in zsum]
-    epoch_data['loss_vec'] = [l.tolist() for l in loss_vec]
-    epoch_data['zdiff'] = [l.tolist() for l in z_diff]
+    epoch_data['loss'] = float(np.mean(loss))
+    epoch_data['obj'] = float(np.mean(obj))
+    epoch_data['zsum'] = float(np.mean(zsum))
+    epoch_data['loss_vec'] = float(np.mean(loss_vec))
+    epoch_data['zdiff'] = float(np.mean(z_diff))
 
-    epoch_data['cost_logpz'] = [l.tolist() for l in cost_logpz]
+    epoch_data['cost_logpz'] = float(np.mean(cost_logpz))
     epoch_data['logpz'] = float(np.mean(logpz))
-    epoch_data['probs'] = float(np.mean(probs))
-    epoch_data['z_pred'] = float(np.sum(z_pred))
-    epoch_data['cost_vec'] = [l.tolist() for l in cost_vec]
+    epoch_data['z_pred'] = float(np.mean(z_pred))
+    epoch_data['cost_vec'] = float(np.mean(cost_vec))
 
     ofp_json['e' + str(epoch)] = epoch_data
 
@@ -591,9 +590,3 @@ def bigram_vectorize(lstx, lsty, padding_id):
 
 def total_words(z):
     return np.sum(z, axis=None)
-
-
-def write_metrics(num_sum, total_w, ofp, epoch, args):
-    ofp.write('Epoch : ' + str(epoch) + '\n')
-    ofp.write('Average words in summary : ' + str(total_w/float(num_sum)) + '\n')
-    ofp.write('Rouge :\n' + str(get_rouge(args)) + '\n\n')

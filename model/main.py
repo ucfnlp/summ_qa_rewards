@@ -278,7 +278,7 @@ class Encoder(object):
         self.zdiff = zdiff = zdiff / z_totals
 
         cost_vec = loss_vec + args.coeff_adequacy * (
-                (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluencys * zdiff)
+                (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff)
 
         baseline = T.mean(cost_vec)
         self.cost_vec = cost_vec = cost_vec - baseline
@@ -426,9 +426,13 @@ class Model(object):
 
         with gzip.open(path, "rb") as fin:
             gparams, nclasses, args = pickle.load(fin)
-        self.args = args
-        self.nclasses = nclasses
-        self.ready_pretrain()
+
+        if self.args.pretrain:
+            self.args = args
+            self.nclasses = nclasses
+            self.ready_pretrain()
+        else:
+            self.ready()
 
         for x, v in zip(self.generator.params, gparams):
             x.set_value(v)
@@ -495,7 +499,7 @@ class Model(object):
         train_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
             outputs=[self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
-                     self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz, self.generator.probs, self.generator.z_pred, self.encoder.cost_vec, self.generator.masks],
+                     self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz, self.encoder.cost_vec, self.generator.masks],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
 
@@ -543,7 +547,6 @@ class Model(object):
                 z_diff_all = []
                 cost_logpz_all = []
                 logpz_all = []
-                probs_all = []
                 z_pred_all = []
                 cost_vec_all = []
 
@@ -551,7 +554,7 @@ class Model(object):
                 N = args.online_batch_size * num_files
 
                 for i in xrange(num_files):
-                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm = myio.load_batches(
+                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm, _ = myio.load_batches(
                         args.batch_dir + args.source + 'train', i)
 
                     random.seed(5817)
@@ -575,33 +578,30 @@ class Model(object):
                         bx, by, be, bm = train_batches_x[j], train_batches_y[j], train_batches_e[j], train_batches_bm[j]
                         mask = bx != padding_id
 
-                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, g_probs, g_z_pred, cost_vec, masks = train_generator(
+                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks = train_generator(
                             bx, by, bm, be)
+
                         obj_all.append(cost)
                         loss_all.append(loss)
-                        zsum_all.append(zsum)
-                        bigram_loss_all.append(bigram_loss)
-                        loss_vec_all.append(loss_vec)
-                        z_diff_all.append(zdiff)
-                        cost_logpz_all.append(cost_logpz)
-                        logpz_all.append(logpz)
-                        probs_all.append(g_probs)
+                        zsum_all.append(np.mean(zsum))
+                        bigram_loss_all.append(np.mean(bigram_loss))
+                        loss_vec_all.append(np.mean(loss_vec))
+                        z_diff_all.append(np.mean(zdiff))
+                        cost_logpz_all.append(np.mean(cost_logpz))
+                        logpz_all.append(np.mean(logpz))
                         z_pred_all.append(z)
-                        cost_vec_all.append(cost_vec)
+                        cost_vec_all.append(np.mean(cost_vec))
 
                         train_cost += cost
                         train_loss += loss
 
-                        # print 'cost_logpz, logpz, g_probs',cost_logpz, logpz,g_probs.shape, g_z_pred.shape
-                        print 'sum(z)', np.sum(z)
-                        # print masks
                         p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
 
                 cur_train_avg_cost = train_cost / N
 
                 if args.dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_z, rouge_fname = self.evaluate_data(eval_generator)
+                    dev_obj, dev_z, dev_x, dev_sha = self.evaluate_data(eval_generator)
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
@@ -631,7 +631,7 @@ class Model(object):
 
                 if args.sanity_check:
                     myio.record_observations_verbose(json_train, epoch + 1, loss_all, obj_all, zsum_all, loss_vec_all,
-                                             z_diff_all, cost_logpz_all, logpz_all, probs_all, z_pred_all, cost_vec_all)
+                                             z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all)
                 else:
                     myio.record_observations(json_train, epoch + 1, loss_all, obj_all, zsum_all, bigram_loss_all,
                                              loss_vec_all, z_diff_all)
@@ -657,12 +657,12 @@ class Model(object):
                             filename = args.save_model + myio.create_fname_identifier(args)
                             self.save_model(filename, args)
 
+                            myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
+
             if more_count > 5:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
                 json.dump(json_train, ofp_train)
                 ofp_train.close()
-
-                myio.get_rouge(args, rouge_fname)
                 return
 
         if unchanged > 20:
@@ -899,28 +899,32 @@ class Model(object):
 
     def evaluate_data(self, eval_func):
         tot_obj = 0.0
-        dev_z = []
-        x = []
-        num_files = args.num_files_dev
         N = 0
 
+        dev_z = []
+        x = []
+        sha_ls = []
+
+        num_files = args.num_files_dev
+
         for i in xrange(num_files):
-            batches_x, batches_y, batches_e, batches_bm = myio.load_batches(
+            batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx = myio.load_batches(
                 args.batch_dir + args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                for bx, by, be, bm in zip(batches_x, batches_y, batches_e, batches_bm):
-                    bz, o, e = eval_func(bx, by, bm, be)
-                    tot_obj += o
-                    N += len(bx)
-                    x.append(bx)
-                    dev_z.append(bz)
+                bx, by, be, bm, sha, rx = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], batches_sha[j], \
+                                          batches_rx[j]
+                bz, o, e = eval_func(bx, by, bm, be)
+                tot_obj += o
+                N += len(bx)
 
-        rouge_fname = myio.save_dev_results(args, None, dev_z, x, self.embedding_layer, pretrain=True)
+                x.append(rx)
+                dev_z.append(bz)
+                sha_ls.append(sha)
 
-        return tot_obj / float(N), dev_z, rouge_fname
+        return tot_obj / float(N), dev_z, x, sha_ls
 
     def evaluate_test_data(self, batches_x, eval_func):
         dev_z = []
@@ -1003,7 +1007,11 @@ def main():
             model.ready_pretrain()
             model.pretrain()
         else:
-            model.ready()
+            if args.load_model_pretrain:
+                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model)
+            else:
+                model.ready()
+
             model.train()
 
     elif args.dev:
