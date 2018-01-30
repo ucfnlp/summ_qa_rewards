@@ -113,8 +113,7 @@ class Generator(object):
     def pretrain(self):
         bm = self.bm = T.imatrix('bm')
 
-        z_pred, sample_updates = self.output_layer.sample_all_pretrain(self.h_final)
-        self.non_sampled_zpred = z_pred
+        self.non_sampled_zpred, sample_updates = self.output_layer.sample_all_pretrain(self.h_final)
 
         padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
         bm_shift = T.concatenate([padded, bm[:-1]], axis=0)

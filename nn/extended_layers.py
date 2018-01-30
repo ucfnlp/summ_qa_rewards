@@ -251,8 +251,7 @@ class ZLayer(object):
         )
 
         # batch
-        pz_t = pz_t.ravel()
-        z_t = T.cast(T.ge(pz_t, 0.5), theano.config.floatX)
+        z_t = pz_t.ravel()
 
         xz_t = T.concatenate([x_t, z_t.reshape((-1, 1))], axis=1)
         h_t = self.rlayer.forward(xz_t, h_tm1)
