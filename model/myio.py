@@ -461,7 +461,7 @@ def eval_baseline(args, bm, rx):
     r.system_filename_pattern = 'sum.(\d+).txt'
     r.model_filename_pattern = 'dev_cnn_#ID#.txt'
 
-    fname = args.rouge_dir + create_fname_identifier(args) + '_rouge.out'
+    fname = args.rouge_dir + 'baseline_rouge.out'
     ofp = open(fname, 'w+')
 
     ofp.write(r.convert_and_evaluate())
