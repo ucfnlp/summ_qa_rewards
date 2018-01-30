@@ -455,6 +455,23 @@ def eval_baseline(args, bm, rx):
 
     ofp_samples.close()
 
+    r = Rouge155()
+    r.system_dir = rouge_fname
+    r.model_dir = args.model_summ_path
+    r.system_filename_pattern = 'sum.(\d+).txt'
+    r.model_filename_pattern = 'dev_cnn_#ID#.txt'
+
+    fname = args.rouge_dir + create_fname_identifier(args) + '_rouge.out'
+    ofp = open(fname, 'w+')
+
+    ofp.write(r.convert_and_evaluate())
+    ofp.close()
+
+    tmp_dir = r._config_dir
+    print 'Cleaning up..', tmp_dir
+
+    shutil.rmtree(tmp_dir)
+
 
 def save_test_results_rouge(args, z, test_batches_x, emb_layer):
     s_num = 0
