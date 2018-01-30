@@ -234,11 +234,25 @@ class ZLayer(object):
         # batch
         pz_t = pz_t.ravel()
 
-        if self.test:
-            z_t = T.cast(T.ge(pz_t, 0.5), theano.config.floatX)
-        else:
-            z_t = T.cast(self.MRG_rng.binomial(size=pz_t.shape,
+        z_t = T.cast(self.MRG_rng.binomial(size=pz_t.shape,
                                            p=pz_t), theano.config.floatX)
+
+        xz_t = T.concatenate([x_t, z_t.reshape((-1, 1))], axis=1)
+        h_t = self.rlayer.forward(xz_t, h_tm1)
+
+        return z_t, h_t
+
+    def sample_pretrain(self, x_t, z_tm1, h_tm1):
+
+        pz_t = sigmoid(
+            T.dot(x_t, self.w1) +
+            T.dot(h_tm1[:, -self.n_hidden:], self.w2) +
+            self.bias
+        )
+
+        # batch
+        pz_t = pz_t.ravel()
+        z_t = T.cast(T.ge(pz_t, 0.5), theano.config.floatX)
 
         xz_t = T.concatenate([x_t, z_t.reshape((-1, 1))], axis=1)
         h_t = self.rlayer.forward(xz_t, h_tm1)
@@ -253,6 +267,18 @@ class ZLayer(object):
 
         z0 = T.zeros((x.shape[1],), dtype=theano.config.floatX)
         ([z, h], updates) = theano.scan(fn=self.sample, sequences=[x], outputs_info=[z0, h0])
+
+        assert z.ndim == 2
+        return z, updates
+
+    def sample_all_pretrain(self, x):
+        if self.layer == 'lstm':
+            h0 = T.zeros((x.shape[1], self.n_hidden), dtype=theano.config.floatX)
+        else:
+            h0 = T.zeros((x.shape[1], self.n_hidden * (self.rlayer.order + 1)), dtype=theano.config.floatX)
+
+        z0 = T.zeros((x.shape[1],), dtype=theano.config.floatX)
+        ([z, h], updates) = theano.scan(fn=self.sample_pretrain, sequences=[x], outputs_info=[z0, h0])
 
         assert z.ndim == 2
         return z, updates

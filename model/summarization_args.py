@@ -160,8 +160,8 @@ def get_args():
                         )
 
     parser.add_argument("--dev_baseline",
-                        type=int,
-                        default=1,
+                        type='bool',
+                        default=False,
                         help="Get baseline ROUGE for dev set, based on BG."
                         )
 

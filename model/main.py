@@ -77,7 +77,7 @@ class Generator(object):
                 n_in = size,
                 n_hidden = args.hidden_dimension2,
                 activation = activation,
-                layer='rcnn'
+                layer='rcnn',
             )
 
         z_pred, sample_updates = output_layer.sample_all(h_final)
@@ -113,8 +113,11 @@ class Generator(object):
     def pretrain(self):
         bm = self.bm = T.imatrix('bm')
 
+        z_pred, sample_updates = self.output_layer.sample_all_pretrain(self.h_final)
+        self.non_sampled_zpred = z_pred
+
         padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
-        bm_shift = T.concatenate([padded, bm[1:]], axis=0)
+        bm_shift = T.concatenate([padded, bm[:-1]], axis=0)
 
         new_bm = T.cast(T.or_(bm, bm_shift), theano.config.floatX)
         new_probs = self.output_layer.forward_all(self.h_final, new_bm)
@@ -346,7 +349,7 @@ class Model(object):
         self.dropout = self.generator.dropout
         self.x = self.generator.x
         self.bm = self.generator.bm
-        self.z = self.generator.z_pred
+        self.z = self.generator.non_sampled_zpred
         self.params = self.generator.params
 
     def evaluate_rnn_weights(self, args, e, b):
@@ -425,7 +428,6 @@ class Model(object):
         with gzip.open(path, "rb") as fin:
             gparams, nclasses, args = pickle.load(fin)
         self.args = args
-        args.probs_only = True
         self.nclasses = nclasses
         self.ready_pretrain()
 
@@ -963,20 +965,38 @@ def main():
 
     if args.batch_data:
         if args.train:
-            train_x, train_y, train_e, train_sha = myio.read_docs(args, 'train')
+            train_x, train_y, train_e, train_clean_y, train_sha = myio.read_docs(args, 'train')
             train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_sha, _ = myio.create_batches(
-                args, model.nclasses, train_x, train_y, train_e, train_sha, None, args.batch,
+                args, model.nclasses, train_x, train_y, train_e, train_clean_y, train_sha, None, args.batch,
                 embedding_layer.vocab_map["<padding>"])
             myio.save_batched(args, train_batches_x, train_batches_y, train_batches_e, train_batches_bm,
                               train_batches_sha, None, 'train')
 
         if args.dev:
-            dev_x, dev_y, dev_e, dev_rx, dev_sha = myio.read_docs(args, 'dev')
-            dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha, dev_batches_rx = myio.create_batches(args, model.nclasses, dev_x, dev_y, dev_e, dev_sha, dev_rx, args.batch,
+            dev_x, dev_y, dev_e, dev_clean_y, dev_rx, dev_sha = myio.read_docs(args, 'dev')
+            dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha, dev_batches_rx = myio.create_batches(args, model.nclasses, dev_x, dev_y, dev_e, dev_clean_y, dev_sha, dev_rx, args.batch,
                                 embedding_layer.vocab_map["<padding>"], sort=False)
 
             myio.save_batched(args, dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha,
                               dev_batches_rx, 'dev')
+    elif args.dev_baseline:
+        num_files = args.num_files_dev
+
+        rx_ls = []
+        bm_ls = []
+
+        for i in xrange(num_files):
+            batches_x, _, _, batches_bm, batches_sha, batches_rx = myio.load_batches(
+                args.batch_dir + args.source + 'dev', i)
+
+            cur_len = len(batches_x)
+
+            for j in xrange(cur_len):
+                _, bm, _, rx = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j]
+                rx_ls.append(rx)
+                bm_ls.append(bm)
+
+        myio.eval_baseline(args, bm_ls, rx_ls)
 
     elif args.train:
 

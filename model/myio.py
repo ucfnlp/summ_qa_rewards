@@ -19,9 +19,9 @@ def read_docs(args, type):
     if type == 'test':
         return data['x']
     elif type == 'dev':
-        return data['x'], data['y'], data['e'], data['raw_x'], data['sha']
+        return data['x'], data['y'], data['e'], data['clean_y'], data['raw_x'], data['sha']
     else:
-        return data['x'], data['y'], data['e'], data['sha']
+        return data['x'], data['y'], data['e'], data['clean_y'], data['sha']
 
 
 def load_e(args):
@@ -119,7 +119,7 @@ def load_batches(name, iteration):
         return data[0], data[1], data[2], data[3], data[4]
 
 
-def create_batches(args, n_classes, x, y, e, sha, rx,  batch_size, padding_id, sort=True):
+def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_id, sort=True):
     batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx  = [], [], [], [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
@@ -134,6 +134,7 @@ def create_batches(args, n_classes, x, y, e, sha, rx,  batch_size, padding_id, s
         x = [x[i] for i in perm]
         y = [y[i] for i in perm]
         e = [e[i] for i in perm]
+        cy = [cy[i] for i in perm]
         sha = [sha[i] for i in perm]
 
     for i in xrange(M):
@@ -143,6 +144,7 @@ def create_batches(args, n_classes, x, y, e, sha, rx,  batch_size, padding_id, s
             x[i * batch_size:(i + 1) * batch_size],
             y[i * batch_size:(i + 1) * batch_size],
             e[i * batch_size:(i + 1) * batch_size],
+            cy[i * batch_size:(i + 1) * batch_size],
             padding_id,
             batch_size
         )
@@ -170,7 +172,7 @@ def create_batches(args, n_classes, x, y, e, sha, rx,  batch_size, padding_id, s
     return batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx
 
 
-def create_one_batch(args, n_classes, lstx, lsty, lste, padding_id, b_len):
+def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, padding_id, b_len):
     """
     Parameters
     ----------
@@ -189,7 +191,7 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, padding_id, b_len):
     assert min(len(x) for x in lstx) > 0
 
     # padded y
-    by, unigrams, be = process_hl(args, lsty, lste,padding_id, n_classes)
+    by, unigrams, be = process_hl(args, lsty, lste, padding_id, n_classes, lstcy)
 
     bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=padding_id).astype('int32') for x in lstx])
@@ -215,7 +217,7 @@ def round_batch(lstx, lsty, lste, b_len):
     return lstx_rounded[:b_len], lsty_rounded[:b_len], lste_rounded[:b_len]
 
 
-def process_hl(args, lsty, lste, padding_id, n_classes):
+def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
     max_len_y = args.hl_len
     y_processed = [[] for i in xrange(args.n)]
     e_processed = [[] for i in xrange(args.n)]
@@ -234,7 +236,10 @@ def process_hl(args, lsty, lste, padding_id, n_classes):
             y_processed[j].append(single_hl)
             e_processed[j].append(single_e_1h)
 
-            for token in y:
+        for clean_hl in lstcy[i]:
+            trimmed_cy = clean_hl[:max_len_y]
+
+            for token in trimmed_cy:
                 sample_u.add(token)
 
         unigrams.append(sample_u)
@@ -377,6 +382,57 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
                 word = dev_batches_x[i][j][k].encode('utf-8')
 
                 if dev_z[i][k][j] == 0:
+                    continue
+
+                ofp_for_rouge.write(word + ' ')
+                ofp_system_output.append(word)
+
+            ofp_samples_system.append(' '.join(ofp_system_output))
+            ofp_for_rouge.close()
+            s_num += 1
+
+    for i in xrange(len(ofp_samples_system)):
+
+        ofp_samples.write('System Summary :')
+
+        if len(ofp_samples_system[i]) == 0:
+            ofp_samples.write('**No Summary**')
+        else:
+            ofp_samples.write(ofp_samples_system[i])
+
+        ofp_samples.write('\n\n')
+
+    ofp_samples.close()
+
+
+def eval_baseline(args, bm, rx):
+    s_num = 0
+
+    filename_ = args.train_output_readable + 'baseline_dev.out'
+    ofp_samples = open(filename_, 'w+')
+    ofp_samples_system = []
+
+    rouge_fname = args.system_summ_path + 'baseline/'
+
+    for i in xrange(len(bm)):
+
+        for j in xrange(len(bm[i][0])):
+
+            filename = rouge_fname + 'sum.' + str(s_num).zfill(6) + '.txt'
+            ofp_for_rouge = open(filename, 'w+')
+            ofp_system_output = []
+
+            binary_mask = bm[i][:,j]
+            binary_shifted = np.pad(binary_mask[:-1], (1,0), "constant", constant_values=0)
+            complete_bm = binary_mask | binary_shifted
+
+            for k in xrange(len(complete_bm)):
+                if k >= len(rx[i][j]):
+                    break
+
+                word = rx[i][j][k].encode('utf-8')
+
+                if complete_bm[k] == 0:
                     continue
 
                 ofp_for_rouge.write(word + ' ')
