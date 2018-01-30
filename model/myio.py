@@ -381,7 +381,7 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
 
                 word = dev_batches_x[i][j][k].encode('utf-8')
 
-                if dev_z[i][k][j] >= 0.5:
+                if dev_z[i][k][j] < 0.5:
                     continue
 
                 ofp_for_rouge.write(word + ' ')
