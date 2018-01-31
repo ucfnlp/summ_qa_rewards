@@ -301,8 +301,8 @@ class Encoder(object):
         l2_cost = l2_cost * args.l2_reg
         self.l2_cost = l2_cost
 
-        self.cost_g = cost_logpz + generator.l2_cost
-        self.cost_e = loss * args.coeff_cost_scale + l2_cost
+        self.cost_g = cost_logpz * args.coeff_cost_scale + generator.l2_cost
+        self.cost_e = loss  + l2_cost
 
 
 class Model(object):
