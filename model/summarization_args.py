@@ -269,25 +269,25 @@ def get_args():
 
     parser.add_argument("--coeff_summ_len",
                         type=float,
-                        default=100,
+                        default=1.0,
                         help="Scaling zsum"
                         )
 
     parser.add_argument("--coeff_adequacy",
                         type=float,
-                        default=10,
+                        default=10.0,
                         help="Scaling in encoder loss"
                         )
 
     parser.add_argument("--coeff_fluency",
                         type=float,
-                        default=100,
+                        default=1.0,
                         help="Scaling zdiff"
                         )
 
     parser.add_argument("--coeff_cost_scale",
                         type=float,
-                        default=1e-2
+                        default=1.0
                         )
 
     parser.add_argument("--beta1",

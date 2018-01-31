@@ -313,15 +313,14 @@ def get_readable_file(args, epoch):
     return path + filename
 
 
-def record_observations(ofp_json, epoch, loss, obj, zsum, bigram_loss, loss_vec_all, z_diff):
+def record_observations(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff):
     epoch_data = dict()
 
-    epoch_data['loss'] = [l.tolist() for l in loss]
-    epoch_data['obj'] = [l.tolist() for l in obj]
-    epoch_data['zsum'] = [l.tolist() for l in zsum]
-    epoch_data['bigram_loss'] = [l.tolist() for l in bigram_loss]
-    epoch_data['loss_vec'] = [l.tolist() for l in loss_vec_all]
-    epoch_data['zdiff'] = [l.tolist() for l in z_diff]
+    epoch_data['loss'] = float(np.mean(loss))
+    epoch_data['obj'] = float(np.mean(obj))
+    epoch_data['zsum'] = float(np.mean(zsum))
+    epoch_data['loss_vec'] = float(np.mean(loss_vec))
+    epoch_data['zdiff'] = float(np.mean(z_diff))
 
     ofp_json['e' + str(epoch)] = epoch_data
 
@@ -337,7 +336,7 @@ def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
     ofp_json['e' + str(epoch)] = epoch_data
 
 
-def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff, cost_logpz, logpz, z_pred, cost_vec):
+def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff, cost_logpz, logpz, z_pred, cost_vec, bigram_loss):
     epoch_data = dict()
 
     epoch_data['loss'] = float(np.mean(loss))
@@ -345,6 +344,7 @@ def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_di
     epoch_data['zsum'] = float(np.mean(zsum))
     epoch_data['loss_vec'] = float(np.mean(loss_vec))
     epoch_data['zdiff'] = float(np.mean(z_diff))
+    epoch_data['bigram_loss'] = float(np.mean(bigram_loss))
 
     epoch_data['cost_logpz'] = float(np.mean(cost_logpz))
     epoch_data['logpz'] = float(np.mean(logpz))

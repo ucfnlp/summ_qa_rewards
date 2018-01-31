@@ -277,11 +277,11 @@ class Encoder(object):
         self.zsum = zsum = T.abs_(self.zsum / z_totals - 0.15)
         self.zdiff = zdiff = zdiff / z_totals
 
-        cost_vec = loss_vec + args.coeff_adequacy * (
+        self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (
                 (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff)
 
-        baseline = T.mean(cost_vec)
-        self.cost_vec = cost_vec = cost_vec - baseline
+        # baseline = T.mean(cost_vec)
+        # self.cost_vec = cost_vec = cost_vec - baseline
 
         self.logpz = logpz = T.sum(logpz, axis=0)
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
@@ -301,14 +301,8 @@ class Encoder(object):
         l2_cost = l2_cost * args.l2_reg
         self.l2_cost = l2_cost
 
-        self.cost_g = cost_logpz * args.coeff_cost_scale + generator.l2_cost
+        self.cost_g = cost_logpz + generator.l2_cost
         self.cost_e = loss * args.coeff_cost_scale + l2_cost
-
-    # def softmax_mask(self, x, mask):
-    #     x = T.nnet.softmax(x)
-    #     x = x * mask
-    #     x = x / x.sum(0, keepdims=True)
-    #     return x
 
 
 class Model(object):
@@ -499,7 +493,7 @@ class Model(object):
         train_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
             outputs=[self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
-                     self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz, self.encoder.cost_vec, self.generator.masks],
+                     self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz, self.encoder.cost_vec, self.generator.masks, self.encoder.bigram_loss],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
 
@@ -578,7 +572,7 @@ class Model(object):
                         bx, by, be, bm = train_batches_x[j], train_batches_y[j], train_batches_e[j], train_batches_bm[j]
                         mask = bx != padding_id
 
-                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks = train_generator(
+                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss = train_generator(
                             bx, by, bm, be)
 
                         obj_all.append(cost)
@@ -589,8 +583,9 @@ class Model(object):
                         z_diff_all.append(np.mean(zdiff))
                         cost_logpz_all.append(np.mean(cost_logpz))
                         logpz_all.append(np.mean(logpz))
-                        z_pred_all.append(z)
+                        z_pred_all.append(np.sum(z))
                         cost_vec_all.append(np.mean(cost_vec))
+                        bigram_loss_all.append(np.mean(bigram_loss))
 
                         train_cost += cost
                         train_loss += loss
@@ -629,12 +624,12 @@ class Model(object):
                         p.set_value(v)
                     continue
 
-                if args.sanity_check:
-                    myio.record_observations_verbose(json_train, epoch + 1, loss_all, obj_all, zsum_all, loss_vec_all,
-                                             z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all)
-                else:
-                    myio.record_observations(json_train, epoch + 1, loss_all, obj_all, zsum_all, bigram_loss_all,
-                                             loss_vec_all, z_diff_all)
+
+                myio.record_observations_verbose(json_train, epoch + 1, loss_all, obj_all, zsum_all, loss_vec_all,
+                                             z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all, bigram_loss_all)
+                # else:
+                #     myio.record_observations(json_train, epoch + 1, loss_all, obj_all, zsum_all,
+                #                              loss_vec_all, z_diff_all)
 
                 last_train_avg_cost = cur_train_avg_cost
 
@@ -887,11 +882,12 @@ class Model(object):
                 bx, bm, sha, rx = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j]
                 bz, l, o = eval_func(bx, bm)
                 tot_obj += o
-                N += len(bx)
 
                 x.append(rx)
                 dev_z.append(bz)
                 sha_ls.append(sha)
+
+            N += len(batches_x)
 
         myio.save_dev_results(self.args, None, dev_z, x, sha_ls)
 
@@ -918,11 +914,12 @@ class Model(object):
                                           batches_rx[j]
                 bz, o, e = eval_func(bx, by, bm, be)
                 tot_obj += o
-                N += len(bx)
 
                 x.append(rx)
                 dev_z.append(bz)
                 sha_ls.append(sha)
+
+            N += len(batches_x)
 
         return tot_obj / float(N), dev_z, x, sha_ls
 
