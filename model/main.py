@@ -6,6 +6,7 @@ import time
 import random
 
 import numpy as np
+import sklearn.metrics as sk
 import theano
 import theano.tensor as T
 
@@ -251,7 +252,7 @@ class Encoder(object):
         layers.append(output_layer)
 
         preds = output_layer.forward(o)
-        preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
+        self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
         cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
         loss_mat = cross_entropy.reshape((x.shape[1], args.n))
 
@@ -486,7 +487,7 @@ class Model(object):
 
         eval_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
-            outputs=[self.z, self.encoder.obj, self.encoder.loss],
+            outputs=[self.z, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
             updates=self.generator.sample_updates
         )
 
@@ -564,7 +565,7 @@ class Model(object):
 
                     for j in xrange(cur_len):
                         if args.full_test:
-                            if (i* args.online_batch_size + j + 1) % 100 == 0:
+                            if (i* args.online_batch_size + j + 1) % 10 == 0:
                                 say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
                         elif (i* args.online_batch_size + j + 1) % 10 == 0:
                                 say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
@@ -583,7 +584,7 @@ class Model(object):
                         z_diff_all.append(np.mean(zdiff))
                         cost_logpz_all.append(np.mean(cost_logpz))
                         logpz_all.append(np.mean(logpz))
-                        z_pred_all.append(np.sum(z))
+                        z_pred_all.append(np.mean(np.sum(z, axis=1)))
                         cost_vec_all.append(np.mean(cost_vec))
                         bigram_loss_all.append(np.mean(bigram_loss))
 
@@ -596,7 +597,7 @@ class Model(object):
 
                 if args.dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_z, dev_x, dev_sha = self.evaluate_data(eval_generator)
+                    dev_obj, dev_z, dev_x, dev_sha, dev_acc = self.evaluate_data(eval_generator)
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
@@ -624,12 +625,8 @@ class Model(object):
                         p.set_value(v)
                     continue
 
-
                 myio.record_observations_verbose(json_train, epoch + 1, loss_all, obj_all, zsum_all, loss_vec_all,
-                                             z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all, bigram_loss_all)
-                # else:
-                #     myio.record_observations(json_train, epoch + 1, loss_all, obj_all, zsum_all,
-                #                              loss_vec_all, z_diff_all)
+                                             z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all, bigram_loss_all, dev_acc)
 
                 last_train_avg_cost = cur_train_avg_cost
 
@@ -900,6 +897,7 @@ class Model(object):
         dev_z = []
         x = []
         sha_ls = []
+        dev_acc = []
 
         num_files = args.num_files_dev
 
@@ -912,16 +910,17 @@ class Model(object):
             for j in xrange(cur_len):
                 bx, by, be, bm, sha, rx = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], batches_sha[j], \
                                           batches_rx[j]
-                bz, o, e = eval_func(bx, by, bm, be)
+                bz, o, e, preds = eval_func(bx, by, bm, be)
                 tot_obj += o
 
                 x.append(rx)
                 dev_z.append(bz)
                 sha_ls.append(sha)
+                dev_acc.append(self.eval_acc(be, preds))
 
             N += len(batches_x)
 
-        return tot_obj / float(N), dev_z, x, sha_ls
+        return tot_obj / float(N), dev_z, x, sha_ls, np.mean(dev_acc)
 
     def evaluate_test_data(self, batches_x, eval_func):
         dev_z = []
@@ -932,6 +931,12 @@ class Model(object):
             dev_z.append(bz)
 
         return dev_z
+
+    def eval_acc(self,e, preds):
+        gs = np.argmax(e, axis=1)
+        system = np.argmax(preds, axis=1)
+
+        return sk.accuracy_score(gs, system)
 
 
 def test_emb(test_x, embedding_layer):

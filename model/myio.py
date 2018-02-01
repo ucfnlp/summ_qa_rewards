@@ -288,6 +288,7 @@ def process_ent(n_classes, lste):
 def create_fname_identifier(args):
     return 'source_' + str(args.source) + \
            '_pretrain_' + str(args.pretrain) + \
+           '_load_model_pretrain_' + str(args.load_model_pretrain) + \
            '_train_data_embdim_' + str(args.embedding_dim) + \
            '_vocab_size_' + str(args.vocab_size) + \
            '_batch_' + str(args.batch) + \
@@ -336,11 +337,12 @@ def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
     ofp_json['e' + str(epoch)] = epoch_data
 
 
-def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff, cost_logpz, logpz, z_pred, cost_vec, bigram_loss):
+def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff, cost_logpz, logpz, z_pred, cost_vec, bigram_loss, dev_acc):
     epoch_data = dict()
 
     epoch_data['loss'] = float(np.mean(loss))
     epoch_data['obj'] = float(np.mean(obj))
+    epoch_data['dev_acc'] = dev_acc
     epoch_data['zsum'] = float(np.mean(zsum))
     epoch_data['loss_vec'] = float(np.mean(loss_vec))
     epoch_data['zdiff'] = float(np.mean(z_diff))
