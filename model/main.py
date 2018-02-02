@@ -462,6 +462,19 @@ class Model(object):
         self.evaluate_pretrain_data_rouge(eval_generator)
         myio.get_rouge(self.args)
 
+    def dev_full(self):
+
+        eval_generator = theano.function(
+            inputs=[self.x, self.bm],
+            outputs=[self.z, self.encoder.cost_g, self.encoder.obj],
+            updates=self.generator.sample_updates
+        )
+
+        self.dropout.set_value(0.0)
+
+        self.evaluate_pretrain_data_rouge(eval_generator)
+        myio.get_rouge(self.args)
+
     def train(self):
         args = self.args
         dropout = self.dropout
@@ -1026,7 +1039,7 @@ def main():
             model.dev()
         else:
             model.load_model(args.save_model + args.load_model)
-            model.dev()
+            model.dev_full()
 
     elif args.test:
         model.load_model(args.save_model + args.load_model, True)
