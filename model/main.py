@@ -969,18 +969,19 @@ def main():
     )
 
     if args.batch_data:
+        stopwords = myio.create_stopwords(args, embedding_layer)
         if args.train:
             train_x, train_y, train_e, train_clean_y, train_sha = myio.read_docs(args, 'train')
             train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_sha, _ = myio.create_batches(
                 args, model.nclasses, train_x, train_y, train_e, train_clean_y, train_sha, None, args.batch,
-                embedding_layer.vocab_map["<padding>"])
+                embedding_layer.vocab_map["<padding>"], stopwords)
             myio.save_batched(args, train_batches_x, train_batches_y, train_batches_e, train_batches_bm,
                               train_batches_sha, None, 'train')
 
         if args.dev:
             dev_x, dev_y, dev_e, dev_clean_y, dev_rx, dev_sha = myio.read_docs(args, 'dev')
             dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha, dev_batches_rx = myio.create_batches(args, model.nclasses, dev_x, dev_y, dev_e, dev_clean_y, dev_sha, dev_rx, args.batch,
-                                embedding_layer.vocab_map["<padding>"], sort=False)
+                                embedding_layer.vocab_map["<padding>"], stopwords, sort=False)
 
             myio.save_batched(args, dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha,
                               dev_batches_rx, 'dev')

@@ -7,6 +7,7 @@ from pyrouge import Rouge155
 from nn.basic import EmbeddingLayer
 from util import load_embedding_iterator
 import shutil
+from nltk.tokenize import RegexpTokenizer
 
 
 def read_docs(args, type):
@@ -119,7 +120,47 @@ def load_batches(name, iteration):
         return data[0], data[1], data[2], data[3], data[4]
 
 
-def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_id, sort=True):
+def record_stopwords(stopwords, embedding_layer):
+    ofp = open('../data/stopword_map.json', 'w+')
+    data = dict()
+
+    for w_idx in stopwords:
+        data[w_idx] = embedding_layer.lst_words[w_idx]
+
+    json_d = dict()
+    json_d['tokens'] = data
+    json.dump(json_d, ofp)
+    ofp.close()
+
+
+def create_stopwords(args, embedding_layer):
+    ifp = open(args.stopwords, 'r')
+    stopwords = set()
+
+    # Add stopwords
+    for line in ifp:
+        w = line.rstrip()
+
+        if w in embedding_layer.vocab_map:
+            stopwords.add(embedding_layer.vocab_map[w])
+
+    ifp.close()
+
+    tokenizer = RegexpTokenizer(r'\w+')
+
+    # add punctuation
+    for i in xrange(len(embedding_layer.lst_words)):
+        w = embedding_layer.lst_words[i]
+
+        if len(tokenizer.tokenize(w)) == 0:
+            stopwords.add(i)
+
+    record_stopwords(stopwords, embedding_layer)
+
+    return stopwords
+
+
+def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_id, stopwords, sort=True):
     batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx  = [], [], [], [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
@@ -146,7 +187,8 @@ def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_i
             e[i * batch_size:(i + 1) * batch_size],
             cy[i * batch_size:(i + 1) * batch_size],
             padding_id,
-            batch_size
+            batch_size,
+            stopwords
         )
         bsh = sha[i * batch_size:(i + 1) * batch_size]
         if rx is not None:
@@ -172,7 +214,7 @@ def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_i
     return batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx
 
 
-def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, padding_id, b_len):
+def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, padding_id, b_len, stopwords):
     """
     Parameters
     ----------
@@ -196,7 +238,7 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, padding_id, b_len
     bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=padding_id).astype('int32') for x in lstx])
 
-    bm = create_unigram_masks(lstx, unigrams, max_len)
+    bm = create_unigram_masks(lstx, unigrams, max_len, stopwords)
 
     bm = np.column_stack([m for m in bm])
     by = np.column_stack([y for y in by])
@@ -253,7 +295,7 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
     return by, unigrams, be
 
 
-def create_unigram_masks(lstx, unigrams, max_len):
+def create_unigram_masks(lstx, unigrams, max_len, stopwords):
     masks = []
 
     for i in xrange(len(lstx)):
@@ -261,15 +303,23 @@ def create_unigram_masks(lstx, unigrams, max_len):
         m = np.zeros((max_len,), dtype='int32')
 
         for j in xrange(len_x - 1):
-            if j >= max_len: break
+            if j >= max_len:
+                break
+            w1 = lstx[i][j]
+            w2 = lstx[i][j+1]
 
-            if lstx[i][j] in unigrams[i] and lstx[i][j+1] in unigrams[i]:
-                m[j] = 1
+            if w1 in unigrams[i] and w2 in unigrams[i]:
+                if contains_single_valid_word(w1, w2, stopwords):
+                    m[j] = 1
 
         masks.append(m)
 
     return masks
 
+def contains_single_valid_word(w1, w2, stopwords):
+    if w1 in stopwords and w2 in stopwords:
+        return False
+    return True
 
 def process_ent(n_classes, lste):
     ret_e = []

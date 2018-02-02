@@ -18,6 +18,11 @@ def get_args():
                         default='../data/emb/glove.6B.100d.txt',
                         help='glove model name and path')
 
+    parser.add_argument('--stopwords',
+                        type=str,
+                        default='../data/stopwords.txt',
+                        help='List of stopwords')
+
     parser.add_argument('--source',
                         type=str,
                         default='cnn',
