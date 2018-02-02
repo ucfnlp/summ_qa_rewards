@@ -494,7 +494,8 @@ class Model(object):
         train_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
             outputs=[self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
-                     self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz, self.encoder.cost_vec, self.generator.masks, self.encoder.bigram_loss],
+                     self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz,
+                     self.encoder.cost_vec, self.generator.masks, self.encoder.bigram_loss, self.encoder.preds_clipped],
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
         )
 
@@ -544,6 +545,7 @@ class Model(object):
                 logpz_all = []
                 z_pred_all = []
                 cost_vec_all = []
+                train_acc = []
 
                 num_files = args.num_files_train
                 N = args.online_batch_size * num_files
@@ -552,16 +554,16 @@ class Model(object):
                     train_batches_x, train_batches_y, train_batches_e, train_batches_bm, _ = myio.load_batches(
                         args.batch_dir + args.source + 'train', i)
 
+                    cur_len = len(train_batches_x)
+
                     random.seed(5817)
-                    perm2 = range(len(train_batches_x))
+                    perm2 = range(cur_len)
                     random.shuffle(perm2)
 
                     train_batches_x = [train_batches_x[k] for k in perm2]
                     train_batches_y = [train_batches_y[k] for k in perm2]
                     train_batches_e = [train_batches_e[k] for k in perm2]
                     train_batches_bm = [train_batches_bm[k] for k in perm2]
-
-                    cur_len = len(train_batches_x)
 
                     for j in xrange(cur_len):
                         if args.full_test:
@@ -573,9 +575,10 @@ class Model(object):
                         bx, by, be, bm = train_batches_x[j], train_batches_y[j], train_batches_e[j], train_batches_bm[j]
                         mask = bx != padding_id
 
-                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss = train_generator(
+                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr = train_generator(
                             bx, by, bm, be)
 
+                        train_acc.append(self.eval_acc(be, preds_tr))
                         obj_all.append(cost)
                         loss_all.append(loss)
                         zsum_all.append(np.mean(zsum))
@@ -626,7 +629,7 @@ class Model(object):
                     continue
 
                 myio.record_observations_verbose(json_train, epoch + 1, loss_all, obj_all, zsum_all, loss_vec_all,
-                                             z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all, bigram_loss_all, dev_acc)
+                                             z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all, bigram_loss_all, dev_acc, np.mean(train_acc))
 
                 last_train_avg_cost = cur_train_avg_cost
 
