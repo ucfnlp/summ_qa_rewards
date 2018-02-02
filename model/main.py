@@ -1024,6 +1024,9 @@ def main():
         if args.pretrain:
             model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model)
             model.dev()
+        else:
+            model.load_model(args.save_model + args.load_model)
+            model.dev()
 
     elif args.test:
         model.load_model(args.save_model + args.load_model, True)
