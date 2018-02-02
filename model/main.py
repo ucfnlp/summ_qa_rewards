@@ -465,14 +465,15 @@ class Model(object):
     def dev_full(self):
 
         eval_generator = theano.function(
-            inputs=[self.x, self.bm],
-            outputs=[self.z, self.encoder.cost_g, self.encoder.obj],
+            inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
+            outputs=[self.z, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
             updates=self.generator.sample_updates
         )
 
         self.dropout.set_value(0.0)
 
-        self.evaluate_pretrain_data_rouge(eval_generator)
+        dev_obj, dev_z, dev_x, dev_sha, dev_acc = self.evaluate_data(eval_generator)
+        myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
         myio.get_rouge(self.args)
 
     def train(self):
