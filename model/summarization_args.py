@@ -48,6 +48,11 @@ def get_args():
                         default=True,
                         help='Process full selection of CNN data')
 
+    parser.add_argument('--bigram_loss',
+                        type='bool',
+                        default=False,
+                        help='Include Bigram Loss inside objective')
+
     parser.add_argument("--sanity_check",
                         type='bool',
                         default=False,

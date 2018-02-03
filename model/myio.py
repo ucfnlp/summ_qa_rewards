@@ -344,6 +344,7 @@ def create_fname_identifier(args):
            '_batch_' + str(args.batch) + \
            '_epochs_' + str(args.max_epochs) + \
            '_layer_' + str(args.layer) + \
+           '_bigram_loss_' + str(args.bigram_loss) + \
            '_coeff_summ_len_' + str(args.coeff_summ_len) + \
            '_coeff_adequacy_' + str(args.coeff_adequacy) + \
            '_coeff_fluency_' + str(args.coeff_fluency) +\

@@ -264,6 +264,7 @@ class Encoder(object):
 
         total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
         total_bg_per_sample = T.sum(bm, axis=0) + args.bigram_smoothing
+
         self.bigram_loss = bigram_loss = total_z_bg_per_sample / total_bg_per_sample
 
         self.loss_vec = loss_vec = T.mean(loss_mat, axis=1)
@@ -278,8 +279,12 @@ class Encoder(object):
         self.zsum = zsum = T.abs_(self.zsum / z_totals - 0.15)
         self.zdiff = zdiff = zdiff / z_totals
 
-        self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (
-                (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff)
+        if args.bigram_loss:
+            self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (
+                        (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff)
+        else:
+            self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (
+                        args.coeff_summ_len * zsum + args.coeff_fluency * zdiff)
 
         # baseline = T.mean(cost_vec)
         # self.cost_vec = cost_vec = cost_vec - baseline
