@@ -998,20 +998,76 @@ def main():
     if args.batch_data:
         stopwords = myio.create_stopwords(args, embedding_layer)
         if args.train:
+            print 'TRAIN data'
+            print '  Read JSON..'
+
             train_x, train_y, train_e, train_clean_y, train_sha = myio.read_docs(args, 'train')
+
+            print '  Create batches..'
+
             train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_sha, _ = myio.create_batches(
                 args, model.nclasses, train_x, train_y, train_e, train_clean_y, train_sha, None, args.batch,
                 embedding_layer.vocab_map["<padding>"], stopwords)
+
+            print '  Purge references..'
+
+            del train_x
+            del train_y
+            del train_e
+            del train_clean_y
+            del train_sha
+
+            print '  Save batches..'
+
             myio.save_batched(args, train_batches_x, train_batches_y, train_batches_e, train_batches_bm,
                               train_batches_sha, None, 'train')
 
+            print 'print  Purge references..'
+
+            del train_batches_x
+            del train_batches_y
+            del train_batches_e
+            del train_batches_bm
+            del train_batches_sha
+
+            print '  Finished Train Proc.'
+
         if args.dev:
+            print 'DEV data'
+            print '  Read JSON..'
+
             dev_x, dev_y, dev_e, dev_clean_y, dev_rx, dev_sha = myio.read_docs(args, 'dev')
+
+            print '  Create batches..'
+
             dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha, dev_batches_rx = myio.create_batches(args, model.nclasses, dev_x, dev_y, dev_e, dev_clean_y, dev_sha, dev_rx, args.batch,
                                 embedding_layer.vocab_map["<padding>"], stopwords, sort=False)
 
+            print '  Purge references..'
+
+            del dev_x
+            del dev_y
+            del dev_e
+            del dev_clean_y
+            del dev_rx
+            del dev_sha
+
+            print '  Save batches.'
+
             myio.save_batched(args, dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha,
                               dev_batches_rx, 'dev')
+
+            print '  Purge references..'
+
+            del dev_batches_x
+            del dev_batches_y
+            del dev_batches_e
+            del dev_batches_bm
+            del dev_batches_sha
+            del dev_batches_rx
+
+            print '  Finished Dev Proc.'
+
     elif args.dev_baseline:
         num_files = args.num_files_dev
 
