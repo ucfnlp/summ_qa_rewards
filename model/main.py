@@ -459,7 +459,8 @@ class Model(object):
         eval_generator = theano.function(
             inputs=[self.x, self.bm],
             outputs=[self.z, self.generator.cost_g, self.generator.obj],
-            updates=self.generator.sample_updates
+            updates=self.generator.sample_updates,
+            on_unused_input='ignore'
         )
 
         self.dropout.set_value(0.0)
@@ -472,7 +473,8 @@ class Model(object):
         eval_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
             outputs=[self.z, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
-            updates=self.generator.sample_updates
+            updates=self.generator.sample_updates,
+            on_unused_input='ignore'
         )
 
         self.dropout.set_value(0.0)
@@ -507,7 +509,8 @@ class Model(object):
         eval_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
             outputs=[self.z, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
-            updates=self.generator.sample_updates
+            updates=self.generator.sample_updates,
+            on_unused_input='ignore'
         )
 
         train_generator = theano.function(
@@ -515,7 +518,8 @@ class Model(object):
             outputs=[self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
                      self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz,
                      self.encoder.cost_vec, self.generator.masks, self.encoder.bigram_loss, self.encoder.preds_clipped],
-            updates=updates_e.items() + updates_g.items() + self.generator.sample_updates
+            updates=updates_e.items() + updates_g.items() + self.generator.sample_updates,
+            on_unused_input='ignore'
         )
 
         unchanged = 0
@@ -971,6 +975,7 @@ def test_emb(test_x, embedding_layer):
             ofp.write(word + ' ')
 
     ofp.close()
+
 
 def main():
     assert args.embedding, "Pre-trained word embeddings required."
