@@ -79,6 +79,11 @@ def get_args():
                         default=25,
                         help='length of single sentence in highlights')
 
+    parser.add_argument('--nclasses',
+                        type=int,
+                        default=8710,
+                        help='Number of unique entities')
+
     parser.add_argument("--train_output_readable",
                         type=str,
                         default="../data/results/readable/",
