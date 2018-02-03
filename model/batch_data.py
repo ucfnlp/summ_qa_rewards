@@ -232,7 +232,7 @@ def create_unigram_masks(lstx, unigrams, max_len, stopwords):
 
 
 def contains_single_valid_word(w1, w2, stopwords):
-    if w1 in stopwords and w2 in stopwords:
+    if w1 in stopwords or w2 in stopwords:
         return False
     return True
 

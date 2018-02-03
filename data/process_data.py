@@ -14,7 +14,9 @@ sys.setdefaultencoding('utf8')
 def process_data(args):
     train, dev, test, unique_w = split_data(args)
 
-    if args.pipeline: # takes a long-o-time
+    if args.lead3:
+        prepare_l3(args, test[1])
+    elif args.pipeline: # takes a long-o-time
         core_nlp(args, train[0], dev[0], test[0])
     else:
         prepare_rouge(args, test[0], 'test')
@@ -109,6 +111,26 @@ def split_data(args):
 
     return (highlights_train, articles_train, hashes_train), (highlights_dev, articles_dev, hashes_dev), (
     highlights_test, articles_test, hashes_test), unique_words
+
+
+def prepare_l3(args, test):
+    file_part = args.system_summ_path + 'l3_' + args.source + '/test_'
+    rouge_counter = 0
+
+    for article in test:
+        ofp = open(file_part + str(rouge_counter).zfill(6) + '.txt', 'w+')
+
+        for i in xrange(3):
+
+            text = ' '.join(article[i])
+
+            ofp.write(text)
+
+            if i < 3:
+                ofp.write(' ')
+
+        ofp.close()
+        rouge_counter += 1
 
 
 def prepare_rouge(args, inp, type):
@@ -441,10 +463,29 @@ def tokenize(args, current_article, current_highlights, unique_w):
     article = []
     highlights = []
 
-    for item in current_article:
-        sentence = str(item.encode('utf-8'))
+    top_sent = True
 
+    for item in current_article:
+
+        sentence = str(item.encode('utf-8'))
         words = sentence.rstrip().split(' ')
+
+        if top_sent:
+
+            top_sent = False
+
+            if '-RRB-' in words:
+                k = words.index('-RRB-')
+                if k < 10: words = words[k + 1:]
+
+            if '--' in words:
+                k = words.index('--')
+                if k < 10: words = words[k + 1:]
+
+            if '-rrb-' in words:
+                k = words.index('-rrb-')
+                if k < 10: words = words[k + 1:]
+
         s = []
         for w in words:
             w = w.lower()

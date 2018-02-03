@@ -14,6 +14,11 @@ def get_args():
 
     # GENERAL DATA/DEBUG INFO
 
+    parser.add_argument('--lead3',
+                        type='bool',
+                        default=False,
+                        help='Create Lead-3 summaries')
+
     parser.add_argument('--full_test',
                         type='bool',
                         default=True,
@@ -102,6 +107,12 @@ def get_args():
                         type=str,
                         default="results/summaries/model/",
                         help="gold standard summaries"
+                        )
+
+    parser.add_argument("--system_summ_path",
+                        type=str,
+                        default="../data/results/summaries/system/",
+                        help="system summaries"
                         )
 
     # URLS FOR SPLITS
