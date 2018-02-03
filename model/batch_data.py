@@ -37,36 +37,6 @@ def create_vocab(args):
     return vocab_map, vocab_ls
 
 
-def save_batched(args, batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, model_type):
-
-    print 'Total batches', len(batches_x)
-    num_files = (len(batches_x) - 1) / args.online_batch_size + 1
-    fname = args.batch_dir + args.source + model_type
-
-    for i in xrange(num_files):
-        print 'Creating file #', str(i + 1)
-        if model_type == 'train':
-            data = [
-                batches_x[i * args.online_batch_size:(i+1) * args.online_batch_size],
-                batches_y[i * args.online_batch_size:(i+1) * args.online_batch_size],
-                batches_e[i * args.online_batch_size:(i+1) * args.online_batch_size],
-                batches_bm[i * args.online_batch_size:(i+1) * args.online_batch_size],
-                batches_sha[i * args.online_batch_size:(i + 1) * args.online_batch_size]
-            ]
-        else:
-            data = [
-                batches_x[i * args.online_batch_size:(i + 1) * args.online_batch_size],
-                batches_y[i * args.online_batch_size:(i + 1) * args.online_batch_size],
-                batches_e[i * args.online_batch_size:(i + 1) * args.online_batch_size],
-                batches_bm[i * args.online_batch_size:(i + 1) * args.online_batch_size],
-                batches_sha[i * args.online_batch_size:(i + 1) * args.online_batch_size],
-                batches_rx[i * args.online_batch_size:(i + 1) * args.online_batch_size]
-            ]
-        with open(fname + str(i), 'w+') as ofp:
-            np.save(ofp, data)
-    print "Num Files :", num_files
-
-
 def create_stopwords(args, vocab_map, lst_words):
     ifp = open(args.stopwords, 'r')
     stopwords = set()
@@ -94,10 +64,12 @@ def create_stopwords(args, vocab_map, lst_words):
     return stopwords
 
 
-def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_id, stopwords, sort=True):
+def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_id, stopwords, sort=True, model_type=''):
     batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx  = [], [], [], [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
+    num_batches = 0
+    num_files = 0
 
     if args.sanity_check:
         sort= False
@@ -135,17 +107,39 @@ def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_i
         batches_bm.append(bm)
         batches_sha.append(bsh)
 
-    if sort:
-        random.seed(5817)
-        perm2 = range(M)
-        random.shuffle(perm2)
-        batches_x = [batches_x[i] for i in perm2]
-        batches_y = [batches_y[i] for i in perm2]
-        batches_e = [batches_e[i] for i in perm2]
-        batches_bm = [batches_bm[i] for i in perm2]
-        batches_sha = [batches_sha[i] for i in perm2]
+        num_batches += 1
 
-    return batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx
+        if num_batches >= args.online_batch_size or i == M - 1:
+
+            fname = args.batch_dir + args.source + model_type
+            print 'Creating file #', str(num_files + 1)
+
+            if model_type == 'train':
+                data = [
+                    batches_x,
+                    batches_y,
+                    batches_e,
+                    batches_bm,
+                    batches_sha
+                ]
+            else:
+                data = [
+                    batches_x,
+                    batches_y,
+                    batches_e,
+                    batches_bm,
+                    batches_sha,
+                    batches_rx
+                ]
+            with open(fname + str(num_files), 'w+') as ofp:
+                np.save(ofp, data)
+
+            batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx = [], [], [], [], [], []
+            num_batches = 0
+            num_files += 1
+
+    print "Num Files :", num_files
+
 
 def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, padding_id, b_len, stopwords):
     """
@@ -286,9 +280,8 @@ def main(args):
 
         print '  Create batches..'
 
-        train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_sha, _ = create_batches(
-            args, args.nclasses, train_x, train_y, train_e, train_clean_y, train_sha, None, args.batch,
-            pad_id, stopwords)
+        create_batches(args, args.nclasses, train_x, train_y, train_e, train_clean_y, train_sha, None, args.batch,
+                       pad_id, stopwords, sort=True, model_type='train')
 
         print '  Purge references..'
 
@@ -297,19 +290,6 @@ def main(args):
         del train_e
         del train_clean_y
         del train_sha
-
-        print '  Save batches..'
-
-        save_batched(args, train_batches_x, train_batches_y, train_batches_e, train_batches_bm,
-                          train_batches_sha, None, 'train')
-
-        print 'print  Purge references..'
-
-        del train_batches_x
-        del train_batches_y
-        del train_batches_e
-        del train_batches_bm
-        del train_batches_sha
 
         print '  Finished Train Proc.'
 
@@ -321,8 +301,8 @@ def main(args):
 
         print '  Create batches..'
 
-        dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha, dev_batches_rx = create_batches(args, args.nclasses, dev_x, dev_y, dev_e, dev_clean_y, dev_sha, dev_rx, args.batch,
-                            pad_id, stopwords, sort=False)
+        create_batches(args, args.nclasses, dev_x, dev_y, dev_e, dev_clean_y, dev_sha, dev_rx, args.batch, pad_id,
+                       stopwords, sort=False, model_type='dev')
 
         print '  Purge references..'
 
@@ -332,20 +312,6 @@ def main(args):
         del dev_clean_y
         del dev_rx
         del dev_sha
-
-        print '  Save batches.'
-
-        save_batched(args, dev_batches_x, dev_batches_y, dev_batches_e, dev_batches_bm, dev_batches_sha,
-                          dev_batches_rx, 'dev')
-
-        print '  Purge references..'
-
-        del dev_batches_x
-        del dev_batches_y
-        del dev_batches_e
-        del dev_batches_bm
-        del dev_batches_sha
-        del dev_batches_rx
 
         print '  Finished Dev Proc.'
 
