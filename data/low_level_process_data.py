@@ -14,11 +14,14 @@ def prune_hl(args):
     dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_sha = load_json(args, args.dev)
 
     entity_map = get_entities(args)
+    used_e = set()
 
     updated_train_y, updated_train_e, updated_train_x, updated_train_ve, updated_train_cly, updated_train_sha = prune_type(
-        train_x, train_y, train_e, train_ve, train_cly, None, train_sha, entity_map)
+        train_x, train_y, train_e, train_ve, train_cly, None, train_sha, entity_map, used_e)
     updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_sha = prune_type(
-        dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_sha, entity_map)
+        dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_sha, entity_map, used_e)
+
+    print 'used/total entities = ', len(used_e)/ float(len(entity_map))
 
     return (
            updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly, updated_train_sha), (
@@ -61,7 +64,7 @@ def write_model_ready(args, train, dev):
     ofp_dev.close()
 
 
-def prune_type(x, y, e, ve, cy, rx, sha, entity_map):
+def prune_type(x, y, e, ve, cy, rx, sha, entity_map, used_e):
     length = len(y)
     updated_y = []
     updated_cy = []
@@ -95,6 +98,8 @@ def prune_type(x, y, e, ve, cy, rx, sha, entity_map):
                 updated_y_ls.append(y[i][y_idx])
                 updated_e_ls.append(highlight[0])
 
+                used_e.add(highlight[0])
+
                 total_entries += 1
             else:
                 if num_perms == 2:
@@ -104,6 +109,8 @@ def prune_type(x, y, e, ve, cy, rx, sha, entity_map):
 
                 updated_y_ls.append(y[i][y_idx + rand_e_idx])
                 updated_e_ls.append(highlight[rand_e_idx])
+
+                used_e.add(highlight[rand_e_idx])
 
                 total_entries += 1
 
