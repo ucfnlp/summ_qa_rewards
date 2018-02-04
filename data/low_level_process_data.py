@@ -23,6 +23,14 @@ def prune_hl(args):
 
     print 'used/total entities = ', len(used_e)/ float(len(entity_map))
 
+    print 'pruning entities'
+    e_map_new = re_map(used_e)
+
+    re_map_entities(updated_train_e, e_map_new)
+    re_map_entities(updated_dev_e, e_map_new)
+
+    save_updated_e(args, e_map_new, entity_map)
+
     return (
            updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly, updated_train_sha), (
            updated_dev_x, updated_dev_y, updated_dev_e, updated_dev_ve, updated_dev_cly, updated_dev_rx,
@@ -151,6 +159,14 @@ def prune_type(x, y, e, ve, cy, rx, sha, entity_map, used_e):
         return updated_y, updated_e, updated_x, updated_ve, updated_cy, updated_raw_x, updated_sha
 
 
+def re_map_entities(e, new_map):
+    length = len(e)
+
+    for i in xrange(length):
+        for j in xrange(len(e[i])):
+            e[i][j] = new_map[e[i][j]]
+
+
 def load_json(args, type):
     f_name = type if args.full_test else "small_" + type
     f_name = args.source + '_' + str(args.vocab_size) + '_' + f_name
@@ -198,6 +214,38 @@ def generate_valid_entity_types(args):
         e_ls.append('LOCATION')
 
     return set(e_ls)
+
+
+def re_map(used_e):
+    new_e = dict()
+    counter = 0
+
+    for item in used_e:
+        new_e[item] = counter
+        counter += 1
+    print len(new_e), 'TOTAL NEW E'
+    return new_e
+
+
+def save_updated_e(args, e_map_new, entity_map):
+    e_ls = []
+
+    for old_idx, new_idx in e_map_new.iteritems():
+        word = entity_map[old_idx][0]
+        ner = entity_map[old_idx][1]
+
+        e_for_json = [word, [new_idx, ner]]
+        e_ls.append(e_for_json)
+
+    filename_entities = 'entities_model.json' if args.full_test else "small_entities_model.json"
+    filename_entities = args.source + '_' + str(args.vocab_size) + '_' + filename_entities
+
+    ofp_entities = open(filename_entities, 'w+')
+    final_json_entities = dict()
+    final_json_entities['entities'] = e_ls
+
+    json.dump(final_json_entities, ofp_entities)
+    ofp_entities.close()
 
 
 def invert_ents(entities):

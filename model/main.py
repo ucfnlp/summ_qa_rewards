@@ -82,6 +82,7 @@ class Generator(object):
             )
 
         z_pred, sample_updates = output_layer.sample_all(h_final)
+        self.non_sampled_zpred, _ = self.output_layer.sample_all_pretrain(h_final)
 
         z_pred = self.z_pred = theano.gradient.disconnected_grad(z_pred)
         self.sample_updates = sample_updates
@@ -113,8 +114,6 @@ class Generator(object):
 
     def pretrain(self):
         bm = self.bm = T.imatrix('bm')
-
-        self.non_sampled_zpred, sample_updates = self.output_layer.sample_all_pretrain(self.h_final)
 
         padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
         bm_shift = T.concatenate([padded, bm[:-1]], axis=0)
@@ -472,7 +471,7 @@ class Model(object):
 
         eval_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
-            outputs=[self.z, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
+            outputs=[self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
             updates=self.generator.sample_updates,
             on_unused_input='ignore'
         )
@@ -508,7 +507,7 @@ class Model(object):
 
         eval_generator = theano.function(
             inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
-            outputs=[self.z, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
+            outputs=[self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
             updates=self.generator.sample_updates,
             on_unused_input='ignore'
         )
