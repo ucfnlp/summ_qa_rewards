@@ -18,6 +18,11 @@ def get_args():
                         default='../data/emb/glove.6B.100d.txt',
                         help='glove model name and path')
 
+    parser.add_argument('--trained_emb',
+                        type=str,
+                        default='../data/emb/trained/',
+                        help='Path for pretrained word embs')
+
     parser.add_argument('--stopwords',
                         type=str,
                         default='../data/stopwords.txt',
@@ -81,7 +86,7 @@ def get_args():
 
     parser.add_argument('--nclasses',
                         type=int,
-                        default=8710,
+                        default=5770,
                         help='Number of unique entities')
 
     parser.add_argument("--train_output_readable",

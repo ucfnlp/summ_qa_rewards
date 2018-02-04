@@ -391,6 +391,28 @@ class Model(object):
                     fout,
                     protocol=pickle.HIGHEST_PROTOCOL
                 )
+        if args.trained_emb:
+            fname = args.trained_emb + ('pretrain/' if pretrain else '') + myio.create_fname_identifier(args) + '.txt'
+            ofp = open(fname, 'w+')
+
+            vectors = self.embedding_layer.params[0].get_value()
+            emb_len = args.embedding_dim
+
+            for i in xrange(len(self.embedding_layer.lst_words)):
+                word = self.embedding_layer.lst_words[i]
+                emb = vectors[i]
+
+                ofp.write(word + ' ')
+
+                for v in xrange(emb_len):
+                    ofp.write(str(emb[v]))
+
+                    if v == emb_len - 1:
+                        ofp.write('\n')
+                    else:
+                        ofp.write(' ')
+
+            ofp.close()
 
     def load_model(self, path, test=False):
         if not os.path.exists(path):
@@ -982,8 +1004,7 @@ def main():
     vocab = myio.get_vocab(args)
     embedding_layer = myio.create_embedding_layer(args, args.embedding, vocab)
 
-    entities = myio.load_e(args)
-    n_classes = len(entities)
+    n_classes =args.nclasses
 
     if args.test:
         test_x = myio.read_docs(args, 'test')
