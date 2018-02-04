@@ -121,8 +121,9 @@ def prepare_l3(args, test):
         ofp = open(file_part + str(rouge_counter).zfill(6) + '.txt', 'w+')
 
         for i in xrange(3):
-            if i > len(article):
+            if i >= len(article):
                 break
+
             text = ' '.join(article[i])
 
             ofp.write(text)
