@@ -38,6 +38,11 @@ def get_args():
                         default=False,
                         help='Pretrain Generator')
 
+    parser.add_argument('--bigram_toggle',
+                        type='bool',
+                        default=False,
+                        help='')
+
     parser.add_argument('--batch_data',
                         type='bool',
                         default=False,

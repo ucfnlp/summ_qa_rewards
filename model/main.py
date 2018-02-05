@@ -82,7 +82,7 @@ class Generator(object):
             )
 
         z_pred, sample_updates = output_layer.sample_all(h_final)
-        self.non_sampled_zpred, _ = self.output_layer.sample_all_pretrain(h_final)
+        self.non_sampled_zpred, _ = output_layer.sample_all_pretrain(h_final)
 
         z_pred = self.z_pred = theano.gradient.disconnected_grad(z_pred)
         self.sample_updates = sample_updates
@@ -394,7 +394,6 @@ class Model(object):
         if args.trained_emb:
             fname = args.trained_emb + ('pretrain/' if pretrain else '') + myio.create_fname_identifier(args) + '.txt'
             ofp = open(fname, 'w+')
-
             vectors = self.embedding_layer.params[0].get_value()
             emb_len = args.embedding_dim
 

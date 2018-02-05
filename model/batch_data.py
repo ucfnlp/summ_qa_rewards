@@ -165,7 +165,7 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, padding_id, b_len
     bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=padding_id).astype('int32') for x in lstx])
 
-    bm = create_unigram_masks(lstx, unigrams, max_len, stopwords)
+    bm = create_unigram_masks(lstx, unigrams, max_len, stopwords, args)
 
     bm = np.column_stack([m for m in bm])
     by = np.column_stack([y for y in by])
@@ -209,7 +209,7 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
     return by, unigrams, be
 
 
-def create_unigram_masks(lstx, unigrams, max_len, stopwords):
+def create_unigram_masks(lstx, unigrams, max_len, stopwords, args):
     masks = []
 
     for i in xrange(len(lstx)):
@@ -223,7 +223,7 @@ def create_unigram_masks(lstx, unigrams, max_len, stopwords):
             w2 = lstx[i][j+1]
 
             if w1 in unigrams[i] and w2 in unigrams[i]:
-                if contains_single_valid_word(w1, w2, stopwords):
+                if contains_single_valid_word(w1, w2, stopwords, args.bigram_toggle):
                     m[j] = 1
 
         masks.append(m)
@@ -231,9 +231,13 @@ def create_unigram_masks(lstx, unigrams, max_len, stopwords):
     return masks
 
 
-def contains_single_valid_word(w1, w2, stopwords):
-    if w1 in stopwords or w2 in stopwords:
-        return False
+def contains_single_valid_word(w1, w2, stopwords, and_):
+    if and_:
+        if w1 in stopwords and w2 in stopwords:
+            return False
+    else:
+        if w1 in stopwords or w2 in stopwords:
+            return False
     return True
 
 
