@@ -38,6 +38,11 @@ def get_args():
                         default=False,
                         help='Pretrain Generator')
 
+    parser.add_argument('--bilinear',
+                        type='bool',
+                        default=True,
+                        help='Bilinear attn.')
+
     parser.add_argument('--bigram_toggle',
                         type='bool',
                         default=False,
@@ -81,7 +86,7 @@ def get_args():
 
     parser.add_argument('--inp_len',
                         type=int,
-                        default=400,
+                        default=100,
                         help='length of single sentence')
 
     parser.add_argument('--hl_len',
@@ -292,27 +297,27 @@ def get_args():
                         help="whether to use the states of all layers"
                         )
 
-    parser.add_argument("--coeff_summ_len",
+    parser.add_argument("--coeff_z",
                         type=float,
-                        default=1.0,
-                        help="Scaling zsum"
+                        default=50.0,
+                        help="Scaling in encoder loss"
                         )
 
     parser.add_argument("--coeff_adequacy",
                         type=float,
-                        default=10.0,
+                        default=15.0,
                         help="Scaling in encoder loss"
-                        )
-
-    parser.add_argument("--coeff_fluency",
-                        type=float,
-                        default=1.0,
-                        help="Scaling zdiff"
                         )
 
     parser.add_argument("--coeff_cost_scale",
                         type=float,
                         default=1.0
+                        )
+
+    parser.add_argument("--z_perc",
+                        type=float,
+                        default=0.4,
+                        help="z_perc"
                         )
 
     parser.add_argument("--beta1",

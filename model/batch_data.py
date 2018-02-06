@@ -40,6 +40,7 @@ def create_vocab(args):
 def create_stopwords(args, vocab_map, lst_words):
     ifp = open(args.stopwords, 'r')
     stopwords = set()
+    punctuation = set()
 
     # Add stopwords
     for line in ifp:
@@ -57,11 +58,11 @@ def create_stopwords(args, vocab_map, lst_words):
         w = lst_words[i]
 
         if len(tokenizer.tokenize(w)) == 0:
-            stopwords.add(i)
+            punctuation.add(i)
 
-    record_stopwords(stopwords, lst_words)
+    record_stopwords(stopwords, punctuation, lst_words)
 
-    return stopwords
+    return stopwords, punctuation
 
 
 def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_id, stopwords, sort=True, model_type=''):
@@ -223,7 +224,7 @@ def create_unigram_masks(lstx, unigrams, max_len, stopwords, args):
             w2 = lstx[i][j+1]
 
             if w1 in unigrams[i] and w2 in unigrams[i]:
-                if contains_single_valid_word(w1, w2, stopwords, args.bigram_toggle):
+                if contains_single_valid_word(w1, w2, stopwords):
                     m[j] = 1
 
         masks.append(m)
@@ -231,13 +232,16 @@ def create_unigram_masks(lstx, unigrams, max_len, stopwords, args):
     return masks
 
 
-def contains_single_valid_word(w1, w2, stopwords, and_):
-    if and_:
-        if w1 in stopwords and w2 in stopwords:
-            return False
-    else:
-        if w1 in stopwords or w2 in stopwords:
-            return False
+def contains_single_valid_word(w1, w2, stopwords):
+    sw = stopwords[0]
+    punct = stopwords[1]
+
+    if w1 in punct or w2 in punct:
+        return False
+
+    if w1 in sw and w2 in sw:
+        return False
+
     return True
 
 
@@ -255,7 +259,7 @@ def process_ent(n_classes, lste):
     return ret_e
 
 
-def record_stopwords(stopwords, lst_words):
+def record_stopwords(stopwords, punctuation, lst_words):
     ofp = open('../data/stopword_map.json', 'w+')
     data = dict()
 
@@ -263,8 +267,15 @@ def record_stopwords(stopwords, lst_words):
         data[w_idx] = lst_words[w_idx]
 
     json_d = dict()
-    json_d['tokens'] = data
+    json_d['stopwords'] = data
+    data = dict()
+
+    for w_idx in punctuation:
+        data[w_idx] = lst_words[w_idx]
+
+    json_d['punctuation'] = data
     json.dump(json_d, ofp)
+
     ofp.close()
 
 

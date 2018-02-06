@@ -14,7 +14,7 @@ import myio
 import summarization_args
 from nn.basic import LSTM, apply_dropout, Layer
 from nn.extended_layers import ExtRCNN, ZLayer, ExtLSTM, HLLSTM, RCNN
-from nn.initialization import get_activation_by_name, softmax
+from nn.initialization import get_activation_by_name, softmax, create_shared, random_init
 from nn.optimization import create_optimization_updates
 from util import say
 
@@ -140,7 +140,7 @@ class Generator(object):
 
         z_totals = T.sum(self.masks, axis=0, dtype=theano.config.floatX)
 
-        zsum = T.abs_(self.zsum / z_totals - 0.15)
+        zsum = T.abs_(self.zsum / z_totals - args.z_perc)
         zdiff = self.zdiff / z_totals
 
         self.logpz = logpz = T.sum(self.logpz, axis=0)
@@ -168,6 +168,7 @@ class Encoder(object):
         padding_id = embedding_layer.vocab_map["<padding>"]
 
         layers = []
+        params = self.params = []
 
         # hl_inp_len x (batch * n)
         y = self.y = T.imatrix('y')
@@ -225,18 +226,20 @@ class Encoder(object):
         # (batch * n) x inp_len x (2 * n_d)
         gen_h_final = T.tile(h_concat_x, (args.n, 1)).dimshuffle((1, 0, 2))
 
-        # (batch * n) x inp_len x 1
-        inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
+        if args.bilinear:
+            w1 = create_shared(random_init((n_d*2, n_d*2)), name="w").dimshuffle(('x', 0, 1))
+            w1_tiled = T.tile(w1, (x.shape[1] * args.n, 1, 1))
+
+            bilinear = T.batched_dot(gen_h_final, w1_tiled)
+            inp_dot_hl = T.batched_dot(bilinear, h_concat_y)
+        else:
+            # (batch * n) x inp_len x 1
+            inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
+
         inp_dot_hl = inp_dot_hl - softmax_mask
         inp_dot_hl = inp_dot_hl.ravel()
 
         alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], args.inp_len)))
-        # inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
-        # inp_dot_hl = inp_dot_hl.ravel()
-        # tiled_x_mask = tiled_x_mask.ravel()
-
-        # alpha = self.softmax_mask(inp_dot_hl.reshape((args.n * x.shape[1], args.inp_len)),
-        #                           tiled_x_mask.reshape((args.n * x.shape[1], args.inp_len)))
 
         o = T.batched_dot(alpha, gen_h_final)
 
@@ -252,6 +255,7 @@ class Encoder(object):
 
         preds = output_layer.forward(o)
         self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
+
         cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
         loss_mat = cross_entropy.reshape((x.shape[1], args.n))
 
@@ -275,15 +279,11 @@ class Encoder(object):
         loss = self.loss = T.mean(loss_vec)
 
         z_totals = T.sum(T.neq(x, padding_id), axis=0, dtype=theano.config.floatX)
-        self.zsum = zsum = T.abs_(self.zsum / z_totals - 0.15)
+        self.zsum = zsum = T.abs_(zsum / z_totals - args.z_perc)
         self.zdiff = zdiff = zdiff / z_totals
 
-        if args.bigram_loss:
-            self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (
-                        (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff)
-        else:
-            self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (
-                        args.coeff_summ_len * zsum + args.coeff_fluency * zdiff)
+        self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (1 - bigram_loss) + args.coeff_z * (
+                    2 * zsum + zdiff)
 
         # baseline = T.mean(cost_vec)
         # self.cost_vec = cost_vec = cost_vec - baseline
@@ -292,7 +292,6 @@ class Encoder(object):
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
         self.obj = T.mean(cost_vec)
 
-        params = self.params = []
         for l in layers:
             for p in l.params:
                 params.append(p)
