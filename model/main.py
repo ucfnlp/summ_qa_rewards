@@ -16,6 +16,7 @@ from nn.basic import LSTM, apply_dropout, Layer
 from nn.extended_layers import ExtRCNN, ZLayer, ExtLSTM, HLLSTM, RCNN
 from nn.initialization import get_activation_by_name, softmax, create_shared, random_init
 from nn.optimization import create_optimization_updates
+from nn.advanced import Bilinear
 from util import say
 
 
@@ -227,11 +228,10 @@ class Encoder(object):
         gen_h_final = T.tile(h_concat_x, (args.n, 1)).dimshuffle((1, 0, 2))
 
         if args.bilinear:
-            w1 = create_shared(random_init((n_d*2, n_d*2)), name="w").dimshuffle(('x', 0, 1))
-            w1_tiled = T.tile(w1, (x.shape[1] * args.n, 1, 1))
+            bilinear_l = Bilinear(n_d, x.shape[1], args.n)
+            inp_dot_hl = bilinear_l.forward(gen_h_final, h_concat_y)
 
-            bilinear = T.batched_dot(gen_h_final, w1_tiled)
-            inp_dot_hl = T.batched_dot(bilinear, h_concat_y)
+            params.append(bilinear_l.params[0])
         else:
             # (batch * n) x inp_len x 1
             inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)

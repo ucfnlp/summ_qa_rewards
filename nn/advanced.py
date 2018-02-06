@@ -252,142 +252,30 @@ class AttentionLayer(Layer):
 '''
 
 
-class BilinearAttentionLayer(Layer):
-    def __init__(self, n_d, activation, weighted_output=True):
-        self.n_d = n_d
-        self.activation = activation
-        self.weighted_output = weighted_output
+class Bilinear(object):
+    def __init__(self, n_d, batch_size, n):
+        self.batch_size, self.n, self.n_d = batch_size, n, n_d
         self.create_parameters()
 
     def create_parameters(self):
-        n_d = self.n_d
-        self.P = create_shared(random_init((n_d, n_d)), name="P")
-        self.W_r = create_shared(random_init((n_d, n_d)), name="W_r")
-        self.W_h = create_shared(random_init((n_d, n_d)), name="W_h")
-        self.b = create_shared(random_init((n_d,)), name="b")
-        self.lst_params = [ self.P, self.W_r, self.W_h, self.b ]
+        self.w1 = create_shared(random_init((self.n_d*2, self.n_d*2)), name="w")
 
-    '''
-        One step of attention activation.
+    def forward(self, h_final, h_y):
+        self.w1.dimshuffle(('x', 0, 1))
+        w1_tiled = T.tile(self.w1, (self.batch_size * self.n, 1, 1))
 
-        Inputs
-        ------
+        bilinear = T.batched_dot(h_final, w1_tiled)
+        inp_dot_hl = T.batched_dot(bilinear, h_y)
 
-        h_before        : the state before attention at time/position t
-        h_after_tm1     : the state after attention at time/position t-1; not used
-                          because the current attention implementation is not
-                          recurrent
-        C               : the context to pay attention to
-        mask            : which positions are valid for attention; specify this when
-                          some tokens in the context are non-meaningful tokens such
-                          as paddings
-
-        Outputs
-        -------
-
-        return the state after attention at time/position t
-    '''
-    def forward(self, h_before, h_after_tm1, C, mask=None):
-        # C is batch*len*d
-        # h is batch*d
-        # mask is batch*len
-
-        # batch*1*d
-        #M = T.dot(h_before, self.P).dimshuffle((0,'x',1))
-        M = T.dot(h_before, self.P).reshape((h_before.shape[0], 1, h_before.shape[1]))
-
-        # batch*len*1
-        alpha = T.nnet.softmax(
-                    T.sum(C * M, axis=2)
-                )
-        alpha = alpha.reshape((alpha.shape[0], alpha.shape[1], 1))
-        if mask is not None:
-            eps = 1e-8
-            if mask.dtype != theano.config.floatX:
-                mask = T.cast(mask, theano.config.floatX)
-            alpha = alpha*mask.dimshuffle((0,1,'x'))
-            alpha = alpha / (T.sum(alpha, axis=1).dimshuffle((0,1,'x'))+eps)
-
-        # batch * d
-        r = T.sum(C*alpha, axis=1)
-
-        # batch * d
-        if self.weighted_output:
-            beta = T.nnet.sigmoid(
-                    T.dot(r, self.W_r) + T.dot(h_before, self.W_h) + self.b
-                )
-            h_after = beta*h_before + (1.0-beta)*r
-        else:
-            h_after = self.activation(
-                    T.dot(r, self.W_r) + T.dot(h_before, self.W_h) + self.b
-                )
-        return h_after
-
-    '''
-        Apply the attention-based activation to all input tokens x_1, ..., x_n
-
-        Return the post-activation representations
-    '''
-    def forward_all(self, x, C, mask=None):
-        # x is len1*batch*d
-        # C is batch*len2*d
-        # mask is batch*len2
-
-        C2 = C.dimshuffle(('x',0,1,2))
-
-        # batch*len1*d
-        M = T.dot(x, self.P).dimshuffle((1,0,2))
-        # batch*d*len2
-        C3 = C.dimshuffle((0,2,1))
-
-        alpha = T.batched_dot(M, C3).dimshuffle((1,0,2))
-        alpha = T.nnet.softmax(
-                    alpha.reshape((-1, C.shape[1]))
-                )
-        alpha = alpha.reshape((x.shape[0],x.shape[1],C.shape[1],1))
-        if mask is not None:
-            # mask is batch*len1
-            if mask.dtype != theano.config.floatX:
-                mask = T.cast(mask, theano.config.floatX)
-            mask = mask.dimshuffle(('x',0,1,'x'))
-            alpha = alpha*mask
-            alpha = alpha / (T.sum(alpha, axis=2).dimshuffle((0,1,2,'x')) + 1e-8)
-
-        # len1*batch*d
-        r = T.sum(C2*alpha, axis=2)
-
-        # len1*batch*d
-        if self.weighted_output:
-            beta = T.nnet.sigmoid(
-                        T.dot(r, self.W_r) + T.dot(x, self.W_h) + self.b
-                    )
-            h = beta*x + (1.0-beta)*r
-        else:
-            h = self.activation(
-                    T.dot(r, self.W_r) + T.dot(x, self.W_h) + self.b
-                )
-
-        '''
-            The current version is non-recurrent, so theano scan is not needed.
-            Use scan when recurrent attention is implemented
-        '''
-        #func = lambda h, r: self.one_step(h, None, r)
-        #h, _ = theano.scan(
-        #            fn = func,
-        #            sequences = [ x, r ]
-        #        )
-        return h
-
+        return inp_dot_hl
 
     @property
     def params(self):
-        return self.lst_params
+        return [self.w1]
 
     @params.setter
     def params(self, param_list):
-        assert len(param_list) == len(self.lst_params)
-        for p, q in zip(self.lst_params, param_list):
-            p.set_value(q.get_value())
+        self.w1.set_value(param_list[0].get_value())
 
 '''
     This class implements the recurrent convolutional network model described in

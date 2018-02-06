@@ -299,13 +299,13 @@ def get_args():
 
     parser.add_argument("--coeff_z",
                         type=float,
-                        default=50.0,
+                        default=10.0,
                         help="Scaling in encoder loss"
                         )
 
     parser.add_argument("--coeff_adequacy",
                         type=float,
-                        default=15.0,
+                        default=10.0,
                         help="Scaling in encoder loss"
                         )
 
