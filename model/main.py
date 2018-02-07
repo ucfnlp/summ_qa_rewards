@@ -100,7 +100,7 @@ class Generator(object):
         self.zdiff = T.sum(T.abs_(z[1:]-z[:-1]), axis=0, dtype=theano.config.floatX)
 
         params = self.params = [ ]
-        for l in layers + [ output_layer ]:
+        for l in layers + [ output_layer ] + [embedding_layer]:
             for p in l.params:
                 params.append(p)
 
@@ -292,7 +292,7 @@ class Encoder(object):
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
         self.obj = T.mean(cost_vec)
 
-        for l in layers:
+        for l in layers + [embedding_layer]:
             for p in l.params:
                 params.append(p)
 
@@ -801,7 +801,7 @@ class Model(object):
                         obj, z, zsum, zdiff,cost_g = train_generator(bx, bm)
                         zsum_all.append(np.mean(zsum))
                         z_diff_all.append(np.mean(zdiff))
-                        z_pred_all.append(np.mean(np.sum(z, axis=1)/400))
+                        z_pred_all.append(np.mean(np.sum(z, axis=1)))
                         obj_all.append(np.mean(obj))
 
                         train_cost += obj

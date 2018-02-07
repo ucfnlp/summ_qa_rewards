@@ -111,6 +111,7 @@ def create_fname_identifier(args):
            '_epochs_' + str(args.max_epochs) + \
            '_layer_' + str(args.layer) + \
            '_bigram_loss_' + str(args.bigram_loss) + \
+           '_bilinear_' + str(args.bilinear) + \
            '_coeff_z_' + str(args.coeff_z) + \
            '_coeff_adequacy_' + str(args.coeff_adequacy) + \
            '_coeff_cost_scale_' + str(args.coeff_cost_scale)
