@@ -287,7 +287,11 @@ class Encoder(object):
 
         if args.cost_vec_var:
             baseline = T.mean(cost_vec)
-            self.cost_vec = cost_vec = cost_vec - baseline
+
+            if args.cost_vec_var_rev:
+                self.cost_vec = cost_vec = cost_vec - baseline
+            else:
+                self.cost_vec = cost_vec = baseline - cost_vec
         else:
             self.cost_vec = cost_vec
 

@@ -43,6 +43,11 @@ def get_args():
                         default=False,
                         help='Constrain variance of cost vector')
 
+    parser.add_argument('--cost_vec_var_rev',
+                        type='bool',
+                        default=False,
+                        help='Constrain variance of cost vector')
+
     parser.add_argument('--bilinear',
                         type='bool',
                         default=True,
