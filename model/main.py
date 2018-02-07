@@ -282,12 +282,14 @@ class Encoder(object):
         self.zsum = zsum = T.abs_(zsum / z_totals - args.z_perc)
         self.zdiff = zdiff = zdiff / z_totals
 
-        self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (1 - bigram_loss) + args.coeff_z * (
+        cost_vec = loss_vec + args.coeff_adequacy * (1 - bigram_loss) + args.coeff_z * (
                     2 * zsum + zdiff)
 
         if args.cost_vec_var:
             baseline = T.mean(cost_vec)
             self.cost_vec = cost_vec = cost_vec - baseline
+        else:
+            self.cost_vec = cost_vec
 
         self.logpz = logpz = T.sum(logpz, axis=0)
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
