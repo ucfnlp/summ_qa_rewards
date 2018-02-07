@@ -285,8 +285,9 @@ class Encoder(object):
         self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (1 - bigram_loss) + args.coeff_z * (
                     2 * zsum + zdiff)
 
-        # baseline = T.mean(cost_vec)
-        # self.cost_vec = cost_vec = cost_vec - baseline
+        if args.cost_vec_var:
+            baseline = T.mean(cost_vec)
+            self.cost_vec = cost_vec = cost_vec - baseline
 
         self.logpz = logpz = T.sum(logpz, axis=0)
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
