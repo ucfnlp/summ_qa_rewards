@@ -345,7 +345,7 @@ def save_test_results_rouge(args, z, x):
 
     r = Rouge155()
     r.system_dir = rouge_fname
-    r.model_dir = args.model_summ_path
+    r.model_dir = args.model_summ_path + 'test/'
     r.system_filename_pattern = 'sum.(\d+).txt'
     r.model_filename_pattern = 'test_' + args.source + '_#ID#.txt'
 

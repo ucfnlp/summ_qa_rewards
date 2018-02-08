@@ -332,7 +332,7 @@ class Model(object):
         self.generator.ready()
         self.dropout = self.generator.dropout
         self.x = self.generator.x
-        self.z = self.generator.z_pred
+        self.z = self.generator.non_sampled_zpred
 
     def ready_pretrain(self):
         args, embedding_layer= self.args, self.embedding_layer
