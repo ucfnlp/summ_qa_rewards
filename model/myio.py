@@ -125,9 +125,9 @@ def create_json_filename(args):
     return path + filename
 
 
-def get_readable_file(args, epoch):
+def get_readable_file(args, epoch, test=False):
     path = args.train_output_readable
-    filename = create_fname_identifier(args) + ('_e_' + str(epoch + 1)  if epoch is not None else '') + '.out'
+    filename = create_fname_identifier(args) + ('_e_' + str(epoch + 1)  if epoch is not None else '') + ('_TEST' if test else '') + '.out'
 
     return path + filename
 
@@ -150,7 +150,7 @@ def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
     epoch_data['obj'] = float(np.mean(obj))
     epoch_data['zsum'] = float(np.mean(np.ravel(zsum)))
     epoch_data['zdiff'] = float(np.mean(np.ravel(z_diff)))
-    epoch_data['z_pred'] = float(np.sum(np.ravel(z_pred)))
+    epoch_data['z_pred'] = float(np.mean(z_pred))
 
     ofp_json['e' + str(epoch)] = epoch_data
 
@@ -293,25 +293,72 @@ def eval_baseline(args, bm, rx, type_):
     shutil.rmtree(tmp_dir)
 
 
-def save_test_results_rouge(args, z, test_batches_x, emb_layer):
+def save_test_results_rouge(args, z, x):
     s_num = 0
+    epoch = None
+
+    filename_ = get_readable_file(args, epoch, test=True)
+    ofp_samples = open(filename_, 'w+')
+    ofp_samples_system = []
+
+    model_specific_dir = create_fname_identifier(args).replace('.', '_') + '_TEST/'
+    rouge_fname = args.system_summ_path + model_specific_dir
+
+    if not os.path.exists(rouge_fname):
+        os.mkdir(rouge_fname)
 
     for i in xrange(len(z)):
 
         for j in xrange(len(z[i][0])):
-
-            ofp_for_rouge = open(args.system_summ_path + 'source_' + str(args.source) + '_test.' + str(s_num).zfill(6) + '.txt', 'w+')
+            filename = rouge_fname + 'sum.' + str(s_num).zfill(6) + '.txt'
+            ofp_for_rouge = open(filename, 'w+')
+            ofp_system_output = []
 
             for k in xrange(len(z[i])):
-                word = emb_layer.lst_words[test_batches_x[i][k][j]]
+                if k >= len(x[i][j]):
+                    break
 
-                if word == '<padding>' or word == '<unk>' or z[i][k][j] == 0:
+                word = x[i][j][k].encode('utf-8')
+
+                if z[i][k][j] < 0.5:
                     continue
 
                 ofp_for_rouge.write(word + ' ')
+                ofp_system_output.append(word)
 
+            ofp_samples_system.append(' '.join(ofp_system_output))
             ofp_for_rouge.close()
             s_num += 1
+
+    for i in xrange(len(ofp_samples_system)):
+
+        ofp_samples.write('System Summary :')
+
+        if len(ofp_samples_system[i]) == 0:
+            ofp_samples.write('**No Summary**')
+        else:
+            ofp_samples.write(ofp_samples_system[i])
+
+        ofp_samples.write('\n\n')
+
+    ofp_samples.close()
+
+    r = Rouge155()
+    r.system_dir = rouge_fname
+    r.model_dir = args.model_summ_path
+    r.system_filename_pattern = 'sum.(\d+).txt'
+    r.model_filename_pattern = 'test_' + args.source + '_#ID#.txt'
+
+    fname = args.rouge_dir + 'test_data_rouge.out'
+    ofp = open(fname, 'w+')
+
+    ofp.write(r.convert_and_evaluate())
+    ofp.close()
+
+    tmp_dir = r._config_dir
+    print 'Cleaning up..', tmp_dir
+
+    shutil.rmtree(tmp_dir)
 
 
 def save_dev_results_r(args, probs, x, embedding):

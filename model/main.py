@@ -123,7 +123,7 @@ class Generator(object):
         new_probs = self.output_layer.forward_all(self.h_final, new_bm)
 
         cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.masks
-        self.obj = obj = T.mean(cross_ent)
+        self.obj = obj = T.mean(T.sum(cross_ent, axis=0))
         self.cost_g = obj * args.coeff_cost_scale + self.l2_cost
 
     def pretrain_sampling(self):
@@ -462,13 +462,10 @@ class Model(object):
             updates=self.generator.sample_updates
         )
 
-        padding_id = self.embedding_layer.vocab_map["<padding>"]
-        test_batches_x = myio.create_test(args, test, padding_id)
-
         self.dropout.set_value(0.0)
-        z = self.evaluate_test_data(test_batches_x, test_generator)
+        z, x = self.evaluate_test_data(test_generator)
 
-        myio.save_test_results_rouge(args, z, test_batches_x, self.embedding_layer)
+        myio.save_test_results_rouge(args, z, x)
 
     def dev(self):
 
@@ -727,7 +724,7 @@ class Model(object):
         train_generator = theano.function(
             inputs=[self.x, self.bm],
             outputs=[self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g],
-            updates=updates_g.items() + self.generator.sample_updates
+            updates=updates_g.items()
         )
 
         unchanged = 0
@@ -964,15 +961,30 @@ class Model(object):
 
         return tot_obj / float(N), dev_z, x, sha_ls, np.mean(dev_acc)
 
-    def evaluate_test_data(self, batches_x, eval_func):
-        dev_z = []
+    def evaluate_test_data(self, eval_func):
+        N = 0
 
-        for bx in zip(batches_x):
-            bz = eval_func(bx)
+        test_z = []
+        x = []
 
-            dev_z.append(bz)
+        num_files = args.num_files_dev
 
-        return dev_z
+        for i in xrange(num_files):
+            batches_x, _, _, batches_rx = myio.load_batches(
+                args.batch_dir + args.source + 'test', i)
+
+            cur_len = len(batches_x)
+
+            for j in xrange(cur_len):
+                bx, rx = batches_x[j], batches_rx[j]
+                bz = eval_func(bx)
+
+                x.append(rx)
+                test_z.append(bz)
+
+            N += len(batches_x)
+
+        return test_z, x
 
     def eval_acc(self,e, preds):
         gs = np.argmax(e, axis=1)
