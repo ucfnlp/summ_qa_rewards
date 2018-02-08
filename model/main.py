@@ -453,7 +453,7 @@ class Model(object):
         for x, v in zip(self.generator.params, gparams):
             x.set_value(v)
 
-    def test(self, test):
+    def test(self):
         args = self.args
 
         test_generator = theano.function(
@@ -1079,7 +1079,7 @@ def main():
 
     elif args.test:
         model.load_model(args.save_model + args.load_model, True)
-        model.test(test_x)
+        model.test()
 
 
 if __name__ == "__main__":
