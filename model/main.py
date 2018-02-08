@@ -1001,9 +1001,6 @@ def main():
 
     n_classes =args.nclasses
 
-    if args.test:
-        test_x = myio.read_docs(args, 'test')
-
     model = Model(
         args=args,
         embedding_layer=embedding_layer,
