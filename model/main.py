@@ -282,18 +282,8 @@ class Encoder(object):
         self.zsum = zsum = T.abs_(zsum / z_totals - args.z_perc)
         self.zdiff = zdiff = zdiff / z_totals
 
-        cost_vec = loss_vec + args.coeff_adequacy * (1 - bigram_loss) + args.coeff_z * (
+        self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (1 - bigram_loss) + args.coeff_z * (
                     2 * zsum + zdiff)
-
-        if args.cost_vec_var:
-            baseline = T.mean(cost_vec)
-
-            if args.cost_vec_var_rev:
-                self.cost_vec = cost_vec = cost_vec - baseline
-            else:
-                self.cost_vec = cost_vec = baseline - cost_vec
-        else:
-            self.cost_vec = cost_vec
 
         self.logpz = logpz = T.sum(logpz, axis=0)
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
@@ -636,7 +626,7 @@ class Model(object):
                         z_diff_all.append(np.mean(zdiff))
                         cost_logpz_all.append(np.mean(cost_logpz))
                         logpz_all.append(np.mean(logpz))
-                        z_pred_all.append(np.mean(np.sum(z, axis=1)))
+                        z_pred_all.append(np.mean(np.sum(z, axis=0)))
                         cost_vec_all.append(np.mean(cost_vec))
                         bigram_loss_all.append(np.mean(bigram_loss))
 
@@ -808,7 +798,7 @@ class Model(object):
                         obj, z, zsum, zdiff,cost_g = train_generator(bx, bm)
                         zsum_all.append(np.mean(zsum))
                         z_diff_all.append(np.mean(zdiff))
-                        z_pred_all.append(np.mean(np.sum(z, axis=1)))
+                        z_pred_all.append(np.mean(np.sum(z, axis=0)))
                         obj_all.append(np.mean(obj))
 
                         train_cost += obj
