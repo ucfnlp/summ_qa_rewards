@@ -84,8 +84,10 @@ def load_batches(name, iteration):
     ifp.close()
     if len(data) == 6:
         return data[0], data[1], data[2], data[3], data[4], data[5]
-    else:
+    elif len(data) == 5:
         return data[0], data[1], data[2], data[3], data[4]
+    else:
+        return data[0], data[1], data[2], data[3]
 
 
 def round_batch(lstx, lsty, lste, b_len):
@@ -223,14 +225,14 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
     ofp_samples.close()
 
 
-def eval_baseline(args, bm, rx):
+def eval_baseline(args, bm, rx, type_):
     s_num = 0
 
     filename_ = args.train_output_readable + 'baseline_dev.out'
     ofp_samples = open(filename_, 'w+')
     ofp_samples_system = []
 
-    rouge_fname = args.system_summ_path + 'baseline/'
+    rouge_fname = args.system_summ_path + 'baseline_' + type_ + '_' + args.source + '/'
 
     for i in xrange(len(bm)):
 
@@ -277,7 +279,7 @@ def eval_baseline(args, bm, rx):
     r.system_dir = rouge_fname
     r.model_dir = args.model_summ_path
     r.system_filename_pattern = 'sum.(\d+).txt'
-    r.model_filename_pattern = 'dev_cnn_#ID#.txt'
+    r.model_filename_pattern = type_ + '_' + args.source + '_#ID#.txt'
 
     fname = args.rouge_dir + 'baseline_rouge.out'
     ofp = open(fname, 'w+')

@@ -201,9 +201,15 @@ def get_args():
                         help="Get baseline ROUGE for dev set, based on BG."
                         )
 
+    parser.add_argument("--test_baseline",
+                        type='bool',
+                        default=False,
+                        help="Get baseline ROUGE for test set, based on BG."
+                        )
+
     parser.add_argument("--test",
                         type=str,
-                        default="",
+                        default="../data/test_model.json",
                         help="path to test data"
                         )
 

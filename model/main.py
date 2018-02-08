@@ -1027,7 +1027,25 @@ def main():
                 rx_ls.append(rx)
                 bm_ls.append(bm)
 
-        myio.eval_baseline(args, bm_ls, rx_ls)
+        myio.eval_baseline(args, bm_ls, rx_ls, 'dev')
+    elif args.test_baseline:
+        num_files = args.num_files_dev
+
+        rx_ls = []
+        bm_ls = []
+
+        for i in xrange(num_files):
+            batches_x, batches_bm, batches_sha, batches_rx = myio.load_batches(
+                args.batch_dir + args.source + 'test', i)
+
+            cur_len = len(batches_x)
+
+            for j in xrange(cur_len):
+                _, bm, _, rx = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j]
+                rx_ls.append(rx)
+                bm_ls.append(bm)
+
+        myio.eval_baseline(args, bm_ls, rx_ls, 'test')
 
     elif args.train:
 

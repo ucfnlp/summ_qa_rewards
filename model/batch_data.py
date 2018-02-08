@@ -14,7 +14,7 @@ def read_docs(args, type):
         data = json.load(data_file)
 
     if type == 'test':
-        return data['x']
+        return data['x'], data['y'], data['sha'], data['clean_y'], data['raw_x']
     elif type == 'dev':
         return data['x'], data['y'], data['e'], data['clean_y'], data['raw_x'], data['sha']
     else:
@@ -65,16 +65,65 @@ def create_stopwords(args, vocab_map, lst_words):
     return stopwords, punctuation
 
 
-def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_id, stopwords, sort=True, model_type=''):
-    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx  = [], [], [], [], [], []
+def create_batches_test(args, x, y, cy, sha, rx, batch_size, padding_id, stopwords):
+    batches_x, batches_bm, batches_sha, batches_rx = [], [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
     num_batches = 0
     num_files = 0
 
-    if args.sanity_check:
-        sort= False
-        M = 1
+    for i in xrange(M):
+        bx, bm = create_one_batch_test(
+            args,
+            x[i * batch_size:(i + 1) * batch_size],
+            y[i * batch_size:(i + 1) * batch_size],
+            cy[i * batch_size:(i + 1) * batch_size],
+            padding_id,
+            batch_size,
+            stopwords
+        )
+        bsh = sha[i * batch_size:(i + 1) * batch_size]
+
+        brx_ = rx[i * batch_size:(i + 1) * batch_size]
+        brx = []
+
+        for j in xrange(len(brx_)):
+            brx.append([w for sent in brx_[j] for w in sent])
+
+        batches_rx.append(brx)
+        batches_x.append(bx)
+        batches_bm.append(bm)
+        batches_sha.append(bsh)
+
+        num_batches += 1
+
+        if num_batches >= args.online_batch_size or i == M - 1:
+
+            fname = args.batch_dir + args.source + 'test'
+            print 'Creating file #', str(num_files + 1)
+
+            data = [
+                batches_x,
+                batches_bm,
+                batches_sha,
+                batches_rx
+            ]
+            with open(fname + str(num_files), 'w+') as ofp:
+                np.save(ofp, data)
+
+            batches_x, batches_bm, batches_sha, batches_rx = [], [], [], []
+            num_batches = 0
+            num_files += 1
+
+    print "Num Files :", num_files
+
+
+def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_id, stopwords, sort=True, model_type=''):
+    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx = [], [], [], [], [], []
+    N = len(x)
+    M = (N - 1) / batch_size + 1
+    num_batches = 0
+    num_files = 0
 
     if sort:
         perm = range(N)
@@ -143,19 +192,6 @@ def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_i
 
 
 def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, padding_id, b_len, stopwords):
-    """
-    Parameters
-    ----------
-    lstx : List of 1-a documents.
-
-    lsty : List of list of sentences
-        usually a preselected limit of input Highlights
-
-    lstve : List of all valid entity indexes to use in loss
-
-    lste : For each hl in lsty, the correct class
-
-    """
     max_len = args.inp_len
 
     assert min(len(x) for x in lstx) > 0
@@ -172,6 +208,25 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, padding_id, b_len
     by = np.column_stack([y for y in by])
 
     return bx, by, be, bm
+
+
+def create_one_batch_test(args, lstx_, lsty, lstcy, padding_id, b_len, stopwords):
+    max_len = args.inp_len
+    lstx = []
+    for i in xrange(len(lstx_)):
+        lstx.append([w for sent in lstx_[i] for w in sent])
+    assert min(len(x) for x in lstx) > 0
+
+    unigrams = process_hl_test(args, lsty, lstcy)
+
+    bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
+                                 constant_values=padding_id).astype('int32') for x in lstx])
+
+    bm = create_unigram_masks(lstx, unigrams, max_len, stopwords, args)
+
+    bm = np.column_stack([m for m in bm])
+
+    return bx, bm
 
 
 def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
@@ -208,6 +263,24 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
         be.extend(e_processed[i])
 
     return by, unigrams, be
+
+
+def process_hl_test(args, lsty, lstcy):
+    max_len_y = args.hl_len
+    unigrams = []
+
+    for i in xrange(len(lsty)):
+        sample_u = set()
+
+        for clean_hl in lstcy[i]:
+            trimmed_cy = clean_hl[:max_len_y]
+
+            for token in trimmed_cy:
+                sample_u.add(token)
+
+        unigrams.append(sample_u)
+
+    return unigrams
 
 
 def create_unigram_masks(lstx, unigrams, max_len, stopwords, args):
@@ -327,6 +400,26 @@ def main(args):
         del dev_clean_y
         del dev_rx
         del dev_sha
+
+        print '  Finished Dev Proc.'
+
+    if args.test:
+        print 'TEST data'
+        print '  Read JSON..'
+        #  data['x'], data['y'], data['sha'], data['clean_y'], data['raw_x']
+        test_x, test_y, test_sha, test_clean_y, test_rx = read_docs(args, 'test')
+
+        print '  Create batches..'
+
+        create_batches_test(args, test_x, test_y, test_clean_y, test_sha, test_rx, args.batch, pad_id, stopwords)
+
+        print '  Purge references..'
+
+        del test_x
+        del test_y
+        del test_clean_y
+        del test_rx
+        del test_sha
 
         print '  Finished Dev Proc.'
 

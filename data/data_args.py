@@ -146,7 +146,7 @@ def get_args():
 
     parser.add_argument('--test',
                         type=str,
-                        default="test.json",
+                        default="test_model.json",
                         help='Test Data')
 
     parser.add_argument('--intermediate',
