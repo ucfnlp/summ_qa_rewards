@@ -113,6 +113,7 @@ def create_fname_identifier(args):
            '_epochs_' + str(args.max_epochs) + \
            '_layer_' + str(args.layer) + \
            '_bilinear_' + str(args.bilinear) + \
+           '_ncl_' + str(args.nclasses) + \
            '_coeff_z_' + str(args.coeff_z) + \
            '_coeff_adequacy_' + str(args.coeff_adequacy) + \
            '_coeff_cost_scale_' + str(args.coeff_cost_scale)
@@ -181,6 +182,7 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
     filename_ = get_readable_file(args, epoch)
     ofp_samples = open(filename_, 'w+')
     ofp_samples_system = []
+    ofp_samples_sha = []
 
     model_specific_dir = create_fname_identifier(args).replace('.', '_') + '/'
     rouge_fname = args.system_summ_path + model_specific_dir
@@ -208,11 +210,12 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
                 ofp_system_output.append(word)
 
             ofp_samples_system.append(' '.join(ofp_system_output))
+            ofp_samples_sha.append(dev_sha[i][j])
             ofp_for_rouge.close()
             s_num += 1
 
     for i in xrange(len(ofp_samples_system)):
-        ofp_samples.write(str(dev_sha[i]))
+        ofp_samples.write(str(ofp_samples_sha[i]))
         ofp_samples.write('\nSystem Summary : ')
 
         if len(ofp_samples_system[i]) == 0:
@@ -300,6 +303,7 @@ def save_test_results_rouge(args, z, x, sha):
     filename_ = get_readable_file(args, epoch, test=True)
     ofp_samples = open(filename_, 'w+')
     ofp_samples_system = []
+    ofp_samples_sha = []
 
     model_specific_dir = create_fname_identifier(args).replace('.', '_') + '_TEST/'
     rouge_fname = args.system_summ_path + model_specific_dir
@@ -327,11 +331,12 @@ def save_test_results_rouge(args, z, x, sha):
                 ofp_system_output.append(word)
 
             ofp_samples_system.append(' '.join(ofp_system_output))
+            ofp_samples_sha.append(sha[i][j])
             ofp_for_rouge.close()
             s_num += 1
 
     for i in xrange(len(ofp_samples_system)):
-        ofp_samples.write(str(sha[i]))
+        ofp_samples.write(str(ofp_samples_sha[i]))
         ofp_samples.write('\nSystem Summary : ')
 
         if len(ofp_samples_system[i]) == 0:
