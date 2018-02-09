@@ -724,7 +724,7 @@ class Model(object):
         train_generator = theano.function(
             inputs=[self.x, self.bm],
             outputs=[self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g],
-            updates=updates_g.items() + self.generator.sample_updates
+            updates=updates_g.items()
         )
 
         unchanged = 0
@@ -967,7 +967,7 @@ class Model(object):
         test_z = []
         x = []
 
-        num_files = args.num_files_dev
+        num_files = args.num_files_test
 
         for i in xrange(num_files):
             batches_x, _, _, batches_rx = myio.load_batches(
@@ -1038,7 +1038,7 @@ def main():
 
         myio.eval_baseline(args, bm_ls, rx_ls, 'dev')
     elif args.test_baseline:
-        num_files = args.num_files_dev
+        num_files = args.num_files_test
 
         rx_ls = []
         bm_ls = []

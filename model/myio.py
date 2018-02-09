@@ -228,7 +228,7 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
 def eval_baseline(args, bm, rx, type_):
     s_num = 0
 
-    filename_ = args.train_output_readable + 'baseline_dev.out'
+    filename_ = args.train_output_readable + 'baseline_'+ type_ + '.out'
     ofp_samples = open(filename_, 'w+')
     ofp_samples_system = []
 
@@ -281,7 +281,7 @@ def eval_baseline(args, bm, rx, type_):
     r.system_filename_pattern = 'sum.(\d+).txt'
     r.model_filename_pattern = type_ + '_' + args.source + '_#ID#.txt'
 
-    fname = args.rouge_dir + 'baseline_rouge.out'
+    fname = args.rouge_dir + 'baseline_rouge_' + args.source + '_' + type_ + '.out'
     ofp = open(fname, 'w+')
 
     ofp.write(r.convert_and_evaluate())
@@ -345,7 +345,7 @@ def save_test_results_rouge(args, z, x):
 
     r = Rouge155()
     r.system_dir = rouge_fname
-    r.model_dir = args.model_summ_path.replace('dev', 'test')
+    r.model_dir = args.model_summ_path + 'test/'
     r.system_filename_pattern = 'sum.(\d+).txt'
     r.model_filename_pattern = 'test_' + args.source + '_#ID#.txt'
 

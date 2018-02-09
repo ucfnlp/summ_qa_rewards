@@ -165,6 +165,12 @@ def get_args():
                         help="Number of batches to have loaded onto ram at a given time - dev"
                         )
 
+    parser.add_argument("--num_files_test",
+                        type=int,
+                        default=1,
+                        help="Number of batches to have loaded onto ram at a given time - dev"
+                        )
+
     parser.add_argument("--load_model",
                         type=str,
                         default="",
