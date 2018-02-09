@@ -724,7 +724,7 @@ class Model(object):
         train_generator = theano.function(
             inputs=[self.x, self.bm],
             outputs=[self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g],
-            updates=updates_g.items()
+            updates=updates_g.items() + self.generator.sample_updates
         )
 
         unchanged = 0
