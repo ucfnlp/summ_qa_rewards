@@ -393,7 +393,7 @@ def get_rouge(args):
 
     r = Rouge155()
     r.system_dir = rouge_fname
-    r.model_dir = args.model_summ_path
+    r.model_dir = args.model_summ_path + 'dev/'
     r.system_filename_pattern = 'sum.(\d+).txt'
     r.model_filename_pattern = 'dev_cnn_#ID#.txt'
 
