@@ -463,9 +463,9 @@ class Model(object):
         )
 
         self.dropout.set_value(0.0)
-        z, x = self.evaluate_test_data(test_generator)
+        z, x, sha = self.evaluate_test_data(test_generator)
 
-        myio.save_test_results_rouge(args, z, x)
+        myio.save_test_results_rouge(args, z, x, sha)
 
     def dev(self):
 
@@ -687,6 +687,7 @@ class Model(object):
                         if args.save_model:
                             filename = args.save_model + myio.create_fname_identifier(args)
                             self.save_model(filename, args)
+                            json_train['BEST_DEV_EPOCH'] = epoch
 
                             myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
 
@@ -855,6 +856,7 @@ class Model(object):
                         if args.save_model:
                             filename = self.args.save_model + 'pretrain/' + myio.create_fname_identifier(self.args)
                             self.save_model(filename, self.args, pretrain=True)
+                            json_train['BEST_DEV_EPOCH'] = epoch
 
                             myio.save_dev_results(self.args, None, dev_z, x, sha_ls)
 
@@ -966,25 +968,27 @@ class Model(object):
 
         test_z = []
         x = []
+        sha_ls = []
 
         num_files = args.num_files_test
 
         for i in xrange(num_files):
-            batches_x, _, _, batches_rx = myio.load_batches(
+            batches_x, _, batches_sha, batches_rx = myio.load_batches(
                 args.batch_dir + args.source + 'test', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, rx = batches_x[j], batches_rx[j]
+                bx, rx, bsha = batches_x[j], batches_rx[j], batches_sha[j]
                 bz = eval_func(bx)
 
                 x.append(rx)
                 test_z.append(bz)
+                sha_ls.append(bsha)
 
             N += len(batches_x)
 
-        return test_z, x
+        return test_z, x, sha_ls
 
     def eval_acc(self,e, preds):
         gs = np.argmax(e, axis=1)

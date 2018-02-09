@@ -149,7 +149,7 @@ def get_args():
 
     parser.add_argument("--online_batch_size",
                         type=int,
-                        default=32,
+                        default=10,
                         help="Number of batches to have loaded onto ram at a given time"
                         )
 
