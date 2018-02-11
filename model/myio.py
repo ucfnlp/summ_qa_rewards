@@ -360,7 +360,7 @@ def save_test_results_rouge(args, z, x, sha):
     r.system_filename_pattern = 'sum.(\d+).txt'
     r.model_filename_pattern = 'test_' + args.source + '_#ID#.txt'
 
-    fname = args.rouge_dir + 'test_data_rouge.out'
+    fname = args.rouge_dir + create_fname_identifier(args) + '_test.out'
     ofp = open(fname, 'w+')
 
     ofp.write(r.convert_and_evaluate())
