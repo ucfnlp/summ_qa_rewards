@@ -106,17 +106,19 @@ def round_batch(lstx, lsty, lste, b_len):
 def create_fname_identifier(args):
     return 'source_' + str(args.source) + \
            '_pretrain_' + str(args.pretrain) + \
-           '_load_model_pretrain_' + str(args.load_model_pretrain) + \
-           '_train_data_embdim_' + str(args.embedding_dim) + \
-           '_vocab_size_' + str(args.vocab_size) + \
+           '_load_model_pre_' + str(args.load_model_pretrain) + \
+           '_train_data_edim_' + str(args.embedding_dim) + \
+           '_vocab_' + str(args.vocab_size) + \
            '_batch_' + str(args.batch) + \
            '_epochs_' + str(args.max_epochs) + \
            '_layer_' + str(args.layer) + \
-           '_bilinear_' + str(args.bilinear) + \
+           '_bilin_' + str(args.bilinear) + \
            '_ncl_' + str(args.nclasses) + \
-           '_coeff_z_' + str(args.coeff_z) + \
-           '_coeff_adequacy_' + str(args.coeff_adequacy) + \
-           '_coeff_cost_scale_' + str(args.coeff_cost_scale)
+           '_q' + str(args.n) + \
+           '_root_' + str(args.is_root) + \
+           '_cf_z_' + str(args.coeff_z) + \
+           '_cf_adq_' + str(args.coeff_adequacy) + \
+           '_cf_cst_scl_' + str(args.coeff_cost_scale)
 
 
 def create_json_filename(args):
@@ -278,7 +280,11 @@ def eval_baseline(args, bm, rx, type_):
 
     ofp_samples.close()
 
-    r = Rouge155()
+    if args.source == 'dm':
+        r = Rouge155(rouge_args='-e /home/kristjan/data1/softwares/rouge/ROUGE/RELEASE-1.5.5/data -c 95 -2 -1 -U -r 1000 -n 4 -w 1.2 -a -m -b 75')
+    else:
+        r = Rouge155()
+
     r.system_dir = rouge_fname
     r.model_dir = args.model_summ_path
     r.system_filename_pattern = 'sum.(\d+).txt'
@@ -396,7 +402,11 @@ def get_rouge(args):
     model_specific_dir = create_fname_identifier(args).replace('.', '_') + '/'
     rouge_fname = args.system_summ_path + model_specific_dir
 
-    r = Rouge155()
+    if args.source == 'dm':
+        r = Rouge155(rouge_args='-e /home/kristjan/data1/softwares/rouge/ROUGE/RELEASE-1.5.5/data -c 95 -2 -1 -U -r 1000 -n 4 -w 1.2 -a -m -b 75')
+    else:
+        r = Rouge155()
+
     r.system_dir = rouge_fname
     r.model_dir = args.model_summ_path + 'dev/'
     r.system_filename_pattern = 'sum.(\d+).txt'

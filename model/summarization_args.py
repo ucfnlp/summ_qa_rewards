@@ -43,6 +43,11 @@ def get_args():
                         default=True,
                         help='Bilinear attn.')
 
+    parser.add_argument('--is_root',
+                        type='bool',
+                        default=False,
+                        help='Entities are root words only')
+
     parser.add_argument('--bigram_toggle',
                         type='bool',
                         default=False,
