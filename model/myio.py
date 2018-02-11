@@ -354,9 +354,13 @@ def save_test_results_rouge(args, z, x, sha):
 
     ofp_samples.close()
 
-    r = Rouge155()
+    if args.source == 'dm':
+        r = Rouge155(rouge_args='-e /home/kristjan/data1/softwares/rouge/ROUGE/RELEASE-1.5.5/data -c 95 -2 -1 -U -r 1000 -n 4 -w 1.2 -a -m -b 75')
+    else:
+        r = Rouge155()
+
     r.system_dir = rouge_fname
-    r.model_dir = args.model_summ_path + 'test/'
+    r.model_dir = args.model_summ_path + ('test/' if args.source == 'cnn' else 'dm_test/')
     r.system_filename_pattern = 'sum.(\d+).txt'
     r.model_filename_pattern = 'test_' + args.source + '_#ID#.txt'
 
