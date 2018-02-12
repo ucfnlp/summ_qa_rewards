@@ -110,6 +110,7 @@ def create_fname_identifier(args):
            '_train_data_edim_' + str(args.embedding_dim) + \
            '_vocab_' + str(args.vocab_size) + \
            '_batch_' + str(args.batch) + \
+           '_inplen_' + str(args.inp_len) + \
            '_epochs_' + str(args.max_epochs) + \
            '_layer_' + str(args.layer) + \
            '_bilin_' + str(args.bilinear) + \
