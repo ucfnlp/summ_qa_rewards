@@ -940,11 +940,11 @@ class Model(object):
         sha_ls = []
         dev_acc = []
 
-        num_files = args.num_files_dev
+        num_files = self.args.num_files_dev
 
         for i in xrange(num_files):
             batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx = myio.load_batches(
-                args.batch_dir + args.source + 'dev', i)
+                self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
@@ -970,11 +970,11 @@ class Model(object):
         x = []
         sha_ls = []
 
-        num_files = args.num_files_test
+        num_files = self.args.num_files_test
 
         for i in xrange(num_files):
             batches_x, _, batches_sha, batches_rx = myio.load_batches(
-                args.batch_dir + args.source + 'test', i)
+                self.args.batch_dir + self.args.source + 'test', i)
 
             cur_len = len(batches_x)
 
