@@ -1,10 +1,11 @@
-from nltk.parse import stanford
 from nltk import Tree
 
 import sys
 import os
 import hashlib
 import json
+import time
+import codecs
 
 import parse_args
 
@@ -14,36 +15,40 @@ sys.setdefaultencoding('utf8')
 
 
 def process_data(args):
-    os.environ['CLASSPATH'] = args.cp
-    os.environ['STANFORD_PARSER'] = args.sp
-    os.environ['STANFORD_MODEL'] = args.sm
 
     raw_data = args.raw_data_cnn
-    train_urls, dev_urls, test_urls = get_url_sets(args)
 
-    parser = stanford.StanfordParser()
+    counter = 1
+    start_time = time.time()
 
-    counter = 0
+    articles = []
+    highlights = []
+    mapping = []
 
     for subdir, dirs, files in os.walk(raw_data):
         for file_in in files:
 
-            current_article = []
             current_highlights = []
+            current_article = []
 
             if file_in.startswith('.'):
                 continue
 
-            if counter % 10 == 0:
-                print 'Processing', counter + 1
+            if counter % 1000 == 0:
+                print 'Processing', counter
+                print (time.time() - start_time), 'seconds'
+                start_time = time.time()
+
             counter += 1
 
             sha = file_in.split('.')[0]
-            file_in = open(subdir + file_in, 'r')
+            file_in = codecs.open(subdir + file_in, 'r', 'utf-8-sig')
             incoming_hl = False
 
             for line in file_in:
-                if len(line.strip()) == 0:
+                line = line.rstrip()
+
+                if len(line) == 0:
                     continue
 
                 if '@highlight' in line:
@@ -59,29 +64,44 @@ def process_data(args):
             if len(current_article) == 0:
                 continue
 
-            catg = get_set(sha, train_urls, dev_urls, test_urls)
             sha = str(sha)
 
-            ofp = open(args.parsed_output_loc + catg + sha + '.json', 'w+')
-            output_json = dict()
+            cm = (len(current_article), len(current_highlights), sha)
 
-            p_ls = [current_article, current_highlights]
+            mapping.append(cm)
+            articles.append(current_article)
+            highlights.append(current_highlights)
 
-            for i in xrange(len(p_ls)):
-                sent_ls = []
-                sentences = parser.raw_parse_sents(p_ls[i])
+    ofp_articles = open(args.parsed_output_loc + 'articles.txt', 'w+')
+    ofp_highlights = open(args.parsed_output_loc + 'highlights.txt', 'w+')
+    ofp_lookup = open(args.parsed_output_loc + 'lookup.txt', 'w+')
 
-                for line in sentences:
-                    for sentence in line:
-                        sent_ls.append(tree2dict(sentence))
+    _len = len(articles)
 
-                if i == 0:
-                    output_json['article'] = sent_ls
-                else:
-                    output_json['highlights'] = sent_ls
+    total_hl = 0
+    total_art_s = 0
 
-            json.dump(output_json,ofp)
-            ofp.close()
+    for i in xrange(_len):
+        num_s_in_art = mapping[i][0]
+        num_s_in_hl = mapping[i][1]
+        sha = mapping[i][2]
+
+        ofp_lookup.write(str(num_s_in_art) + ' ' + str(num_s_in_hl) + ' ' + sha + '\n')
+
+        for j in xrange(num_s_in_art):
+            ofp_articles.write(articles[i][j].lower() + '\n')
+            total_art_s += 1
+
+        for j in xrange(num_s_in_hl):
+            ofp_highlights.write(highlights[i][j].lower() + '\n')
+            total_hl += 1
+
+    ofp_articles.close()
+    ofp_highlights.close()
+    ofp_lookup.close()
+
+    print 'Total article sentences', total_art_s
+    print 'Total hl', total_hl
 
 
 def tree2dict(tree):
