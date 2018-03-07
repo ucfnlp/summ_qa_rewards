@@ -6,9 +6,9 @@ import hashlib
 import json
 import time
 import codecs
+import numpy as np
 
 import parse_args
-
 
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -72,14 +72,18 @@ def process_data(args):
             articles.append(current_article)
             highlights.append(current_highlights)
 
-    ofp_articles = open(args.parsed_output_loc + 'articles.txt', 'w+')
-    ofp_highlights = open(args.parsed_output_loc + 'highlights.txt', 'w+')
-    ofp_lookup = open(args.parsed_output_loc + 'lookup.txt', 'w+')
-
     _len = len(articles)
 
     total_hl = 0
     total_art_s = 0
+    max_len = 0
+    all_lens = []
+
+    output_file_count = 1
+
+    ofp_articles = open(args.parsed_output_loc + 'articles_' + str(output_file_count) + '.txt', 'w+')
+    ofp_highlights = open(args.parsed_output_loc + 'highlights.txt', 'w+')
+    ofp_lookup = open(args.parsed_output_loc + 'lookup.txt', 'w+')
 
     for i in xrange(_len):
         num_s_in_art = mapping[i][0]
@@ -89,19 +93,31 @@ def process_data(args):
         ofp_lookup.write(str(num_s_in_art) + ' ' + str(num_s_in_hl) + ' ' + sha + '\n')
 
         for j in xrange(num_s_in_art):
-            ofp_articles.write(articles[i][j].lower() + '\n')
+            ofp_articles.write(articles[i][j] + '\n')
             total_art_s += 1
 
+            len_o_s = len(articles[i][j])
+            all_lens.append(len_o_s)
+
+            if len_o_s > max_len:
+                max_len = len_o_s
+
+            if total_art_s == args.out_limit:
+                ofp_articles.close()
+                output_file_count += 1
+                total_art_s = 0
+
+                ofp_articles = open(args.parsed_output_loc + 'articles_' + str(output_file_count) + '.txt', 'w+')
+
         for j in xrange(num_s_in_hl):
-            ofp_highlights.write(highlights[i][j].lower() + '\n')
+            ofp_highlights.write(highlights[i][j] + '.\n')
             total_hl += 1
 
     ofp_articles.close()
     ofp_highlights.close()
     ofp_lookup.close()
 
-    print 'Total article sentences', total_art_s
-    print 'Total hl', total_hl
+    print np.median(all_lens), max_len
 
 
 def tree2dict(tree):

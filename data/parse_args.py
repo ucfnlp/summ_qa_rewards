@@ -54,4 +54,9 @@ def get_args():
                         default='',
                         help='STANFORD_MODEL')
 
+    parser.add_argument('--out_limit',
+                        type=int,
+                        default=5000,
+                        help='Max sentences per file')
+
     return parser.parse_args()
