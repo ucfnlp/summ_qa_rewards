@@ -59,4 +59,9 @@ def get_args():
                         default=5000,
                         help='Max sentences per file')
 
+    parser.add_argument('--process',
+                        type='bool',
+                        default=False,
+                        help='Process raw input for SCNLP')
+
     return parser.parse_args()

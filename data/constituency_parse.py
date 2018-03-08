@@ -7,6 +7,7 @@ import json
 import time
 import codecs
 import numpy as np
+import re
 
 import parse_args
 
@@ -21,9 +22,11 @@ def process_data(args):
     counter = 1
     start_time = time.time()
 
-    articles = []
     highlights = []
     mapping = []
+    output_file_count = 1
+
+    ofp_filelist = open(args.parsed_output_loc + 'list_art.txt', 'w+')
 
     for subdir, dirs, files in os.walk(raw_data):
         for file_in in files:
@@ -65,23 +68,25 @@ def process_data(args):
                 continue
 
             sha = str(sha)
-
-            cm = (len(current_article), len(current_highlights), sha)
+            fname = 'articles/' + sha + '.txt'
+            cm = (len(current_article), len(current_highlights), sha, fname)
 
             mapping.append(cm)
-            articles.append(current_article)
             highlights.append(current_highlights)
 
-    _len = len(articles)
+            ofp_articles = open(args.parsed_output_loc + fname, 'w+')
+            ofp_filelist.write(fname +'\n')
+
+            for i in xrange(cm[0]):
+                ofp_articles.write(current_article[i] + '\n')
+            ofp_articles.close()
+            output_file_count += 1
+
+    _len = len(highlights)
+    ofp_filelist.close()
 
     total_hl = 0
-    total_art_s = 0
-    max_len = 0
-    all_lens = []
 
-    output_file_count = 1
-
-    ofp_articles = open(args.parsed_output_loc + 'articles_' + str(output_file_count) + '.txt', 'w+')
     ofp_highlights = open(args.parsed_output_loc + 'highlights.txt', 'w+')
     ofp_lookup = open(args.parsed_output_loc + 'lookup.txt', 'w+')
 
@@ -92,32 +97,12 @@ def process_data(args):
 
         ofp_lookup.write(str(num_s_in_art) + ' ' + str(num_s_in_hl) + ' ' + sha + '\n')
 
-        for j in xrange(num_s_in_art):
-            ofp_articles.write(articles[i][j] + '\n')
-            total_art_s += 1
-
-            len_o_s = len(articles[i][j])
-            all_lens.append(len_o_s)
-
-            if len_o_s > max_len:
-                max_len = len_o_s
-
-            if total_art_s == args.out_limit:
-                ofp_articles.close()
-                output_file_count += 1
-                total_art_s = 0
-
-                ofp_articles = open(args.parsed_output_loc + 'articles_' + str(output_file_count) + '.txt', 'w+')
-
         for j in xrange(num_s_in_hl):
             ofp_highlights.write(highlights[i][j] + '.\n')
             total_hl += 1
 
-    ofp_articles.close()
     ofp_highlights.close()
     ofp_lookup.close()
-
-    print np.median(all_lens), max_len
 
 
 def tree2dict(tree):
