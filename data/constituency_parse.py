@@ -98,11 +98,52 @@ def process_data(args):
         ofp_lookup.write(str(num_s_in_art) + ' ' + str(num_s_in_hl) + ' ' + sha + '\n')
 
         for j in xrange(num_s_in_hl):
-            ofp_highlights.write(highlights[i][j] + '.\n')
+            ofp_highlights.write(highlights[i][j] + ' .\n')
             total_hl += 1
 
     ofp_highlights.close()
     ofp_lookup.close()
+
+
+def recombine_scnlp_data(args):
+    ifp_lookup = open(args.parsed_output_loc + 'lookup.txt', 'r')
+
+    sha_ls = []
+    hl_ls = []
+
+    for line in ifp_lookup:
+        items = line.rstrip().split()
+
+        sha_ls.append(items[2])
+        hl_ls.append(items[1])
+
+        ifp_lookup.close()
+
+    ifp_hl = open(args.parsed_output_loc + 'highlights.txt.json', 'rb')
+    high_lights = json.load(ifp_hl)
+    high_lights = high_lights['sentences']
+
+    ifp_hl.close()
+
+    hl_idx_end = 0
+
+    for i in xrange(len(hl_ls)):
+        hl_idx_start = hl_idx_end
+        hl_idx_end += hl_ls[i]
+
+        ofp_combined = open(args.parsed_output_loc + 'processed/' + sha_ls[i] + '.json', 'w+')
+        ifp_article = open(args.parsed_output_loc + 'scnlp/' + sha_ls[i] + '.txt.json', 'rb')
+
+        document = json.load(ifp_article)['sentences']
+        ifp_article.close()
+
+        combined_json_out = dict()
+
+        combined_json_out['highlights'] = high_lights[hl_idx_start:hl_idx_end]
+        combined_json_out['document'] = document
+
+        json.dump(combined_json_out, ofp_combined)
+        ofp_combined.close()
 
 
 def tree2dict(tree):
