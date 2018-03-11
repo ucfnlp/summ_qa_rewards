@@ -86,9 +86,10 @@ def process_data(args):
     ofp_filelist.close()
 
     total_hl = 0
-
-    ofp_highlights = open(args.parsed_output_loc + 'highlights.txt', 'w+')
+    file_count = 1
+    ofp_highlights = open(args.parsed_output_loc + 'highlights'+str(file_count)+'.txt', 'w+')
     ofp_lookup = open(args.parsed_output_loc + 'lookup.txt', 'w+')
+    ofp_list_hl = open(args.parsed_output_loc + 'list_hl.txt', 'w+')
 
     for i in xrange(_len):
         num_s_in_art = mapping[i][0]
@@ -101,6 +102,19 @@ def process_data(args):
             ofp_highlights.write(highlights[i][j] + ' .\n')
             total_hl += 1
 
+        if total_hl > 30000:
+            ofp_highlights.close()
+
+            ofp_list_hl.write('highlights'+str(file_count)+'.txt'+'\n')
+
+            file_count += 1
+            total_hl = 0
+
+            ofp_highlights = open(args.parsed_output_loc + 'highlights' + str(file_count) + '.txt', 'w+')
+
+    ofp_list_hl.write('highlights' + str(file_count) + '.txt' + '\n')
+
+    ofp_list_hl.close()
     ofp_highlights.close()
     ofp_lookup.close()
 
@@ -111,21 +125,27 @@ def recombine_scnlp_data(args):
     sha_ls = []
     hl_ls = []
 
+    print 'Input sha1, hl idx'
     for line in ifp_lookup:
         items = line.rstrip().split()
 
         sha_ls.append(items[2])
-        hl_ls.append(items[1])
+        hl_ls.append(int(items[1]))
 
-        ifp_lookup.close()
+    ifp_lookup.close()
 
-    ifp_hl = open(args.parsed_output_loc + 'highlights.txt.json', 'rb')
+    print 'Load SCNLP..'
+    file_count = 1
+
+    ifp_hl = open(args.parsed_output_loc + 'highlights'+str(file_count)+'.txt.json', 'rb')
     high_lights = json.load(ifp_hl)
     high_lights = high_lights['sentences']
-
     ifp_hl.close()
 
+    print 'Combining..'
+
     hl_idx_end = 0
+    counter = 0
 
     for i in xrange(len(hl_ls)):
         hl_idx_start = hl_idx_end
@@ -144,6 +164,21 @@ def recombine_scnlp_data(args):
 
         json.dump(combined_json_out, ofp_combined)
         ofp_combined.close()
+
+        counter += 1
+
+        if hl_idx_end > 30000:
+
+            print 'Load SCNLP.. (more) ..'
+            file_count += 1
+            hl_idx_end = 0
+
+            ifp_hl = open(args.parsed_output_loc + 'highlights' + str(file_count) + '.txt.json', 'rb')
+            high_lights = json.load(ifp_hl)
+            high_lights = high_lights['sentences']
+
+            ifp_hl.close()
+
 
 
 def tree2dict(tree):
@@ -191,4 +226,8 @@ def get_set(file_in, train_urls, dev_urls, test_urls):
 
 if __name__ == '__main__':
     args = parse_args.get_args()
-    process_data(args)
+
+    if args.process:
+        process_data(args)
+    else:
+        recombine_scnlp_data(args)
