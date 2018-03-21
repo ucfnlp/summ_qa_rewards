@@ -124,6 +124,7 @@ def recombine_scnlp_data(args):
 
     sha_ls = []
     hl_ls = []
+    pos_set = set()
 
     print 'Input sha1, hl idx'
     for line in ifp_lookup:
@@ -140,9 +141,11 @@ def recombine_scnlp_data(args):
     ifp_hl = open(args.parsed_output_loc + 'highlights'+str(file_count)+'.txt.json', 'rb')
     high_lights = json.load(ifp_hl)
     high_lights = high_lights['sentences']
+
+    len_hl = len(high_lights)
     ifp_hl.close()
 
-    print 'Combining..'
+    print 'Combining..', len_hl
 
     hl_idx_end = 0
     counter = 0
@@ -158,8 +161,11 @@ def recombine_scnlp_data(args):
         ifp_article.close()
 
         combined_json_out = dict()
+        cur_hl = high_lights[hl_idx_start:hl_idx_end]
 
-        combined_json_out['highlights'] = high_lights[hl_idx_start:hl_idx_end]
+        process_pos(cur_hl, document, pos_set)
+
+        combined_json_out['highlights'] = cur_hl
         combined_json_out['document'] = document
 
         json.dump(combined_json_out, ofp_combined)
@@ -167,22 +173,68 @@ def recombine_scnlp_data(args):
 
         counter += 1
 
-        if hl_idx_end > 30000:
+        if hl_idx_end >= len_hl:
+            print 'Load SCNLP.. (more) ..', len_hl
 
-            print 'Load SCNLP.. (more) ..'
             file_count += 1
             hl_idx_end = 0
 
             ifp_hl = open(args.parsed_output_loc + 'highlights' + str(file_count) + '.txt.json', 'rb')
             high_lights = json.load(ifp_hl)
             high_lights = high_lights['sentences']
+            len_hl = len(high_lights)
 
             ifp_hl.close()
 
 
-
 def tree2dict(tree):
     return {tree.label(): [tree2dict(t) if isinstance(t, Tree) else t.lower() for t in tree]}
+
+
+def process_pos(cur_hl, document, pos_set):
+    num_sent = len(document)
+
+    for i in xrange(num_sent):
+
+        sentence = document[i]
+        tokens = sentence['tokens']
+        num_tok = len(tokens)
+
+        tree = Tree.fromstring(sentence['parse'])
+
+        paths = []
+        dfs_nltk_tree(tree, paths, pos_set, i + 1)
+
+        assert num_tok == len(paths)
+        paths = paths[::-1]
+
+        for j in xrange(num_tok):
+            tokens[j]['trace'] = paths[j]
+
+
+def dfs_nltk_tree(tree, paths, pos_set, s_idx):
+    stack = []
+
+    stack.append(tree)
+    cur_path = ['S'+str(s_idx)]
+
+    while len(stack) > 0:
+
+        item = stack.pop()
+
+        if type(item) == int:
+            cur_path.pop()
+            continue
+
+        if type(item) == Tree:
+            cur_path.append(item.label())
+
+            stack.append(-1)
+
+            for sub_t in item:
+                stack.append(sub_t)
+        else:
+            paths.append((item, cur_path[:]))
 
 
 def get_url_sets(args):
