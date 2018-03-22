@@ -149,7 +149,7 @@ def recombine_scnlp_data(args):
 
     hl_idx_end = 0
     counter = 0
-
+    counter_2 = 0
     for i in xrange(len(hl_ls)):
         hl_idx_start = hl_idx_end
         hl_idx_end += hl_ls[i]
@@ -185,6 +185,10 @@ def recombine_scnlp_data(args):
             len_hl = len(high_lights)
 
             ifp_hl.close()
+            counter_2 += 1
+
+            if counter_2 > 2:
+                return
 
 
 def tree2dict(tree):

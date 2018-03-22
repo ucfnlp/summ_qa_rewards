@@ -22,14 +22,18 @@ from util import say
 
 class Generator(object):
 
-    def __init__(self, args, embedding_layer):
+    def __init__(self, args, embedding_layer,embedding_layer_pt):
         self.args = args
         self.embedding_layer = embedding_layer
+        self.embedding_layer_pt = embedding_layer_pt
 
     def ready(self):
         embedding_layer = self.embedding_layer
+        embedding_layer_pt = self.embedding_layer_pt
+
         args = self.args
         self.padding_id = padding_id = embedding_layer.vocab_map["<padding>"]
+        self.padding_id_pt = padding_id_pt = embedding_layer_pt.vocab_map["<padding>"]
 
         dropout = self.dropout = theano.shared(
                 np.float64(args.dropout).astype(theano.config.floatX)
@@ -37,6 +41,8 @@ class Generator(object):
 
         # inp_len x batch
         x = self.x = T.imatrix('x')
+        # parse_len x inp_len*batch
+        parse_tree = self.parse_tree = T.imatrix('parse_tree')
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -44,7 +50,7 @@ class Generator(object):
 
         layers = self.layers = [ ]
 
-        for i in xrange(2):
+        for i in xrange(3):
             if args.layer == 'lstm':
                 l = LSTM(
                     n_in=n_e,
@@ -63,15 +69,22 @@ class Generator(object):
         self.masks = masks = T.cast(T.neq(x, padding_id), theano.config.floatX)
 
         embs = embedding_layer.forward(x.ravel())
+        embs_pt = embedding_layer_pt.forward(parse_tree.ravel())
 
         self.word_embs = embs = embs.reshape((x.shape[0], x.shape[1], n_e))
         embs = apply_dropout(embs, dropout)
+
+        self.word_embs_pt = embs_pt = embs_pt.reshape((parse_tree.shape[0], parse_tree.shape[1], n_e))
 
         flipped_embs = embs[::-1]
 
         h1 = layers[0].forward_all(embs)
         h2 = layers[1].forward_all(flipped_embs)
-        h_final = T.concatenate([h1, h2[::-1]], axis=2)
+        h3 = layers[2].forward_all(embs_pt)
+
+        h3 = h3.ravel().reshape((x.shape[0], x.shape[1], n_d))
+
+        h_final = T.concatenate([h1, h2[::-1], h3], axis=2)
         self.h_final = h_final = apply_dropout(h_final, dropout)
         size = n_d * 2
 
@@ -307,14 +320,15 @@ class Encoder(object):
 
 
 class Model(object):
-    def __init__(self, args, embedding_layer, nclasses):
+    def __init__(self, args, embedding_layer, embedding_layer_pt, nclasses):
         self.args = args
         self.embedding_layer = embedding_layer
+        self.embedding_layer_pt = embedding_layer_pt
         self.nclasses = nclasses
 
     def ready(self):
-        args, embedding_layer, nclasses = self.args, self.embedding_layer, self.nclasses
-        self.generator = Generator(args, embedding_layer)
+        args, embedding_layer,embedding_layer_pt, nclasses = self.args, self.embedding_layer, self.embedding_layer_pt,  self.nclasses
+        self.generator = Generator(args, embedding_layer, embedding_layer_pt)
         self.encoder = Encoder(args, nclasses, self.generator)
         self.generator.ready()
         self.encoder.ready()
@@ -327,7 +341,7 @@ class Model(object):
         self.params = self.encoder.params + self.generator.params
 
     def ready_test(self):
-        args, embedding_layer= self.args, self.embedding_layer
+        args, embedding_layer, embedding_layer_pt = self.args, self.embedding_layer, self.embedding_layer_pt
         self.generator = Generator(args, embedding_layer)
         self.generator.ready()
         self.dropout = self.generator.dropout
@@ -335,8 +349,8 @@ class Model(object):
         self.z = self.generator.non_sampled_zpred
 
     def ready_pretrain(self):
-        args, embedding_layer= self.args, self.embedding_layer
-        self.generator = Generator(args, embedding_layer)
+        args, embedding_layer, embedding_layer_pt = self.args, self.embedding_layer, self.embedding_layer_pt
+        self.generator = Generator(args, embedding_layer,embedding_layer_pt)
         self.generator.ready()
         self.generator.pretrain()
 
@@ -1012,14 +1026,16 @@ def test_emb(test_x, embedding_layer):
 def main():
     assert args.embedding, "Pre-trained word embeddings required."
 
-    vocab = myio.get_vocab(args)
+    vocab, parse_v = myio.get_vocab(args)
     embedding_layer = myio.create_embedding_layer(args, args.embedding, vocab)
+    embedding_layer_pt = myio.create_embedding_layer(args, args.embedding, parse_v)
 
     n_classes =args.nclasses
 
     model = Model(
         args=args,
         embedding_layer=embedding_layer,
+        embedding_layer_pt=embedding_layer_pt,
         nclasses=n_classes
     )
 
