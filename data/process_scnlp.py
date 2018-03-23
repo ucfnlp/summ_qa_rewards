@@ -358,7 +358,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     final_json_dev['sha'] = dev[2]
     final_json_dev['valid_e'] = seq_dev_art_ents
     final_json_dev['clean_y'] = seqs_clean_dev
-    final_json_train['parse'] = seq_dev_art_parse
+    final_json_dev['parse'] = seq_dev_art_parse
 
     json.dump(final_json_dev, ofp_dev)
     ofp_dev.close()
@@ -374,7 +374,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     final_json_test['sha'] = test[2]
     final_json_test['raw_x'] = seq_test_art_raw
     final_json_test['clean_y'] = seqs_clean_test
-    final_json_train['parse'] = seq_test_art_parse
+    final_json_test['parse'] = seq_test_art_parse
 
     json.dump(final_json_test, ofp_test)
     ofp_test.close()
