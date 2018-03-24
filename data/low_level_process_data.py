@@ -32,8 +32,8 @@ def prune_hl(args):
     save_updated_e(args, e_map_new, entity_map)
 
     return (
-           updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly, updated_dev_parse, updated_train_sha), (
-           updated_dev_x, updated_dev_y, updated_dev_e, updated_dev_ve, updated_dev_cly, updated_dev_parse, updated_dev_rx,
+           updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly, updated_train_parse, updated_train_sha), (
+           updated_dev_x, updated_dev_y, updated_dev_e, updated_dev_ve, updated_dev_cly, updated_dev_rx,updated_dev_parse,
            updated_dev_sha)
 
 

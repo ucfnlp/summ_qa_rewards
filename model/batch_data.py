@@ -251,13 +251,16 @@ def stack_pt(args, lspt, padding_id_pt):
             if j < len(lspt[i]):
                 x = len(lspt[i][j])
 
-                bmpt.append(np.pad(lspt[i][j], (args.pt_len - x if x <= args.pt_len else 0, 0), "constant",
+                bmpt.append(np.pad(lspt[i][j][-args.pt_len:], (args.pt_len - x if x <= args.pt_len else 0, 0), "constant",
                                    constant_values=padding_id_pt).astype('int32'))
             else:
-                bmpt.append(np.full((args.pt_len,), padding_id_pt, dtype='int32'))
+                x = 0
+                bmpt.append(np.pad([], (args.pt_len - x if x <= args.pt_len else 0, 0), "constant",
+                                   constant_values=padding_id_pt).astype('int32'))
+
+            assert len(bmpt[-1]) == args.pt_len
 
     return np.column_stack([m for m in bmpt])
-
 
 
 def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
@@ -401,7 +404,7 @@ def main(args):
 
         print '  Create batches..'
 
-        create_batches(args, args.nclasses, train_x, train_y, train_e, train_clean_y, train_p,train_sha, None, args.batch,
+        create_batches(args, args.nclasses, train_x, train_y, train_e, train_clean_y, train_p, train_sha, None, args.batch,
                        pad_id, pad_id_pt, stopwords, sort=True, model_type='train')
 
         print '  Purge references..'

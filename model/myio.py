@@ -38,29 +38,35 @@ def load_e(args):
 
 def get_vocab(args):
     ifp = open('../data/'+ str(args.source) + '_vocab_' + str(args.vocab_size) + '.txt', 'r')
-    ifp_pt = open('../data/' + str(args.source) + '_vocab_pt.txt', 'r')
+    ifp_pt = open('../data/' + str(args.source) + '_vocab_pt_.txt', 'r')
 
     vocab = []
     vocab_pt = []
+    pt_dict = dict()
 
     for line in ifp:
         vocab.append(line.rstrip())
     ifp.close()
 
     for line in ifp_pt:
-        vocab_pt.append(line.rstrip())
-        ifp_pt.close()
+        items = line.rstrip().split()
+        pt_dict[int(items[1])] = items[0]
+
+    for key in sorted(pt_dict.keys()):
+        vocab_pt.append(pt_dict[key])
+
+    ifp_pt.close()
 
     return vocab, vocab_pt
 
 
-def create_embedding_layer(args, path, vocab):
+def create_embedding_layer(args, path, vocab, oov=None):
 
     embedding_layer = EmbeddingLayer(
         n_d=args.embedding_dim,
         vocab=vocab,
         embs=load_embedding_iterator(path) if path is not None else None,
-        oov="<unk>",
+        oov=oov,
         fix_init_embs = False
     )
     return embedding_layer

@@ -465,12 +465,13 @@ class LSTM(Layer):
     '''
 
     def __init__(self, n_in, n_out, activation=tanh,
-                 clip_gradients=False):
+                 clip_gradients=False, last_only=False):
 
         self.n_in = n_in
         self.n_out = n_out
         self.activation = activation
         self.clip_gradients = clip_gradients
+        self.last = last_only
 
         self.in_gate = RecurrentLayer(n_in, n_out, sigmoid, clip_gradients)
         self.forget_gate = RecurrentLayer(n_in, n_out, sigmoid, clip_gradients)
@@ -550,9 +551,15 @@ class LSTM(Layer):
         if return_c:
             return h
         elif x.ndim > 1:
-            return h[:, :, self.n_out:]
+            if self.last:
+                return h[-1:, :, self.n_out:]
+            else:
+                return h[:, :, self.n_out:]
         else:
-            return h[:, self.n_out:]
+            if self.last:
+                return h[-1:, self.n_out:]
+            else:
+                return h[:, self.n_out:]
 
     @property
     def params(self):

@@ -56,6 +56,7 @@ class Generator(object):
                     n_in=n_e,
                     n_out=n_d,
                     activation=activation,
+                    last_only=(i == 2)
                 )
             else:
                 l = RCNN(
@@ -86,7 +87,7 @@ class Generator(object):
 
         h_final = T.concatenate([h1, h2[::-1], h3], axis=2)
         self.h_final = h_final = apply_dropout(h_final, dropout)
-        size = n_d * 2
+        size = n_d * 3
 
         output_layer = self.output_layer = ZLayer(
                 n_in = size,
@@ -1031,7 +1032,7 @@ def main():
     assert args.embedding, "Pre-trained word embeddings required."
 
     vocab, parse_v = myio.get_vocab(args)
-    embedding_layer = myio.create_embedding_layer(args, args.embedding, vocab)
+    embedding_layer = myio.create_embedding_layer(args, args.embedding, vocab, '<unk>')
     embedding_layer_pt = myio.create_embedding_layer(args, args.embedding, parse_v)
 
     n_classes =args.nclasses
