@@ -334,6 +334,7 @@ class Model(object):
         self.encoder.ready()
         self.dropout = self.generator.dropout
         self.x = self.generator.x
+        self.parse_tree = self.generator.parse_tree
         self.y = self.encoder.y
         self.bm = self.encoder.bm
         self.gold_standard_entities = self.encoder.gold_standard_entities
@@ -346,6 +347,7 @@ class Model(object):
         self.generator.ready()
         self.dropout = self.generator.dropout
         self.x = self.generator.x
+        self.parse_tree = self.generator.parse_tree
         self.z = self.generator.non_sampled_zpred
 
     def ready_pretrain(self):
@@ -356,6 +358,7 @@ class Model(object):
 
         self.dropout = self.generator.dropout
         self.x = self.generator.x
+        self.parse_tree = self.generator.parse_tree
         self.bm = self.generator.bm
         self.z = self.generator.non_sampled_zpred
         self.params = self.generator.params
@@ -471,7 +474,7 @@ class Model(object):
         args = self.args
 
         test_generator = theano.function(
-            inputs=[self.x],
+            inputs=[self.x, self.parse_tree],
             outputs=self.z,
             updates=self.generator.sample_updates
         )
@@ -484,7 +487,7 @@ class Model(object):
     def dev(self):
 
         eval_generator = theano.function(
-            inputs=[self.x, self.bm],
+            inputs=[self.x, self.parse_tree, self.bm],
             outputs=[self.z, self.generator.cost_g, self.generator.obj],
             updates=self.generator.sample_updates,
             on_unused_input='ignore'
@@ -498,7 +501,7 @@ class Model(object):
     def dev_full(self):
 
         eval_generator = theano.function(
-            inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
+            inputs=[self.x, self.y, self.parse_tree, self.bm, self.gold_standard_entities],
             outputs=[self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
             updates=self.generator.sample_updates,
             on_unused_input='ignore'
@@ -534,14 +537,14 @@ class Model(object):
         )[:3]
 
         eval_generator = theano.function(
-            inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
+            inputs=[self.x, self.y, self.parse_tree, self.bm, self.gold_standard_entities],
             outputs=[self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
             updates=self.generator.sample_updates,
             on_unused_input='ignore'
         )
 
         train_generator = theano.function(
-            inputs=[self.x, self.y, self.bm, self.gold_standard_entities],
+            inputs=[self.x, self.y, self.parse_tree, self.bm, self.gold_standard_entities],
             outputs=[self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
                      self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz,
                      self.encoder.cost_vec, self.generator.masks, self.encoder.bigram_loss, self.encoder.preds_clipped],
@@ -601,7 +604,7 @@ class Model(object):
                 N = args.online_batch_size * num_files
 
                 for i in xrange(num_files):
-                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm, _ = myio.load_batches(
+                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_pt, _ = myio.load_batches(
                         args.batch_dir + args.source + 'train', i)
 
                     cur_len = len(train_batches_x)
@@ -614,6 +617,7 @@ class Model(object):
                     train_batches_y = [train_batches_y[k] for k in perm2]
                     train_batches_e = [train_batches_e[k] for k in perm2]
                     train_batches_bm = [train_batches_bm[k] for k in perm2]
+                    train_batches_pt = [train_batches_pt[k] for k in perm2]
 
                     for j in xrange(cur_len):
                         if args.full_test:
@@ -622,11 +626,11 @@ class Model(object):
                         elif (i* args.online_batch_size + j + 1) % 10 == 0:
                                 say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
-                        bx, by, be, bm = train_batches_x[j], train_batches_y[j], train_batches_e[j], train_batches_bm[j]
+                        bx, by, be, bm, bpt = train_batches_x[j], train_batches_y[j], train_batches_e[j], train_batches_bm[j], train_batches_pt[j]
                         mask = bx != padding_id
 
                         cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr = train_generator(
-                            bx, by, bm, be)
+                            bx, by, bpt, bm, be)
 
                         train_acc.append(self.eval_acc(be, preds_tr))
                         obj_all.append(cost)
@@ -731,13 +735,13 @@ class Model(object):
         )[:3]
 
         eval_generator = theano.function(
-            inputs=[self.x, self.bm],
+            inputs=[self.x, self.parse_tree, self.bm],
             outputs=[self.z, self.generator.cost_g, self.generator.obj],
             updates=self.generator.sample_updates
         )
 
         train_generator = theano.function(
-            inputs=[self.x, self.bm],
+            inputs=[self.x, self.parse_tree, self.bm],
             outputs=[self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g],
             updates=updates_g.items() + self.generator.sample_updates
         )
@@ -786,7 +790,7 @@ class Model(object):
                 N = args.online_batch_size * num_files
 
                 for i in xrange(num_files):
-                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_sha = myio.load_batches(
+                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_bpt, train_batches_sha = myio.load_batches(
                         args.batch_dir + args.source + 'train', i)
 
                     random.seed(5817)
@@ -804,10 +808,10 @@ class Model(object):
                         elif (i * args.online_batch_size + j + 1) % 10 == 0:
                             say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
-                        bx, bm = train_batches_x[j], train_batches_bm[j]
+                        bx, bm, bpt = train_batches_x[j], train_batches_bm[j], train_batches_bpt[j]
                         mask = bx != padding_id
 
-                        obj, z, zsum, zdiff,cost_g = train_generator(bx, bm)
+                        obj, z, zsum, zdiff,cost_g = train_generator(bx, bpt, bm)
                         zsum_all.append(np.mean(zsum))
                         z_diff_all.append(np.mean(zdiff))
                         z_pred_all.append(np.mean(np.sum(z, axis=0)))
@@ -897,14 +901,14 @@ class Model(object):
         num_files = self.args.num_files_dev
 
         for i in xrange(num_files):
-            batches_x, _, _, batches_bm, batches_sha, batches_rx = myio.load_batches(
+            batches_x, _, _, batches_bm, batches_pt, batches_sha, batches_rx = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, bm, sha, rx = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j]
-                bz, l, o = eval_func(bx, bm)
+                bx, bm, sha, rx, bpt = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_pt[j]
+                bz, l, o = eval_func(bx,bpt,  bm)
                 tot_obj += o
                 N += len(bx)
 
@@ -925,14 +929,14 @@ class Model(object):
         num_files = self.args.num_files_dev
 
         for i in xrange(num_files):
-            batches_x, _, _, batches_bm, batches_sha, batches_rx = myio.load_batches(
+            batches_x, _, _, batches_bm, batches_pt, batches_sha, batches_rx = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, bm, sha, rx = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j]
-                bz, l, o = eval_func(bx, bm)
+                bx, bm, sha, rx, bpt = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_pt[j]
+                bz, l, o = eval_func(bx, bpt, bm)
                 tot_obj += o
 
                 x.append(rx)
@@ -957,15 +961,15 @@ class Model(object):
         num_files = self.args.num_files_dev
 
         for i in xrange(num_files):
-            batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx = myio.load_batches(
+            batches_x, batches_y, batches_e, batches_bm, batches_bpt, batches_sha, batches_rx = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, by, be, bm, sha, rx = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], batches_sha[j], \
+                bx, by, be, bm, bpt, sha, rx = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], batches_bpt[j], batches_sha[j], \
                                           batches_rx[j]
-                bz, o, e, preds = eval_func(bx, by, bm, be)
+                bz, o, e, preds = eval_func(bx, by, bpt, bm, be)
                 tot_obj += o
 
                 x.append(rx)
@@ -987,14 +991,14 @@ class Model(object):
         num_files = self.args.num_files_test
 
         for i in xrange(num_files):
-            batches_x, _, batches_sha, batches_rx = myio.load_batches(
+            batches_x, _, batches_pt, batches_sha, batches_rx = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'test', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, rx, bsha = batches_x[j], batches_rx[j], batches_sha[j]
-                bz = eval_func(bx)
+                bx, rx, bsha, bpt = batches_x[j], batches_rx[j], batches_sha[j], batches_pt[j]
+                bz = eval_func(bx, bpt)
 
                 x.append(rx)
                 test_z.append(bz)

@@ -14,11 +14,11 @@ def read_docs(args, type):
         data = json.load(data_file)
 
     if type == 'test':
-        return data['x'], data['y'], data['sha'], data['clean_y'], data['raw_x']
+        return data['x'], data['y'], data['sha'], data['clean_y'], data['raw_x'], data['parse']
     elif type == 'dev':
-        return data['x'], data['y'], data['e'], data['clean_y'], data['raw_x'], data['sha']
+        return data['x'], data['y'], data['e'], data['clean_y'], data['raw_x'], data['sha'], data['parse']
     else:
-        return data['x'], data['y'], data['e'], data['clean_y'], data['sha']
+        return data['x'], data['y'], data['e'], data['clean_y'], data['sha'], data['parse']
 
 
 def create_vocab(args):
@@ -65,20 +65,22 @@ def create_stopwords(args, vocab_map, lst_words):
     return stopwords, punctuation
 
 
-def create_batches_test(args, x, y, cy, sha, rx, batch_size, padding_id, stopwords):
-    batches_x, batches_bm, batches_sha, batches_rx = [], [], [], []
+def create_batches_test(args, x, y, cy, pt, sha, rx, batch_size, padding_id, padding_id_pt, stopwords):
+    batches_x, batches_bm, batches_sha, batches_rx, batches_pt = [], [], [], [], []
     N = len(x)
     M = (N - 1) / batch_size + 1
     num_batches = 0
     num_files = 0
 
     for i in xrange(M):
-        bx, bm = create_one_batch_test(
+        bx, bm, bpt = create_one_batch_test(
             args,
             x[i * batch_size:(i + 1) * batch_size],
             y[i * batch_size:(i + 1) * batch_size],
             cy[i * batch_size:(i + 1) * batch_size],
+            pt[i * batch_size:(i + 1) * batch_size],
             padding_id,
+            padding_id_pt,
             batch_size,
             stopwords
         )
@@ -93,6 +95,7 @@ def create_batches_test(args, x, y, cy, sha, rx, batch_size, padding_id, stopwor
         batches_rx.append(brx)
         batches_x.append(bx)
         batches_bm.append(bm)
+        batches_pt.append(bpt)
         batches_sha.append(bsh)
 
         num_batches += 1
@@ -105,21 +108,23 @@ def create_batches_test(args, x, y, cy, sha, rx, batch_size, padding_id, stopwor
             data = [
                 batches_x,
                 batches_bm,
+                batches_pt,
                 batches_sha,
                 batches_rx
             ]
             with open(fname + str(num_files), 'w+') as ofp:
                 np.save(ofp, data)
 
-            batches_x, batches_bm, batches_sha, batches_rx = [], [], [], []
+            batches_x, batches_bm, batches_sha, batches_rx, batches_pt = [], [], [], [], []
             num_batches = 0
             num_files += 1
 
     print "Num Files :", num_files
 
 
-def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_id, stopwords, sort=True, model_type=''):
-    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx = [], [], [], [], [], []
+def create_batches(args, n_classes, x, y, e, cy, pt, sha, rx,  batch_size, padding_id, padding_id_pt, stopwords, sort=True, model_type=''):
+    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt = [], [], [], [], [], [], []
+
     N = len(x)
     M = (N - 1) / batch_size + 1
     num_batches = 0
@@ -132,17 +137,20 @@ def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_i
         y = [y[i] for i in perm]
         e = [e[i] for i in perm]
         cy = [cy[i] for i in perm]
+        pt = [pt[i] for i in perm]
         sha = [sha[i] for i in perm]
 
     for i in xrange(M):
-        bx, by, be, bm = create_one_batch(
+        bx, by, be, bm, bpt = create_one_batch(
             args,
             n_classes,
             x[i * batch_size:(i + 1) * batch_size],
             y[i * batch_size:(i + 1) * batch_size],
             e[i * batch_size:(i + 1) * batch_size],
             cy[i * batch_size:(i + 1) * batch_size],
+            pt[i * batch_size:(i + 1) * batch_size],
             padding_id,
+            padding_id_pt,
             batch_size,
             stopwords
         )
@@ -155,6 +163,7 @@ def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_i
         batches_y.append(by)
         batches_e.append(be)
         batches_bm.append(bm)
+        batches_pt.append(bpt)
         batches_sha.append(bsh)
 
         num_batches += 1
@@ -170,6 +179,7 @@ def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_i
                     batches_y,
                     batches_e,
                     batches_bm,
+                    batches_pt,
                     batches_sha
                 ]
             else:
@@ -178,20 +188,21 @@ def create_batches(args, n_classes, x, y, e, cy, sha, rx,  batch_size, padding_i
                     batches_y,
                     batches_e,
                     batches_bm,
+                    batches_pt,
                     batches_sha,
                     batches_rx
                 ]
             with open(fname + str(num_files), 'w+') as ofp:
                 np.save(ofp, data)
 
-            batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx = [], [], [], [], [], []
+            batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt = [], [], [], [], [], [], []
             num_batches = 0
             num_files += 1
 
     print "Num Files :", num_files
 
 
-def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, padding_id, b_len, stopwords):
+def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, lstpt, padding_id, padding_id_pt, b_len, stopwords):
     max_len = args.inp_len
 
     assert min(len(x) for x in lstx) > 0
@@ -206,15 +217,17 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, padding_id, b_len
 
     bm = np.column_stack([m for m in bm])
     by = np.column_stack([y for y in by])
+    bpt = stack_pt(args, lstpt, padding_id_pt)
 
-    return bx, by, be, bm
+    return bx, by, be, bm, bpt
 
 
-def create_one_batch_test(args, lstx_, lsty, lstcy, padding_id, b_len, stopwords):
+def create_one_batch_test(args, lstx_, lsty, lstcy, lstpt, padding_id, padding_id_pt, b_len, stopwords):
     max_len = args.inp_len
     lstx = []
     for i in xrange(len(lstx_)):
         lstx.append([w for sent in lstx_[i] for w in sent])
+
     assert min(len(x) for x in lstx) > 0
 
     unigrams = process_hl_test(args, lsty, lstcy)
@@ -225,8 +238,26 @@ def create_one_batch_test(args, lstx_, lsty, lstcy, padding_id, b_len, stopwords
     bm = create_unigram_masks(lstx, unigrams, max_len, stopwords, args)
 
     bm = np.column_stack([m for m in bm])
+    bpt = stack_pt(args, lstpt, padding_id_pt)
 
-    return bx, bm
+    return bx, bm, bpt
+
+
+def stack_pt(args, lspt, padding_id_pt):
+    num_samples = len(lspt)
+    bmpt = []
+    for i in xrange(num_samples):
+        for j in xrange(args.inp_len):
+            if j < len(lspt[i]):
+                x = len(lspt[i][j])
+
+                bmpt.append(np.pad(lspt[i][j], (args.pt_len - x if x <= args.pt_len else 0, 0), "constant",
+                                   constant_values=padding_id_pt).astype('int32'))
+            else:
+                bmpt.append(np.full((args.pt_len,), padding_id_pt, dtype='int32'))
+
+    return np.column_stack([m for m in bmpt])
+
 
 
 def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
@@ -355,7 +386,9 @@ def record_stopwords(stopwords, punctuation, lst_words):
 def main(args):
     vocab_map, lst_words = create_vocab(args)
     stopwords = create_stopwords(args, vocab_map, lst_words)
+
     pad_id = vocab_map["<padding>"]
+    pad_id_pt = args.pt_pad_id
 
     del vocab_map
     del lst_words
@@ -364,12 +397,12 @@ def main(args):
         print 'TRAIN data'
         print '  Read JSON..'
 
-        train_x, train_y, train_e, train_clean_y, train_sha = read_docs(args, 'train')
+        train_x, train_y, train_e, train_clean_y, train_sha, train_p = read_docs(args, 'train')
 
         print '  Create batches..'
 
-        create_batches(args, args.nclasses, train_x, train_y, train_e, train_clean_y, train_sha, None, args.batch,
-                       pad_id, stopwords, sort=True, model_type='train')
+        create_batches(args, args.nclasses, train_x, train_y, train_e, train_clean_y, train_p,train_sha, None, args.batch,
+                       pad_id, pad_id_pt, stopwords, sort=True, model_type='train')
 
         print '  Purge references..'
 
@@ -385,11 +418,11 @@ def main(args):
         print 'DEV data'
         print '  Read JSON..'
 
-        dev_x, dev_y, dev_e, dev_clean_y, dev_rx, dev_sha = read_docs(args, 'dev')
+        dev_x, dev_y, dev_e, dev_clean_y, dev_rx, dev_sha, dev_p = read_docs(args, 'dev')
 
         print '  Create batches..'
 
-        create_batches(args, args.nclasses, dev_x, dev_y, dev_e, dev_clean_y, dev_sha, dev_rx, args.batch, pad_id,
+        create_batches(args, args.nclasses, dev_x, dev_y, dev_e, dev_clean_y, dev_p, dev_sha, dev_rx, args.batch, pad_id, pad_id_pt,
                        stopwords, sort=False, model_type='dev')
 
         print '  Purge references..'
@@ -406,12 +439,11 @@ def main(args):
     if args.test:
         print 'TEST data'
         print '  Read JSON..'
-        #  data['x'], data['y'], data['sha'], data['clean_y'], data['raw_x']
-        test_x, test_y, test_sha, test_clean_y, test_rx = read_docs(args, 'test')
+        test_x, test_y, test_sha, test_clean_y, test_rx, test_p = read_docs(args, 'test')
 
         print '  Create batches..'
 
-        create_batches_test(args, test_x, test_y, test_clean_y, test_sha, test_rx, args.batch, pad_id, stopwords)
+        create_batches_test(args, test_x, test_y, test_clean_y, test_p, test_sha, test_rx, args.batch, pad_id, pad_id_pt, stopwords)
 
         print '  Purge references..'
 

@@ -360,18 +360,26 @@ class EmbeddingLayer(object):
             emb_vals = np.vstack(emb_vals).astype(theano.config.floatX)
             self.vocab_map = vocab_map
             self.lst_words = lst_words
-        else:# TODO: Update to above
+        else:
             lst_words = []
             vocab_map = {}
-            for word in vocab:
-                if word not in vocab_map:
-                    vocab_map[word] = len(vocab_map)
-                    lst_words.append(word)
+            emb_vals = []
 
-            self.lst_words = lst_words
+            self.init_end = None
+
+            for word in vocab:
+                if self.init_end is None:
+                    self.init_end = len(emb_vals) if fix_init_embs else -1
+
+                vocab_map[word] = len(vocab_map)
+                emb_vals.append(random_init((n_d,)) * (0.0 if (word == oov) else 0.001))
+                lst_words.append(word)
+
+            say("{} rand-init embeddings loaded.\n".format(len(emb_vals)))
+
+            emb_vals = np.vstack(emb_vals).astype(theano.config.floatX)
             self.vocab_map = vocab_map
-            emb_vals = random_init((len(self.vocab_map), n_d))
-            self.init_end = -1
+            self.lst_words = lst_words
 
         if oov is not None and oov is not False:
             assert oov in self.vocab_map, "oov {} not in vocab".format(oov)

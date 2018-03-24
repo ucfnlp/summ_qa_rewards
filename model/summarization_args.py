@@ -84,6 +84,11 @@ def get_args():
                         default=100,
                         help='Size of word vectors')
 
+    parser.add_argument('--pt_pad_id',
+                        type=int,
+                        default=229,
+                        help='<padding> for parse tree labels')
+
     parser.add_argument('--vocab_size',
                         type=int,
                         default=150000,
@@ -99,9 +104,14 @@ def get_args():
                         default=25,
                         help='length of single sentence in highlights')
 
+    parser.add_argument('--pt_len',
+                        type=int,
+                        default=10,
+                        help='length of single sentence in highlights')
+
     parser.add_argument('--nclasses',
                         type=int,
-                        default=5770,
+                        default=2481,
                         help='Number of unique entities')
 
     parser.add_argument("--train_output_readable",
