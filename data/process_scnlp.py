@@ -45,6 +45,7 @@ def split_data(args):
     hashes_test = []
 
     train_urls, dev_urls, test_urls = get_url_sets(args)
+
     data_dirs = [args.raw_data_cnn if args.source == 'cnn' else args.raw_data_dm]
 
     for raw_data in data_dirs:

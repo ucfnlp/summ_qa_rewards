@@ -64,4 +64,14 @@ def get_args():
                         default=False,
                         help='Process raw input for SCNLP')
 
+    parser.add_argument('--intermediate',
+                        type=str,
+                        default="stanford_nlp",
+                        help='file location for StanfordCoreNLP input')
+
+    parser.add_argument('--source',
+                        type=str,
+                        default='cnn',
+                        help='Data source')
+
     return parser.parse_args()

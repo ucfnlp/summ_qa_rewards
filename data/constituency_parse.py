@@ -6,8 +6,6 @@ import hashlib
 import json
 import time
 import codecs
-import numpy as np
-import re
 
 import parse_args
 
@@ -65,6 +63,7 @@ def process_data(args):
                     current_article.append(line)
 
             if len(current_article) == 0:
+                print 'Problem with :', sha
                 continue
 
             sha = str(sha)
@@ -122,73 +121,68 @@ def process_data(args):
 def recombine_scnlp_data(args):
     ifp_lookup = open(args.parsed_output_loc + 'lookup.txt', 'r')
 
-    sha_ls = []
-    hl_ls = []
+    article_info = dict()
     pos_set = set()
 
     print 'Input sha1, hl idx'
     for line in ifp_lookup:
         items = line.rstrip().split()
 
-        sha_ls.append(items[2])
-        hl_ls.append(int(items[1]))
+        article_info[items[2]] = items[1]
 
     ifp_lookup.close()
 
-    print 'Load SCNLP..'
-    file_count = 1
+    print 'Combining..'
 
-    ifp_hl = open(args.parsed_output_loc + 'highlights'+str(file_count)+'.txt.json', 'rb')
-    high_lights = json.load(ifp_hl)
-    high_lights = high_lights['sentences']
+    train_order, dev_order, test_order = get_order()
+    all_order = [train_order, dev_order, test_order]
+    types = ['train', 'dev', 'test']
+    limits = [4000, 200, 200]
 
-    len_hl = len(high_lights)
-    ifp_hl.close()
+    for ls, type_, limit in zip(all_order, types, limits):
+        print 'Loading HL for', type_
 
-    print 'Combining..', len_hl
+        annotated_hl_fp = open(args.intermediate + '_' + type_ + '.txt.json', 'r')
+        annotated_hl_json = json.load(annotated_hl_fp)
+        sentences = annotated_hl_json['sentences']
 
-    hl_idx_end = 0
-    counter = 0
-    counter_2 = 0
-    for i in xrange(len(hl_ls)):
-        hl_idx_start = hl_idx_end
-        hl_idx_end += hl_ls[i]
+        annotated_hl_fp.close()
 
-        ofp_combined = open(args.parsed_output_loc + 'processed/' + sha_ls[i] + '.json', 'w+')
-        ifp_article = open(args.parsed_output_loc + 'scnlp/' + sha_ls[i] + '.txt.json', 'rb')
+        print 'loaded..'
 
-        document = json.load(ifp_article)['sentences']
-        ifp_article.close()
+        counter = 0
+        hl_idx_end = 0
 
-        combined_json_out = dict()
-        cur_hl = high_lights[hl_idx_start:hl_idx_end]
+        for sha in ls:
+            hl_idx_start = hl_idx_end
 
-        process_pos(cur_hl, document, pos_set)
+            if sha not in article_info:
+                continue
 
-        combined_json_out['highlights'] = cur_hl
-        combined_json_out['document'] = document
+            hl_idx_end += int(article_info[sha])
 
-        json.dump(combined_json_out, ofp_combined)
-        ofp_combined.close()
+            ifp_article = open(args.parsed_output_loc + 'scnlp/' + sha + '.txt.json', 'rb')
+            ofp_combined = open(args.parsed_output_loc + 'processed/' + sha + '.json', 'w+')
 
-        counter += 1
+            document = json.load(ifp_article)['sentences']
+            ifp_article.close()
 
-        if hl_idx_end >= len_hl:
-            print 'Load SCNLP.. (more) ..', len_hl
+            cur_hl = sentences[hl_idx_start:hl_idx_end]
 
-            file_count += 1
-            hl_idx_end = 0
+            process_pos(cur_hl, document, pos_set)
 
-            ifp_hl = open(args.parsed_output_loc + 'highlights' + str(file_count) + '.txt.json', 'rb')
-            high_lights = json.load(ifp_hl)
-            high_lights = high_lights['sentences']
-            len_hl = len(high_lights)
+            combined_json_out = dict()
 
-            ifp_hl.close()
-            counter_2 += 1
+            combined_json_out['highlights'] = cur_hl
+            combined_json_out['document'] = document
 
-            if counter_2 > 2:
-                return
+            json.dump(combined_json_out, ofp_combined)
+            ofp_combined.close()
+
+            counter += 1
+
+            # if counter > limit:
+            #     break
 
 
 def tree2dict(tree):
@@ -214,6 +208,29 @@ def process_pos(cur_hl, document, pos_set):
 
         for j in xrange(num_tok):
             tokens[j]['trace'] = paths[j]
+
+
+def get_order():
+    train_ls, dev_ls, test_ls = [], [], []
+
+    ifp = open('all_cnn_sha_train.out', 'rb')
+
+    for line in ifp:
+        train_ls.append(line.rstrip())
+
+    ifp.close()
+    ifp = open('all_cnn_sha_dev.out', 'rb')
+
+    for line in ifp:
+        dev_ls.append(line.rstrip())
+
+    ifp.close()
+    ifp = open('all_cnn_sha_test.out', 'rb')
+
+    for line in ifp:
+        test_ls.append(line.rstrip())
+
+    return train_ls, dev_ls, test_ls
 
 
 def dfs_nltk_tree(tree, paths, pos_set, s_idx):
