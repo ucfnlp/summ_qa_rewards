@@ -41,7 +41,7 @@ class Generator(object):
 
         # inp_len x batch
         x = self.x = T.imatrix('x')
-        # parse_len x inp_len*batch
+        # parse_len x (inp_len * batch)
         parse_tree = self.parse_tree = T.imatrix('parse_tree')
 
         n_d = args.hidden_dimension
@@ -81,6 +81,7 @@ class Generator(object):
 
         h1 = layers[0].forward_all(embs)
         h2 = layers[1].forward_all(flipped_embs)
+        # 1 x inp_len * batch
         h3 = layers[2].forward_all(embs_pt)
 
         h3 = h3.ravel().reshape((x.shape[0], x.shape[1], n_d))
@@ -114,7 +115,7 @@ class Generator(object):
         self.zdiff = T.sum(T.abs_(z[1:]-z[:-1]), axis=0, dtype=theano.config.floatX)
 
         params = self.params = [ ]
-        for l in layers + [ output_layer ] + [embedding_layer]:
+        for l in layers + [ output_layer ] + [embedding_layer] + [embedding_layer_pt]:
             for p in l.params:
                 params.append(p)
 

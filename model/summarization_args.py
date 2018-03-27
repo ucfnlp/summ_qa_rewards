@@ -86,7 +86,7 @@ def get_args():
 
     parser.add_argument('--pt_pad_id',
                         type=int,
-                        default=229,
+                        default=236,
                         help='<padding> for parse tree labels')
 
     parser.add_argument('--vocab_size',
@@ -106,7 +106,7 @@ def get_args():
 
     parser.add_argument('--pt_len',
                         type=int,
-                        default=10,
+                        default=20,
                         help='length of single sentence in highlights')
 
     parser.add_argument('--nclasses',
