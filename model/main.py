@@ -801,6 +801,8 @@ class Model(object):
 
                     train_batches_x = [train_batches_x[k] for k in perm2]
                     train_batches_bm = [train_batches_bm[k] for k in perm2]
+                    train_batches_bpt = [train_batches_bpt[k] for k in perm2]
+
                     cur_len = len(train_batches_x)
 
                     for j in xrange(cur_len):
@@ -811,6 +813,7 @@ class Model(object):
                             say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
                         bx, bm, bpt = train_batches_x[j], train_batches_bm[j], train_batches_bpt[j]
+                        print bx.shape, bpt.shape
                         mask = bx != padding_id
 
                         obj, z, zsum, zdiff,cost_g = train_generator(bx, bpt, bm)
