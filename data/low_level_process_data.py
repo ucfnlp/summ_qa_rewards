@@ -10,16 +10,16 @@ def process_data(args):
 
 
 def prune_hl(args):
-    train_x, train_y, train_e, train_ve, train_cly, train_sha, train_parse = load_json(args, args.train)
-    dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_sha, dev_parse = load_json(args, args.dev)
+    train_x, train_y, train_e, train_ve, train_cly, train_sha, train_parse, train_m = load_json(args, args.train)
+    dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_sha, dev_parse, dev_m = load_json(args, args.dev)
 
     entity_map = get_entities(args)
     used_e = set()
 
-    updated_train_y, updated_train_e, updated_train_x, updated_train_ve, updated_train_cly, updated_train_sha, updated_train_parse = prune_type(
-        train_x, train_y, train_e, train_ve, train_cly, None, train_parse, train_sha, entity_map, used_e)
-    updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_sha, updated_dev_parse = prune_type(
-        dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_parse, dev_sha, entity_map, used_e)
+    updated_train_y, updated_train_e, updated_train_x, updated_train_ve, updated_train_cly, updated_train_sha, updated_train_parse, updated_train_ma = prune_type(
+        train_x, train_y, train_e, train_ve, train_cly, None, train_parse, train_m, train_sha, entity_map, used_e)
+    updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_sha, updated_dev_parse, updated_dev_ma = prune_type(
+        dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_parse, dev_m, dev_sha, entity_map, used_e)
 
     print 'used/total entities = ', len(used_e)/ float(len(entity_map))
 
@@ -32,8 +32,8 @@ def prune_hl(args):
     save_updated_e(args, e_map_new, entity_map)
 
     return (
-           updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly, updated_train_parse, updated_train_sha), (
-           updated_dev_x, updated_dev_y, updated_dev_e, updated_dev_ve, updated_dev_cly, updated_dev_rx,updated_dev_parse,
+           updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly, updated_train_parse, updated_train_ma, updated_train_sha), (
+           updated_dev_x, updated_dev_y, updated_dev_e, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_parse, updated_dev_ma,
            updated_dev_sha)
 
 
@@ -50,7 +50,8 @@ def write_model_ready(args, train, dev):
     final_json_train['valid_e'] = train[3]
     final_json_train['clean_y'] = train[4]
     final_json_train['parse'] = train[5]
-    final_json_train['sha'] = train[6]
+    final_json_train['mask'] = train[6]
+    final_json_train['sha'] = train[7]
 
     json.dump(final_json_train, ofp_train)
     ofp_train.close()
@@ -68,13 +69,14 @@ def write_model_ready(args, train, dev):
     final_json_dev['clean_y'] = dev[4]
     final_json_dev['raw_x'] = dev[5]
     final_json_dev['parse'] = dev[6]
-    final_json_dev['sha'] = dev[7]
+    final_json_dev['mask'] = dev[7]
+    final_json_dev['sha'] = dev[8]
 
     json.dump(final_json_dev, ofp_dev)
     ofp_dev.close()
 
 
-def prune_type(x, y, e, ve, cy, rx, pt, sha, entity_map, used_e):
+def prune_type(x, y, e, ve, cy, rx, pt, ma, sha, entity_map, used_e):
     length = len(y)
     updated_y = []
     updated_cy = []
@@ -83,6 +85,7 @@ def prune_type(x, y, e, ve, cy, rx, pt, sha, entity_map, used_e):
     updated_x = []
     updated_raw_x = []
     updated_pt = []
+    updated_ma = []
     updated_sha = []
 
     restricted_types = generate_valid_entity_types(args)
@@ -149,6 +152,7 @@ def prune_type(x, y, e, ve, cy, rx, pt, sha, entity_map, used_e):
         updated_cy.append(cy[i])
         updated_sha.append(sha[i])
         updated_x.append([w for sent in x[i] for w in sent])
+        updated_ma.append([w for sent in ma[i] for w in sent])
         updated_pt.append([w for sent in pt[i] for w in sent])
 
         if rx is not None:
@@ -158,9 +162,9 @@ def prune_type(x, y, e, ve, cy, rx, pt, sha, entity_map, used_e):
     print length, "of Articles"
 
     if rx is None:
-        return updated_y, updated_e, updated_x, updated_ve, updated_cy, updated_sha, updated_pt
+        return updated_y, updated_e, updated_x, updated_ve, updated_cy, updated_sha, updated_pt, updated_ma
     else:
-        return updated_y, updated_e, updated_x, updated_ve, updated_cy, updated_raw_x, updated_sha, updated_pt
+        return updated_y, updated_e, updated_x, updated_ve, updated_cy, updated_raw_x, updated_sha, updated_pt, updated_ma
 
 
 def re_map_entities(e, new_map):
@@ -181,11 +185,11 @@ def load_json(args, type):
     ifp.close()
 
     if 'test' in type:
-        return data['x'], data['y'], data['clean_y'], data['raw_x'], data['parse']
+        return data['x'], data['y'], data['clean_y'], data['raw_x'], data['parse'], data['mask']
     elif 'dev' in type:
-        return data['x'], data['y'], data['e'], data['valid_e'], data['clean_y'], data['raw_x'], data['sha'], data['parse']
+        return data['x'], data['y'], data['e'], data['valid_e'], data['clean_y'], data['raw_x'], data['sha'], data['parse'], data['mask']
     else:
-        return data['x'], data['y'], data['e'], data['valid_e'], data['clean_y'], data['sha'], data['parse']
+        return data['x'], data['y'], data['e'], data['valid_e'], data['clean_y'], data['sha'], data['parse'], data['mask']
 
 
 def get_entities(args):

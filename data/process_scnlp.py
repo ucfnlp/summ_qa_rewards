@@ -121,6 +121,7 @@ def prepare_rouge(args, inp, type):
 
 def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, unk, parse_labels, return_r=False):
     inp_seqs = []
+    inp_seqs_mask = []
     inp_seqs_raw = []
     inp_ents = []
     inp_parse_paths = []
@@ -136,6 +137,7 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
         counter += 1
 
         single_inp_seqs = []
+        single_inp_seqs_mask = []
         single_inp_seqs_raw = []
         single_inp_parse_paths = []
         entities_in_article = set()
@@ -144,10 +146,12 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
 
             sent = article[i][0]
             parse_paths = article[i][1]
+            masks = article[i][2]
 
             single_inp_sent = []
             single_inp_sent_pp = []
             single_inp_sent_raw = []
+
             for w in xrange(len(sent)):
 
                 # 1.) check if word in vocab or not
@@ -186,6 +190,7 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
 
                 single_inp_sent_pp.append([parse_labels[item] for item in parse_paths[w]])
 
+            single_inp_seqs_mask.append(masks)
             single_inp_seqs.append(single_inp_sent)
             single_inp_parse_paths.append(single_inp_sent_pp)
 
@@ -194,15 +199,16 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
 
         inp_ents.append(list(entities_in_article))
         inp_seqs.append(single_inp_seqs)
+        inp_seqs_mask.append(single_inp_seqs_mask)
         inp_parse_paths.append(single_inp_parse_paths)
 
         if return_r:
             inp_seqs_raw.append(single_inp_seqs_raw)
 
     if return_r:
-        return inp_seqs, inp_ents, inp_seqs_raw, inp_parse_paths
+        return inp_seqs, inp_ents, inp_seqs_raw, inp_parse_paths, inp_seqs_mask
     else:
-        return inp_seqs, inp_ents, inp_parse_paths
+        return inp_seqs, inp_ents, inp_parse_paths, inp_seqs_mask
 
 
 def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, first_word_map,  type, placeholder, unk):
@@ -320,13 +326,13 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     sorted_first_word_map = sort_entries(first_word_map)
 
     print 'Train data indexing..'
-    seqs_train_articles, seq_train_art_ents, seq_train_art_parse = seqs_art(args, train[1], vocab, entity_set, raw_entity_mapping,
+    seqs_train_articles, seq_train_art_ents, seq_train_art_parse, seq_train_art_m = seqs_art(args, train[1], vocab, entity_set, raw_entity_mapping,
                                                        sorted_first_word_map, unk, parse_labels)
     print 'Dev data indexing..'
-    seqs_dev_articles, seq_dev_art_ents, seq_dev_art_raw, seq_dev_art_parse = seqs_art(args, dev[1], vocab, entity_set, raw_entity_mapping,
+    seqs_dev_articles, seq_dev_art_ents, seq_dev_art_raw, seq_dev_art_parse, seq_dev_art_m = seqs_art(args, dev[1], vocab, entity_set, raw_entity_mapping,
                                                    sorted_first_word_map, unk, parse_labels, return_r=True)
     print 'Test data indexing..'
-    seqs_test_articles, seq_test_art_ents, seq_test_art_raw, seq_test_art_parse = seqs_art(args, test[1], vocab, entity_set, raw_entity_mapping,
+    seqs_test_articles, seq_test_art_ents, seq_test_art_raw, seq_test_art_parse, seq_test_art_m = seqs_art(args, test[1], vocab, entity_set, raw_entity_mapping,
                                                      sorted_first_word_map, unk, parse_labels, return_r=True)
 
     filename_train = args.train if args.full_test else "small_" + args.train
@@ -342,6 +348,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     final_json_train['valid_e'] = seq_train_art_ents
     final_json_train['clean_y'] = seqs_clean_train
     final_json_train['parse'] = seq_train_art_parse
+    final_json_train['mask'] = seq_train_art_m
 
     json.dump(final_json_train, ofp_train)
     ofp_train.close()
@@ -360,6 +367,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     final_json_dev['valid_e'] = seq_dev_art_ents
     final_json_dev['clean_y'] = seqs_clean_dev
     final_json_dev['parse'] = seq_dev_art_parse
+    final_json_dev['mask'] = seq_dev_art_m
 
     json.dump(final_json_dev, ofp_dev)
     ofp_dev.close()
@@ -376,6 +384,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     final_json_test['raw_x'] = seq_test_art_raw
     final_json_test['clean_y'] = seqs_clean_test
     final_json_test['parse'] = seq_test_art_parse
+    final_json_test['mask'] = seq_test_art_m
 
     json.dump(final_json_test, ofp_test)
     ofp_test.close()
@@ -398,14 +407,16 @@ def extract_tokens(document, hl, unique_words, parse_labels):
 
     for sent in document:
         tokens = sent['tokens']
-        s, parse_paths = [], []
+        s, parse_paths, mask = [], [], []
 
         for token in tokens:
             text = token['originalText'].lower()
             pt = token['trace'][1]
+            pretrain = token['pretrain']
 
             s.append(text)
             parse_paths.append(pt)
+            mask.append(pretrain)
 
             process_labels(parse_labels, pt)
 
@@ -423,20 +434,23 @@ def extract_tokens(document, hl, unique_words, parse_labels):
                 if k < 10:
                     s = s[k + 1:]
                     parse_paths = parse_paths[k + 1:]
+                    mask = mask[k + 1:]
 
             if '--' in s:
                 k = s.index('--')
                 if k < 10:
                     s = s[k + 1:]
                     parse_paths = parse_paths[k + 1:]
+                    mask = mask[k + 1:]
 
             if '-rrb-' in s:
                 k = s.index('-rrb-')
                 if k < 10:
                     s = s[k + 1:]
                     parse_paths = parse_paths[k + 1:]
+                    mask = mask[k + 1:]
 
-        article.append((s, parse_paths))
+        article.append((s, parse_paths, mask))
 
     for sent in hl:
         tokens = sent['tokens']
