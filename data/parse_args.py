@@ -54,6 +54,16 @@ def get_args():
                         default='',
                         help='STANFORD_MODEL')
 
+    parser.add_argument('--vocab_size',
+                        type=int,
+                        default=150000,
+                        help='Vocab size')
+
+    parser.add_argument('--stopwords',
+                        type=str,
+                        default='stopwords.txt',
+                        help='List of stopwords')
+
     parser.add_argument('--out_limit',
                         type=int,
                         default=5000,

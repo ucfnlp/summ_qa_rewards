@@ -1,4 +1,4 @@
-from nltk import Tree
+from nltk import ParentedTree
 
 import sys
 import os
@@ -6,6 +6,7 @@ import hashlib
 import json
 import time
 import codecs
+from nltk.tokenize import RegexpTokenizer
 
 import parse_args
 
@@ -124,6 +125,8 @@ def recombine_scnlp_data(args):
     article_info = dict()
     pos_set = set()
 
+    stopwords = create_stopwords(args)
+
     print 'Input sha1, hl idx'
     for line in ifp_lookup:
         items = line.rstrip().split()
@@ -137,7 +140,7 @@ def recombine_scnlp_data(args):
     train_order, dev_order, test_order = get_order()
     all_order = [train_order, dev_order, test_order]
     types = ['train', 'dev', 'test']
-    limits = [4000, 200, 200]
+    limits = [100, 20, 20]
 
     for ls, type_, limit in zip(all_order, types, limits):
         print 'Loading HL for', type_
@@ -169,7 +172,7 @@ def recombine_scnlp_data(args):
 
             cur_hl = sentences[hl_idx_start:hl_idx_end]
 
-            process_pos(cur_hl, document, pos_set)
+            process_pos(cur_hl, document, stopwords)
 
             combined_json_out = dict()
 
@@ -181,33 +184,9 @@ def recombine_scnlp_data(args):
 
             counter += 1
 
-            # if counter > limit:
-            #     break
-
 
 def tree2dict(tree):
-    return {tree.label(): [tree2dict(t) if isinstance(t, Tree) else t.lower() for t in tree]}
-
-
-def process_pos(cur_hl, document, pos_set):
-    num_sent = len(document)
-
-    for i in xrange(num_sent):
-
-        sentence = document[i]
-        tokens = sentence['tokens']
-        num_tok = len(tokens)
-
-        tree = Tree.fromstring(sentence['parse'])
-
-        paths = []
-        dfs_nltk_tree(tree, paths, pos_set, i + 1)
-
-        assert num_tok == len(paths)
-        paths = paths[::-1]
-
-        for j in xrange(num_tok):
-            tokens[j]['trace'] = paths[j]
+    return {tree.label(): [tree2dict(t) if isinstance(t, ParentedTree) else t.lower() for t in tree]}
 
 
 def get_order():
@@ -233,11 +212,41 @@ def get_order():
     return train_ls, dev_ls, test_ls
 
 
-def dfs_nltk_tree(tree, paths, pos_set, s_idx):
+def process_pos(cur_hl, document, stopwords):
+    num_sent = len(document)
+    hl_token_set = set()
+    get_unigrams(cur_hl, hl_token_set, stopwords)
+
+    for i in xrange(num_sent):
+
+        sentence = document[i]
+        tokens = sentence['tokens']
+        num_tok = len(tokens)
+
+        tree = ParentedTree.fromstring(sentence['parse'])
+
+        paths = []
+        leaves = []
+        mask = [0]*num_tok
+
+        dfs_nltk_tree(tree, paths, leaves, i + 1)
+        leaves = leaves[::-1]
+
+        create_subtree_mask(leaves, mask, hl_token_set)
+
+        assert num_tok == len(paths)
+        paths = paths[::-1]
+
+        for j in xrange(num_tok):
+            tokens[j]['trace'] = paths[j]
+            tokens[j]['pretrain'] = mask[j]
+
+
+def dfs_nltk_tree(tree, paths, leaves, s_idx):
     stack = []
 
     stack.append(tree)
-    cur_path = ['S'+str(s_idx)]
+    cur_path = ['S' + str(s_idx)]
 
     while len(stack) > 0:
 
@@ -247,7 +256,7 @@ def dfs_nltk_tree(tree, paths, pos_set, s_idx):
             cur_path.pop()
             continue
 
-        if type(item) == Tree:
+        if type(item[0]) == ParentedTree:
             cur_path.append(item.label())
 
             stack.append(-1)
@@ -255,7 +264,61 @@ def dfs_nltk_tree(tree, paths, pos_set, s_idx):
             for sub_t in item:
                 stack.append(sub_t)
         else:
-            paths.append((item, cur_path[:]))
+            cur_path.append(item.label())
+            paths.append((item[0], cur_path[:]))
+            cur_path.pop()
+
+            leaves.append(item)
+
+
+def create_subtree_mask(leaves, mask, hl_token_set):
+    i = 0
+    l = len(mask)
+
+    while i < l:
+        w = leaves[i][0].lower()
+
+        if w in hl_token_set:
+            cur_root = leaves[i].parent()
+
+            begin, end = get_subtree_bounds(cur_root, leaves, i)
+
+            for k in range(begin,  end):
+                if k >= len(mask):
+                    print ''
+                mask[k] = 1
+
+            i = end
+        else:
+            i += 1
+
+
+def get_subtree_bounds(cur_root, leaves, i):
+    c_idx = 0
+
+    for c in cur_root:
+        if c == leaves[i]:
+            break
+        c_idx += len(c.leaves())
+
+    begin = i - c_idx
+    end = begin + len(cur_root.leaves())
+
+    return begin, end
+
+
+def get_unigrams(cur_hl, hl_token_set, stopwords):
+    sw = stopwords[0]
+    punct = stopwords[1]
+
+    for highlight in cur_hl:
+        tokens = highlight['tokens']
+
+        for token in tokens:
+            word = token['originalText'].lower()
+
+            if word not in sw and word not in punct:
+                hl_token_set.add(word)
 
 
 def get_url_sets(args):
@@ -284,6 +347,40 @@ def get_url_sets(args):
     test_ofp.close()
 
     return train_urls, dev_urls, test_urls
+
+
+def create_stopwords(args):
+    stopwords = set()
+    punctuation = set()
+
+    lst_words = []
+
+    ifp = open(str(args.source) + '_vocab_' + str(args.vocab_size) + '.txt', 'r')
+
+    for line in ifp:
+        w = line.rstrip()
+        lst_words.append(w)
+
+    ifp.close()
+    ifp = open(args.stopwords, 'r')
+
+    # Add stopwords
+    for line in ifp:
+        w = line.rstrip()
+        stopwords.add(w)
+
+    ifp.close()
+
+    tokenizer = RegexpTokenizer(r'\w+')
+
+    # add punctuation
+    for i in xrange(len(lst_words)):
+        w = lst_words[i]
+
+        if len(tokenizer.tokenize(w)) == 0:
+            punctuation.add(w)
+
+    return stopwords, punctuation
 
 
 def get_set(file_in, train_urls, dev_urls, test_urls):
