@@ -131,10 +131,14 @@ class Generator(object):
     def pretrain(self):
         bm = self.bm = T.imatrix('bm')
 
-        padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
-        bm_shift = T.concatenate([padded, bm[:-1]], axis=0)
+        if self.args.bigram_m:
+            padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
+            bm_shift = T.concatenate([padded, bm[:-1]], axis=0)
 
-        new_bm = T.cast(T.or_(bm, bm_shift), theano.config.floatX)
+            new_bm = T.cast(T.or_(bm, bm_shift), theano.config.floatX)
+        else:
+            new_bm = T.cast(bm, theano.config.floatX)
+
         new_probs = self.output_layer.forward_all(self.h_final, new_bm)
 
         cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.masks
@@ -277,8 +281,11 @@ class Encoder(object):
         z_shift = z[1:]
         z_new = z[:-1]
 
-        valid_bg = z_new * z_shift
-        bigram_ol = valid_bg * bm[:-1]
+        if self.args.bigram_m:
+            valid_bg = z_new * z_shift
+            bigram_ol = valid_bg * bm[:-1]
+        else:
+            bigram_ol = z * bm
 
         total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
         total_bg_per_sample = T.sum(bm, axis=0) + args.bigram_smoothing
@@ -813,7 +820,7 @@ class Model(object):
                             say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
                         bx, bm, bpt = train_batches_x[j], train_batches_bm[j], train_batches_bpt[j]
-                        print bx.shape, bpt.shape
+                        # print bx.shape, bm.shape
                         mask = bx != padding_id
 
                         obj, z, zsum, zdiff,cost_g = train_generator(bx, bpt, bm)

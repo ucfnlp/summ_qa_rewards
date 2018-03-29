@@ -472,6 +472,7 @@ def create_pt_map(args, parse_labels):
     for label, value in parse_labels.iteritems():
         ofp.write(label + ' ' + str(value) + '\n')
 
+    ofp.write('<padding> ' + str(len(parse_labels)) + '\n')
     ofp.close()
 
 

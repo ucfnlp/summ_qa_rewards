@@ -43,6 +43,11 @@ def get_args():
                         default=True,
                         help='Bilinear attn.')
 
+    parser.add_argument('--bigram_m',
+                        type='bool',
+                        default=False,
+                        help='Toggle bigram masks and parse tree masks')
+
     parser.add_argument('--is_root',
                         type='bool',
                         default=False,
