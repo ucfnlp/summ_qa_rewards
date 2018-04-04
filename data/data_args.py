@@ -93,6 +93,11 @@ def get_args():
                         default=False,
                         help='Whether to use the ROOT based entity in the data.')
 
+    parser.add_argument('--pad_repeat',
+                        type='bool',
+                        default=False,
+                        help='Adhere to strict input Q len, by padding using repeated values.')
+
     parser.add_argument('--use_all',
                         type='bool',
                         default=True,

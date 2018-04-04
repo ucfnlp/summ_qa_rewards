@@ -94,10 +94,10 @@ def load_batches(name, iteration):
     ifp = open(name + str(iteration), 'rb')
     data = np.load(ifp)
     ifp.close()
-    if len(data) == 7:
+    if len(data) == 8:
+        return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]
+    elif len(data) == 7:
         return data[0], data[1], data[2], data[3], data[4], data[5], data[6]
-    elif len(data) == 6:
-        return data[0], data[1], data[2], data[3], data[4], data[5]
     else:
         return data[0], data[1], data[2], data[3], data[4]
 

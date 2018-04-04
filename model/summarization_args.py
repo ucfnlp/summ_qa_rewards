@@ -111,7 +111,7 @@ def get_args():
 
     parser.add_argument('--pt_len',
                         type=int,
-                        default=20,
+                        default=15,
                         help='length of single sentence in highlights')
 
     parser.add_argument('--nclasses',
@@ -136,6 +136,11 @@ def get_args():
                         default="../data/results/summaries/model/",
                         help="gold standard summaries"
                         )
+
+    parser.add_argument('--pad_repeat',
+                        type='bool',
+                        default=False,
+                        help='Adhere to strict input Q len, by padding using repeated values.')
 
     parser.add_argument("--rouge_dir",
                         type=str,

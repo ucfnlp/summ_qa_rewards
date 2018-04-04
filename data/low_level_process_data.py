@@ -134,7 +134,7 @@ def prune_type(x, y, e, ve, cy, rx, pt, ma, sha, entity_map, used_e):
             invalid_articles += 1
             continue
 
-        if total_entries < args.n and total_entries != 0:
+        if total_entries < args.n and total_entries != 0 and args.pad_repeat:
 
             original_y = updated_y_ls[:]
             original_e = updated_e_ls[:]

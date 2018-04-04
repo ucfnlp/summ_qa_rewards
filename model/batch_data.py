@@ -123,7 +123,7 @@ def create_batches_test(args, x, y, cy, pt, sha, rx, batch_size, padding_id, pad
 
 
 def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, rx,  batch_size, padding_id, padding_id_pt, stopwords, sort=True, model_type=''):
-    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt = [], [], [], [], [], [], []
+    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt, batches_lm = [], [], [], [], [], [], [], []
 
     N = len(x)
     M = (N - 1) / batch_size + 1
@@ -142,7 +142,7 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, rx,  batch_size, pa
         sha = [sha[i] for i in perm]
 
     for i in xrange(M):
-        bx, by, be, bm, bpt = create_one_batch(
+        bx, by, be, bm, bpt, blm = create_one_batch(
             args,
             n_classes,
             x[i * batch_size:(i + 1) * batch_size],
@@ -166,6 +166,7 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, rx,  batch_size, pa
         batches_e.append(be)
         batches_bm.append(bm)
         batches_pt.append(bpt)
+        batches_lm.append(blm)
         batches_sha.append(bsh)
 
         num_batches += 1
@@ -176,28 +177,51 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, rx,  batch_size, pa
             print 'Creating file #', str(num_files + 1)
 
             if model_type == 'train':
-                data = [
-                    batches_x,
-                    batches_y,
-                    batches_e,
-                    batches_bm,
-                    batches_pt,
-                    batches_sha
-                ]
+                if args.pad_repeat:
+                    data = [
+                        batches_x,
+                        batches_y,
+                        batches_e,
+                        batches_bm,
+                        batches_pt,
+                        batches_sha
+                    ]
+                else:
+                    data = [
+                        batches_x,
+                        batches_y,
+                        batches_e,
+                        batches_bm,
+                        batches_pt,
+                        batches_lm,
+                        batches_sha
+                    ]
             else:
-                data = [
-                    batches_x,
-                    batches_y,
-                    batches_e,
-                    batches_bm,
-                    batches_pt,
-                    batches_sha,
-                    batches_rx
-                ]
+                if args.pad_repeat:
+                    data = [
+                        batches_x,
+                        batches_y,
+                        batches_e,
+                        batches_bm,
+                        batches_pt,
+                        batches_sha,
+                        batches_rx
+                    ]
+                else:
+                    data = [
+                        batches_x,
+                        batches_y,
+                        batches_e,
+                        batches_bm,
+                        batches_pt,
+                        batches_lm,
+                        batches_sha,
+                        batches_rx
+                    ]
             with open(fname + str(num_files), 'w+') as ofp:
                 np.save(ofp, data)
 
-            batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt = [], [], [], [], [], [], []
+            batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt, batches_lm = [], [], [], [], [], [], [], []
             num_batches = 0
             num_files += 1
 
@@ -210,7 +234,7 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, lstpt, lstbm, pad
     assert min(len(x) for x in lstx) > 0
 
     # padded y
-    by, unigrams, be = process_hl(args, lsty, lste, padding_id, n_classes, lstcy)
+    by, unigrams, be, blm = process_hl(args, lsty, lste, padding_id, n_classes, lstcy)
 
     bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=padding_id).astype('int32') for x in lstx])
@@ -225,7 +249,7 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, lstpt, lstbm, pad
     by = np.column_stack([y for y in by])
     bpt = stack_pt(args, lstpt, padding_id_pt)
 
-    return bx, by, be, bm, bpt
+    return bx, by, be, bm, bpt, blm
 
 
 def create_one_batch_test(args, lstx_, lsty, lstcy, lstpt, padding_id, padding_id_pt, b_len, stopwords):
@@ -273,6 +297,7 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
     max_len_y = args.hl_len
     y_processed = [[] for i in xrange(args.n)]
     e_processed = [[] for i in xrange(args.n)]
+    loss_mask = np.ones((len(lsty), args.n), dtype='int32')
     unigrams = []
 
     for i in xrange(len(lsty)):
@@ -288,6 +313,16 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
             y_processed[j].append(single_hl)
             e_processed[j].append(single_e_1h)
 
+        # For the case of not having padded y
+        if not args.pad_repeat and len(lsty[i]) < args.n:
+            for j in range(len(lsty[i]), args.n):
+                y_processed[j].append(np.full((max_len_y,), fill_value=padding_id).astype('int32'))
+
+                single_e_1h = np.zeros((n_classes,), dtype='int32')
+                single_e_1h[0] = 1
+                e_processed[j].append(single_e_1h)
+                loss_mask[i,j] = 0
+
         for clean_hl in lstcy[i]:
             trimmed_cy = clean_hl[:max_len_y]
 
@@ -302,7 +337,7 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
         by.extend(y_processed[i])
         be.extend(e_processed[i])
 
-    return by, unigrams, be
+    return by, unigrams, be, loss_mask
 
 
 def process_hl_test(args, lsty, lstcy):
