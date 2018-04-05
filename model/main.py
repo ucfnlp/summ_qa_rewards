@@ -516,8 +516,12 @@ class Model(object):
 
     def dev_full(self):
 
+        inputs_d = [self.x, self.y, self.parse_tree, self.bm, self.gold_standard_entities]
+        if not args.pad_repeat:
+            inputs_d.append(self.encoder.loss_mask)
+
         eval_generator = theano.function(
-            inputs=[self.x, self.y, self.parse_tree, self.bm, self.gold_standard_entities],
+            inputs=inputs_d,
             outputs=[self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
             updates=self.generator.sample_updates,
             on_unused_input='ignore'

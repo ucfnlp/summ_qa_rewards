@@ -125,6 +125,12 @@ def get_args():
                         help="path to annotated train results"
                         )
 
+    parser.add_argument("--train_output_mask",
+                        type=str,
+                        default="../data/results/masks/",
+                        help="path to annotated train results"
+                        )
+
     parser.add_argument("--system_summ_path",
                         type=str,
                         default="../data/results/summaries/system/",

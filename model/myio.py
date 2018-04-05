@@ -143,6 +143,13 @@ def create_json_filename(args):
 
 def get_readable_file(args, epoch, test=False):
     path = args.train_output_readable
+    filename = create_fname_identifier(args) + ('_e_' + str(epoch + 1)  if epoch is not None else '') + ('_TEST' if test else '') + '.fson'
+
+    return path + filename
+
+
+def get_mask_file(args, epoch, test=False):
+    path = args.train_output_mask
     filename = create_fname_identifier(args) + ('_e_' + str(epoch + 1)  if epoch is not None else '') + ('_TEST' if test else '') + '.out'
 
     return path + filename
@@ -195,8 +202,13 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
     s_num = 0
 
     filename_ = get_readable_file(args, epoch)
+    filename_m = get_mask_file(args, epoch)
+
     ofp_samples = open(filename_, 'w+')
+    ofp_samples_m = open(filename_m, 'w+')
+
     ofp_samples_system = []
+    ofp_m = dict()
     ofp_samples_sha = []
 
     model_specific_dir = create_fname_identifier(args).replace('.', '_') + '/'
@@ -209,6 +221,7 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
 
         for j in xrange(len(dev_z[i][0])):
             filename = rouge_fname + 'sum.' + str(s_num).zfill(6) + '.txt'
+
             ofp_for_rouge = open(filename, 'w+')
             ofp_system_output = []
 
@@ -223,6 +236,12 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
 
                 ofp_for_rouge.write(word + ' ')
                 ofp_system_output.append(word)
+
+            raw_and_mask = dict()
+            raw_and_mask['m'] = list(dev_z[i][:,j])
+            raw_and_mask['r'] = dev_batches_x[i][j][:]
+
+            ofp_m[dev_sha[i][j]] = raw_and_mask
 
             ofp_samples_system.append(' '.join(ofp_system_output))
             ofp_samples_sha.append(dev_sha[i][j])
@@ -240,6 +259,9 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
 
         ofp_samples.write('\n\n')
 
+    json.dump(ofp_m, ofp_samples_m)
+
+    ofp_samples_m.close()
     ofp_samples.close()
 
 
@@ -320,9 +342,15 @@ def save_test_results_rouge(args, z, x, sha):
     epoch = None
 
     filename_ = get_readable_file(args, epoch, test=True)
+    filename_m = get_mask_file(args, epoch, test=True)
+
     ofp_samples = open(filename_, 'w+')
+    ofp_samples_m = open(filename_m, 'w+')
+
     ofp_samples_system = []
     ofp_samples_sha = []
+
+    ofp_m = dict()
 
     model_specific_dir = create_fname_identifier(args).replace('.', '_') + '_TEST/'
     rouge_fname = args.system_summ_path + model_specific_dir
@@ -349,6 +377,12 @@ def save_test_results_rouge(args, z, x, sha):
                 ofp_for_rouge.write(word + ' ')
                 ofp_system_output.append(word)
 
+            raw_and_mask = dict()
+            raw_and_mask['m'] = list(z[i][:, j])
+            raw_and_mask['r'] = x[i][j][:]
+
+            ofp_m[sha[i][j]] = raw_and_mask
+
             ofp_samples_system.append(' '.join(ofp_system_output))
             ofp_samples_sha.append(sha[i][j])
             ofp_for_rouge.close()
@@ -365,6 +399,9 @@ def save_test_results_rouge(args, z, x, sha):
 
         ofp_samples.write('\n\n')
 
+    json.dump(ofp_m, ofp_samples_m)
+
+    ofp_samples_m.close()
     ofp_samples.close()
 
     if args.source == 'dm':
