@@ -246,7 +246,7 @@ def get_args():
 
     parser.add_argument("--test",
                         type=str,
-                        default="",
+                        default="../data/test_model.json",
                         help="path to test data"
                         )
 

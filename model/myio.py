@@ -149,7 +149,7 @@ def get_readable_file(args, epoch, test=False):
 
 
 def get_mask_file(args, epoch, test=False):
-    path = args.train_output_mask
+    path = "../data/results/masks/"#args.train_output_mask
     filename = create_fname_identifier(args) + ('_e_' + str(epoch + 1)  if epoch is not None else '') + ('_TEST' if test else '') + '.out'
 
     return path + filename
@@ -378,7 +378,8 @@ def save_test_results_rouge(args, z, x, sha):
                 ofp_system_output.append(word)
 
             raw_and_mask = dict()
-            raw_and_mask['m'] = list(z[i][:, j])
+            raw_and_mask['m'] = z[i][:, j].tolist()
+
             raw_and_mask['r'] = x[i][j][:]
 
             ofp_m[sha[i][j]] = raw_and_mask

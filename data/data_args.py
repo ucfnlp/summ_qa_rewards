@@ -53,7 +53,7 @@ def get_args():
 
     parser.add_argument('--source',
                         type=str,
-                        default='dm',
+                        default='cnn',
                         help='Data source')
 
     parser.add_argument('--small_limit',
@@ -151,7 +151,7 @@ def get_args():
 
     parser.add_argument('--test',
                         type=str,
-                        default="test_model.json",
+                        default="test.json",
                         help='Test Data')
 
     parser.add_argument('--intermediate',

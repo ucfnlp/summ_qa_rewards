@@ -124,7 +124,7 @@ def create_batches_test(args, x, y, cy, pt, sha, rx, batch_size, padding_id, pad
 
 def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, rx,  batch_size, padding_id, padding_id_pt, stopwords, sort=True, model_type=''):
     batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt, batches_lm = [], [], [], [], [], [], [], []
-
+    # args, -1, test_x, test_y, None, test_clean_y, test_p, test_bm, test_sha, test_rx, args.batch, pad_id, pad_id_pt, stopwords, sort=False, model_type='test'
     N = len(x)
     M = (N - 1) / batch_size + 1
     num_batches = 0
@@ -146,9 +146,9 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, rx,  batch_size, pa
             args,
             n_classes,
             x[i * batch_size:(i + 1) * batch_size],
-            y[i * batch_size:(i + 1) * batch_size],
-            e[i * batch_size:(i + 1) * batch_size],
-            cy[i * batch_size:(i + 1) * batch_size],
+            y[i * batch_size:(i + 1) * batch_size] if e is not None else None,
+            e[i * batch_size:(i + 1) * batch_size] if e is not None else None,
+            cy[i * batch_size:(i + 1) * batch_size] if e is not None else None,
             pt[i * batch_size:(i + 1) * batch_size],
             m[i * batch_size:(i + 1) * batch_size],
             padding_id,
@@ -196,7 +196,7 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, rx,  batch_size, pa
                         batches_lm,
                         batches_sha
                     ]
-            else:
+            elif model_type == 'dev':
                 if args.pad_repeat:
                     data = [
                         batches_x,
@@ -218,6 +218,14 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, rx,  batch_size, pa
                         batches_sha,
                         batches_rx
                     ]
+            else:
+                data = [
+                    batches_x,
+                    batches_bm,
+                    batches_pt,
+                    batches_sha,
+                    batches_rx
+                ]
             with open(fname + str(num_files), 'w+') as ofp:
                 np.save(ofp, data)
 
@@ -234,22 +242,28 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, lstpt, lstbm, pad
     assert min(len(x) for x in lstx) > 0
 
     # padded y
-    by, unigrams, be, blm = process_hl(args, lsty, lste, padding_id, n_classes, lstcy)
+    if lste is not None:
+        by, unigrams, be, blm = process_hl(args, lsty, lste, padding_id, n_classes, lstcy)
+        by = np.column_stack([y for y in by])
+    else:
+        unigrams = None
 
     bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=padding_id).astype('int32') for x in lstx])
 
-    if create_mask:
+    if create_mask and unigrams is not None:
         bm = create_unigram_masks(lstx, unigrams, max_len, stopwords, args)
         bm = np.column_stack([m for m in bm])
     else:
         bm = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=0).astype('int32') for x in lstbm])
 
-    by = np.column_stack([y for y in by])
     bpt = stack_pt(args, lstpt, padding_id_pt)
 
-    return bx, by, be, bm, bpt, blm
+    if lste is not None:
+        return bx, by, be, bm, bpt, blm
+    else:
+        return bx, [], [], bm, bpt, []
 
 
 def create_one_batch_test(args, lstx_, lsty, lstcy, lstpt, padding_id, padding_id_pt, b_len, stopwords):
@@ -483,11 +497,13 @@ def main(args):
     if args.test:
         print 'TEST data'
         print '  Read JSON..'
+
         test_x, test_y, test_sha, test_clean_y, test_rx, test_p, test_bm = read_docs(args, 'test')
 
         print '  Create batches..'
 
-        create_batches_test(args, test_x, test_y, test_clean_y, test_p, test_sha, test_rx, args.batch, pad_id, pad_id_pt, stopwords)
+        create_batches(args, -1, test_x, test_y, None, test_clean_y, test_p, test_bm, test_sha, test_rx, args.batch,
+                       pad_id, pad_id_pt, stopwords, sort=False, model_type='test')
 
         print '  Purge references..'
 

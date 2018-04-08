@@ -359,7 +359,7 @@ class Model(object):
 
     def ready_test(self):
         args, embedding_layer, embedding_layer_pt = self.args, self.embedding_layer, self.embedding_layer_pt
-        self.generator = Generator(args, embedding_layer)
+        self.generator = Generator(args, embedding_layer, embedding_layer_pt)
         self.generator.ready()
         self.dropout = self.generator.dropout
         self.x = self.generator.x
@@ -1042,7 +1042,7 @@ class Model(object):
                 sha_ls.append(sha)
                 dev_acc.append(self.eval_acc(be, preds))
 
-            N += len(batches_x)
+            N += cur_len
 
         return tot_obj / float(N), dev_z, x, sha_ls, np.mean(dev_acc)
 
