@@ -337,12 +337,14 @@ def eval_baseline(args, bm, rx, type_):
     shutil.rmtree(tmp_dir)
 
 
-def save_test_results_rouge(args, z, x, sha):
+def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
     s_num = 0
     epoch = None
 
     filename_ = get_readable_file(args, epoch, test=True)
     filename_m = get_mask_file(args, epoch, test=True)
+
+    index_to_e_map = get_entities(args)
 
     ofp_samples = open(filename_, 'w+')
     ofp_samples_m = open(filename_m, 'w+')
@@ -360,16 +362,27 @@ def save_test_results_rouge(args, z, x, sha):
 
     for i in xrange(len(z)):
 
+        start_hl_idx = 0
+        end_hl_idx = len(y[i][0])
+        hl_step = end_hl_idx / args.n
+
         for j in xrange(len(z[i][0])):
             filename = rouge_fname + 'sum.' + str(s_num).zfill(6) + '.txt'
             ofp_for_rouge = open(filename, 'w+')
             ofp_system_output = []
 
+            word_idx = 0
+            sent_idx = 0
+
             for k in xrange(len(z[i])):
-                if k >= len(x[i][j]):
+                if word_idx >= len(x[i][j][sent_idx]):
+                    sent_idx += 1
+                    word_idx = 0
+
+                if sent_idx >= len(x[i][j]):
                     break
 
-                word = x[i][j][k].encode('utf-8')
+                word = x[i][j][sent_idx][word_idx].encode('utf-8')
 
                 if z[i][k][j] < 0.5:
                     continue
@@ -381,13 +394,16 @@ def save_test_results_rouge(args, z, x, sha):
             raw_and_mask['m'] = z[i][:, j].tolist()
 
             raw_and_mask['r'] = x[i][j][:]
+            raw_and_mask['y'] = create_eval_questions(args, y[i], e[i], index_to_e_map, embedding_layer, start_hl_idx, end_hl_idx, hl_step)
 
             ofp_m[sha[i][j]] = raw_and_mask
 
             ofp_samples_system.append(' '.join(ofp_system_output))
             ofp_samples_sha.append(sha[i][j])
             ofp_for_rouge.close()
+
             s_num += 1
+            start_hl_idx += 1
 
     for i in xrange(len(ofp_samples_system)):
         ofp_samples.write(str(ofp_samples_sha[i]))
@@ -479,8 +495,58 @@ def get_rouge(args):
     shutil.rmtree(tmp_dir)
 
 
-def get_ngram(l, n=2):
+def create_eval_questions(args, y, e, index_to_e_map, embedding_layer, start_hl_idx, end_hl_idx, step):
+    num_samples = len(y)
+    questions = []
 
+    for i in range(start_hl_idx, end_hl_idx, step):
+        single_y = dict()
+        hl_str = ''
+
+        if e[i] < 0:
+            continue
+
+        for j in xrange(len(y)):
+            w_idx = y[j][i]
+            raw_w = embedding_layer.lst_words[w_idx]
+
+            if raw_w == '<unk>' or raw_w == '<padding>':
+                continue
+
+            hl_str += raw_w
+            hl_str += ' '
+
+        single_y['hl'] = hl_str.rstrip()
+        single_y['e'] = index_to_e_map[e[i]]
+
+        questions.append(single_y)
+
+    return questions
+
+
+def get_entities(args):
+    i_to_e = dict()
+
+    filename_entities = 'entities_model.json' if args.full_test else "small_entities_model.json"
+    filename_entities = args.source + '_' + str(args.vocab_size) + '_' + filename_entities
+
+    ifp_entities = open('../data/' + filename_entities, 'rb')
+
+    data = json.load(ifp_entities)['entities']
+
+    for e in data:
+        text = e[0]
+        index = e[1][0]
+        ner = e[1][1]
+
+        i_to_e[index] = text
+
+        ifp_entities.close()
+
+    return i_to_e
+
+
+def get_ngram(l, n=2):
     return set(zip(*[l[i:] for i in range(n)]))
 
 
@@ -489,9 +555,12 @@ def convert_bv_to_z(bv):
 
     for batch in bv:
         dz_batch = []
+
         for b in xrange(len(batch[0])):
             dz_b = [0] * len(batch)
+
             for i in xrange(len(batch) - 1):
+
                 if batch[i][b] == 1:
                     dz_b[i] = dz_b[i + 1] = 1
 

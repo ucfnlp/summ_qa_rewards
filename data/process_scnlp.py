@@ -380,6 +380,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
 
     final_json_test['x'] = seqs_test_articles
     final_json_test['y'] = seqs_test_hl
+    final_json_test['e'] = seqs_test_e
     final_json_test['sha'] = test[2]
     final_json_test['raw_x'] = seq_test_art_raw
     final_json_test['clean_y'] = seqs_clean_test
