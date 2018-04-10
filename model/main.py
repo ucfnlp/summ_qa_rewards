@@ -496,9 +496,9 @@ class Model(object):
         )
 
         self.dropout.set_value(0.0)
-        z, x, sha = self.evaluate_test_data(test_generator)
+        z, x, y, e, sha = self.evaluate_test_data(test_generator)
 
-        myio.save_test_results_rouge(args, z, x, sha)
+        myio.save_test_results_rouge(args, z, x, y, e, sha, self.embedding_layer)
 
     def dev(self):
 
@@ -600,7 +600,7 @@ class Model(object):
 
             say("Unchanged : {}\n".format(unchanged))
 
-            if unchanged > 20:
+            if unchanged > 25:
                 break
 
             more = True
@@ -1051,27 +1051,32 @@ class Model(object):
 
         test_z = []
         x = []
+        y = []
+        e =[]
         sha_ls = []
 
         num_files = self.args.num_files_test
 
         for i in xrange(num_files):
-            batches_x, _, batches_pt, batches_sha, batches_rx = myio.load_batches(
+            batches_x, batches_y, batches_e, _, batches_pt, batches_sha, batches_rx = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'test', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, rx, bsha, bpt = batches_x[j], batches_rx[j], batches_sha[j], batches_pt[j]
+                bx, rx, bsha, bpt, by, be = batches_x[j], batches_rx[j], batches_sha[j], batches_pt[j], batches_y[j], batches_e[j]
                 bz = eval_func(bx, bpt)
 
                 x.append(rx)
+                y.append(by)
+                e.append(be)
+
                 test_z.append(bz)
                 sha_ls.append(bsha)
 
             N += len(batches_x)
 
-        return test_z, x, sha_ls
+        return test_z, x, y, e, sha_ls
 
     def eval_acc(self,e, preds):
         gs = np.argmax(e, axis=1)

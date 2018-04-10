@@ -14,7 +14,7 @@ def read_docs(args, type):
         data = json.load(data_file)
 
     if type == 'test':
-        return data['x'], data['y'], data['sha'], data['clean_y'], data['raw_x'], data['parse'], data['mask']
+        return data['x'], data['y'], data['e'], data['sha'], data['clean_y'], data['raw_x'], data['parse'], data['mask']
     elif type == 'dev':
         return data['x'], data['y'], data['e'], data['clean_y'], data['raw_x'], data['sha'], data['parse'], data['mask']
     else:
@@ -124,7 +124,7 @@ def create_batches_test(args, x, y, cy, pt, sha, rx, batch_size, padding_id, pad
 
 def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, rx,  batch_size, padding_id, padding_id_pt, stopwords, sort=True, model_type=''):
     batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt, batches_lm = [], [], [], [], [], [], [], []
-    # args, -1, test_x, test_y, None, test_clean_y, test_p, test_bm, test_sha, test_rx, args.batch, pad_id, pad_id_pt, stopwords, sort=False, model_type='test'
+
     N = len(x)
     M = (N - 1) / batch_size + 1
     num_batches = 0
@@ -221,6 +221,8 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, rx,  batch_size, pa
             else:
                 data = [
                     batches_x,
+                    batches_y,
+                    batches_e,
                     batches_bm,
                     batches_pt,
                     batches_sha,
@@ -309,8 +311,10 @@ def stack_pt(args, lspt, padding_id_pt):
 
 def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
     max_len_y = args.hl_len
+
     y_processed = [[] for i in xrange(args.n)]
     e_processed = [[] for i in xrange(args.n)]
+
     loss_mask = np.ones((len(lsty), args.n), dtype='int32')
     unigrams = []
 
@@ -321,8 +325,11 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
             y = lsty[i][j][:max_len_y]
             single_hl = np.pad(y, (max_len_y - len(y), 0), "constant", constant_values=padding_id).astype('int32')
 
-            single_e_1h = np.zeros((n_classes,), dtype='int32')
-            single_e_1h[lste[i][j]] = 1
+            if n_classes > 0:
+                single_e_1h = np.zeros((n_classes,), dtype='int32')
+                single_e_1h[lste[i][j]] = 1
+            else:
+                single_e_1h = lste[i][j]
 
             y_processed[j].append(single_hl)
             e_processed[j].append(single_e_1h)
@@ -332,8 +339,12 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
             for j in range(len(lsty[i]), args.n):
                 y_processed[j].append(np.full((max_len_y,), fill_value=padding_id).astype('int32'))
 
-                single_e_1h = np.zeros((n_classes,), dtype='int32')
-                single_e_1h[0] = 1
+                if n_classes > 0:
+                    single_e_1h = np.zeros((n_classes,), dtype='int32')
+                    single_e_1h[0] = 1
+                else:
+                    single_e_1h = -1
+
                 e_processed[j].append(single_e_1h)
                 loss_mask[i,j] = 0
 
@@ -498,17 +509,18 @@ def main(args):
         print 'TEST data'
         print '  Read JSON..'
 
-        test_x, test_y, test_sha, test_clean_y, test_rx, test_p, test_bm = read_docs(args, 'test')
+        test_x, test_y, test_e, test_sha, test_clean_y, test_rx, test_p, test_bm = read_docs(args, 'test')
 
         print '  Create batches..'
 
-        create_batches(args, -1, test_x, test_y, None, test_clean_y, test_p, test_bm, test_sha, test_rx, args.batch,
+        create_batches(args, -1, test_x, test_y, test_e, test_clean_y, test_p, test_bm, test_sha, test_rx, args.batch,
                        pad_id, pad_id_pt, stopwords, sort=False, model_type='test')
 
         print '  Purge references..'
 
         del test_x
         del test_y
+        del test_e
         del test_clean_y
         del test_rx
         del test_sha

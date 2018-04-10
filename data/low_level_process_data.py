@@ -12,7 +12,7 @@ def process_data(args):
 def prune_hl(args):
     train_x, train_y, train_e, train_ve, train_cly, train_sha, train_parse, train_m = load_json(args, args.train)
     dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_sha, dev_parse, dev_m = load_json(args, args.dev)
-    test_x, test_y, test_cy, test_rx, test_parse, test_m, test_sha = load_json(args, args.test)
+    test_x, test_y, test_e, test_cy, test_rx, test_parse, test_m, test_sha = load_json(args, args.test)
 
     entity_map = get_entities(args)
     used_e = set()
@@ -22,8 +22,8 @@ def prune_hl(args):
     updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_sha, updated_dev_parse, updated_dev_ma = prune_type(
         dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_parse, dev_m, dev_sha, entity_map, used_e)
 
-    updated_test_y, updated_test_x, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_parse, updated_test_ma = prune_type(
-        test_x, test_y, None, None, test_cy, test_rx, test_parse, test_m, test_sha, None, None)
+    updated_test_y, updated_test_e, updated_test_x, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_parse, updated_test_ma = prune_type(
+        test_x, test_y, test_e, None, test_cy, test_rx, test_parse, test_m, test_sha, None, used_e)
 
     print 'used/total entities = ', len(used_e)/ float(len(entity_map))
 
@@ -32,12 +32,13 @@ def prune_hl(args):
 
     re_map_entities(updated_train_e, e_map_new)
     re_map_entities(updated_dev_e, e_map_new)
+    re_map_entities(updated_test_e, e_map_new)
 
     save_updated_e(args, e_map_new, entity_map)
 
     return (updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly, updated_train_parse, updated_train_ma, updated_train_sha), \
            (updated_dev_x, updated_dev_y, updated_dev_e, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_parse, updated_dev_ma, updated_dev_sha), \
-            (updated_test_x, updated_test_y, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_parse, updated_test_ma)
+            (updated_test_x, updated_test_y, updated_test_e, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_parse, updated_test_ma)
 
 
 def write_model_ready(args, train, dev, test):
@@ -86,11 +87,12 @@ def write_model_ready(args, train, dev, test):
 
     final_json_test['x'] = test[0]
     final_json_test['y'] = test[1]
-    final_json_test['clean_y'] = test[2]
-    final_json_test['raw_x'] = test[3]
-    final_json_test['sha'] = test[4]
-    final_json_test['parse'] = test[5]
-    final_json_test['mask'] = test[6]
+    final_json_test['e'] = test[2]
+    final_json_test['clean_y'] = test[3]
+    final_json_test['raw_x'] = test[4]
+    final_json_test['sha'] = test[5]
+    final_json_test['parse'] = test[6]
+    final_json_test['mask'] = test[7]
 
     json.dump(final_json_test, ofp_test)
     ofp_test.close()
@@ -118,70 +120,74 @@ def prune_type(x, y, e, ve, cy, rx, pt, ma, sha, entity_map, used_e):
 
         updated_y_ls = []
         updated_e_ls = []
-        if ve is not None:
-            for highlight in e[i]:
 
-                if total_entries >= args.n:
-                    break
+        for highlight in e[i]:
 
-                num_perms = len(highlight)
+            if total_entries >= args.n:
+                break
 
-                if args.use_root or num_perms == 1:
-                    updated_y_ls.append(y[i][y_idx])
-                    updated_e_ls.append(highlight[0])
+            num_perms = len(highlight)
 
-                    used_e.add(highlight[0])
+            if args.use_root or num_perms == 1:
+                updated_y_ls.append(y[i][y_idx])
+                updated_e_ls.append(highlight[0])
 
-                    total_entries += 1
+                used_e.add(highlight[0])
+
+                total_entries += 1
+            else:
+                if num_perms == 2:
+                    rand_e_idx = 1
                 else:
-                    if num_perms == 2:
-                        rand_e_idx = 1
-                    else:
-                        rand_e_idx = np.random.randint(1, num_perms - 1)
+                    rand_e_idx = np.random.randint(1, num_perms - 1)
 
-                    updated_y_ls.append(y[i][y_idx + rand_e_idx])
-                    updated_e_ls.append(highlight[rand_e_idx])
+                updated_y_ls.append(y[i][y_idx + rand_e_idx])
+                updated_e_ls.append(highlight[rand_e_idx])
 
-                    used_e.add(highlight[rand_e_idx])
+                used_e.add(highlight[rand_e_idx])
 
-                    total_entries += 1
+                total_entries += 1
 
-                y_idx += num_perms
+            y_idx += num_perms
 
-            if total_entries == 0:
-                invalid_articles += 1
-                continue
+        if total_entries == 0:
+            invalid_articles += 1
+            continue
 
-            if total_entries < args.n and total_entries != 0 and args.pad_repeat:
+        if total_entries < args.n and total_entries != 0 and args.pad_repeat:
 
-                original_y = updated_y_ls[:]
-                original_e = updated_e_ls[:]
+            original_y = updated_y_ls[:]
+            original_e = updated_e_ls[:]
 
-                added_entries = len(original_y)
+            added_entries = len(original_y)
 
-                while total_entries < args.n:
-                    updated_e_ls.extend(original_e[:])
-                    updated_y_ls.extend(original_y[:])
-                    total_entries += added_entries
+            while total_entries < args.n:
+                updated_e_ls.extend(original_e[:])
+                updated_y_ls.extend(original_y[:])
+                total_entries += added_entries
 
-            updated_e.append(updated_e_ls[:args.n])
-            updated_ve.append(ve[i])
-
+        updated_e.append(updated_e_ls[:args.n])
         updated_y.append(updated_y_ls[:args.n])
+
         updated_cy.append(cy[i])
         updated_sha.append(sha[i])
+
         updated_x.append([w for sent in x[i] for w in sent])
         updated_ma.append([w for sent in ma[i] for w in sent])
         updated_pt.append([w for sent in pt[i] for w in sent])
 
-        if rx is not None:
+        if ve is not None:
+            updated_ve.append(ve[i])
+        if rx is not None and ve is not None:
             updated_raw_x.append([w for sent in rx[i] for w in sent])
+        elif rx is not None:
+            updated_raw_x.append(rx[i])
 
     print invalid_articles, "Invalid Articles"
     print length, "of Articles"
 
     if ve is None:
-        return updated_y, updated_x, updated_cy, updated_raw_x, updated_sha, updated_pt, updated_ma
+        return updated_y, updated_e, updated_x, updated_cy, updated_raw_x, updated_sha, updated_pt, updated_ma
     if rx is None:
         return updated_y, updated_e, updated_x, updated_ve, updated_cy, updated_sha, updated_pt, updated_ma
     else:
@@ -206,7 +212,7 @@ def load_json(args, type):
     ifp.close()
 
     if 'test' in type:
-        return data['x'], data['y'], data['clean_y'], data['raw_x'], data['parse'], data['mask'], data['sha']
+        return data['x'], data['y'], data['e'], data['clean_y'], data['raw_x'], data['parse'], data['mask'], data['sha']
     elif 'dev' in type:
         return data['x'], data['y'], data['e'], data['valid_e'], data['clean_y'], data['raw_x'], data['sha'], data['parse'], data['mask']
     else:
