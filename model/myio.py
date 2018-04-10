@@ -238,7 +238,7 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
                 ofp_system_output.append(word)
 
             raw_and_mask = dict()
-            raw_and_mask['m'] = list(dev_z[i][:,j])
+            raw_and_mask['m'] = dev_z[i][:, j].tolist()
             raw_and_mask['r'] = dev_batches_x[i][j][:]
 
             ofp_m[dev_sha[i][j]] = raw_and_mask
