@@ -259,15 +259,24 @@ class Encoder(object):
             # (batch * n) x inp_len x 1
             inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
 
+        size = n_d * 2
+
         inp_dot_hl = inp_dot_hl - softmax_mask
         inp_dot_hl = inp_dot_hl.ravel()
 
-        alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], args.inp_len)))
+        # (batch * n) x inp_len
+        self.alpha = alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], args.inp_len)))
 
+        # (batch * n) * n_d * 2
         o = T.batched_dot(alpha, gen_h_final)
 
+        if args.extended_c_k:
+            size *= 4
+            h_concat_y = h_concat_y.reshape((o.shape[0], o.shape[1]))
+            self.o = o = T.concatenate([o, h_concat_y, T.abs_(o - h_concat_y), o * h_concat_y], axis=1)
+
         output_layer = Layer(
-            n_in=n_d*2,
+            n_in=size,
             n_out=self.nclasses,
             activation=softmax
         )
@@ -275,6 +284,7 @@ class Encoder(object):
         layers.append(rnn_fw)
         layers.append(rnn_rv)
         layers.append(output_layer)
+
 
         preds = output_layer.forward(o)
         self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
@@ -559,7 +569,8 @@ class Model(object):
         outputs_d = [self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped]
         outputs_t = [self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
                      self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz,
-                     self.encoder.cost_vec, self.generator.masks, self.encoder.bigram_loss, self.encoder.preds_clipped]
+                     self.encoder.cost_vec, self.generator.masks, self.encoder.bigram_loss, self.encoder.preds_clipped,
+                     self.encoder.alpha, self.encoder.o]
         inputs_d = [self.x, self.y, self.parse_tree, self.bm, self.gold_standard_entities]
         inputs_t = [self.x, self.y, self.parse_tree, self.bm, self.gold_standard_entities]
 
@@ -671,8 +682,11 @@ class Model(object):
                             bx, by, be, bm, bpt, blm = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
                                                   train_batches_bm[j], train_batches_pt[j], train_batches_blm[j]
 
-                            cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr = train_generator(
+                            cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr, alpha, o = train_generator(
                                 bx, by, bpt, bm, be, blm)
+
+                            print 'alpha', alpha.shape
+                            print 'o', o.shape
 
                         mask = bx != padding_id
 

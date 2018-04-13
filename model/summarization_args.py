@@ -38,6 +38,11 @@ def get_args():
                         default=False,
                         help='Pretrain Generator')
 
+    parser.add_argument('--extended_c_k',
+                        type='bool',
+                        default=True,
+                        help='')
+
     parser.add_argument('--bilinear',
                         type='bool',
                         default=True,
