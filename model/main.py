@@ -270,7 +270,7 @@ class Encoder(object):
         # (batch * n) * n_d * 2
         o = T.batched_dot(alpha, gen_h_final)
 
-        if args.extended_c_k:
+        if self.args.extended_c_k:
             size *= 4
             h_concat_y = h_concat_y.reshape((o.shape[0], o.shape[1]))
             self.o = o = T.concatenate([o, h_concat_y, T.abs_(o - h_concat_y), o * h_concat_y], axis=1)
@@ -284,7 +284,6 @@ class Encoder(object):
         layers.append(rnn_fw)
         layers.append(rnn_rv)
         layers.append(output_layer)
-
 
         preds = output_layer.forward(o)
         self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
@@ -687,6 +686,7 @@ class Model(object):
 
                             print 'alpha', alpha.shape
                             print 'o', o.shape
+                            print 'x', bx.shape
 
                         mask = bx != padding_id
 

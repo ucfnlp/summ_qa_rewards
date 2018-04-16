@@ -126,6 +126,7 @@ def create_fname_identifier(args):
            '_epochs_' + str(args.max_epochs) + \
            '_layer_' + str(args.layer) + \
            '_bilin_' + str(args.bilinear) + \
+           '_ext_ck_' + str(args.extended_c_k) + \
            '_ncl_' + str(args.nclasses) + \
            '_q' + str(args.n) + \
            '_root_' + str(args.is_root) + \
@@ -143,7 +144,7 @@ def create_json_filename(args):
 
 def get_readable_file(args, epoch, test=False):
     path = args.train_output_readable
-    filename = create_fname_identifier(args) + ('_e_' + str(epoch + 1)  if epoch is not None else '') + ('_TEST' if test else '') + '.fson'
+    filename = create_fname_identifier(args) + ('_e_' + str(epoch + 1)  if epoch is not None else '') + ('_TEST' if test else '') + '.out'
 
     return path + filename
 
@@ -383,6 +384,7 @@ def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
                     break
 
                 word = x[i][j][sent_idx][word_idx].encode('utf-8')
+                word_idx += 1
 
                 if z[i][k][j] < 0.5:
                     continue
