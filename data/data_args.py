@@ -39,6 +39,11 @@ def get_args():
                         default=150000,
                         help='Vocab size')
 
+    parser.add_argument('--chunk_threshold',
+                        type=int,
+                        default=5,
+                        help='Vocab size')
+
     parser.add_argument('--raw_data_cnn',
                         type=str,
                         default='/data1/corpora/cnn_dailymail/cnn-dailymail/cnn_stories_tokenized/',

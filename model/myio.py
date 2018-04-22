@@ -317,7 +317,8 @@ def eval_baseline(args, bm, rx, type_):
     ofp_samples.close()
 
     if args.source == 'dm':
-        r = Rouge155(rouge_args='-e /home/kristjan/data1/softwares/rouge/ROUGE/RELEASE-1.5.5/data -c 95 -2 -1 -U -r 1000 -n 4 -w 1.2 -a -m -b 75')
+        r = Rouge155(
+            rouge_args='-e /home/kristjan/data1/softwares/rouge/ROUGE/RELEASE-1.5.5/data -c 95 -2 -1 -U -r 1000 -n 4 -w 1.2 -a -m -b 75')
     else:
         r = Rouge155()
 
@@ -396,7 +397,8 @@ def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
             raw_and_mask['m'] = z[i][:, j].tolist()
 
             raw_and_mask['r'] = x[i][j][:]
-            raw_and_mask['y'] = create_eval_questions(args, y[i], e[i], index_to_e_map, embedding_layer, start_hl_idx, end_hl_idx, hl_step)
+            raw_and_mask['y'] = create_eval_questions(args, y[i], e[i], index_to_e_map, embedding_layer, start_hl_idx,
+                                                      end_hl_idx, hl_step)
 
             ofp_m[sha[i][j]] = raw_and_mask
 
@@ -424,7 +426,8 @@ def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
     ofp_samples.close()
 
     if args.source == 'dm':
-        r = Rouge155(rouge_args='-e /home/kristjan/data1/softwares/rouge/ROUGE/RELEASE-1.5.5/data -c 95 -2 -1 -U -r 1000 -n 4 -w 1.2 -a -m -b 75')
+        r = Rouge155(
+            rouge_args='-e /home/kristjan/data1/softwares/rouge/ROUGE/RELEASE-1.5.5/data -c 95 -2 -1 -U -r 1000 -n 4 -w 1.2 -a -m -b 75')
     else:
         r = Rouge155()
 

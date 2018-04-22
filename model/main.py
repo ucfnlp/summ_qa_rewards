@@ -205,7 +205,7 @@ class Encoder(object):
         x = generator.x
         z = generator.z_pred
 
-        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle(0,1,'x')
+        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0,1,'x'))
         tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
         mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
 
