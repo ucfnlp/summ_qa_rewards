@@ -140,7 +140,7 @@ def recombine_scnlp_data(args):
     train_order, dev_order, test_order = get_order()
     all_order = [train_order, dev_order, test_order]
     types = ['train', 'dev', 'test']
-    limits = [100, 20, 20]
+    limits = [512, 128, 128]
 
     for ls, type_, limit in zip(all_order, types, limits):
         print 'Loading HL for', type_
@@ -183,6 +183,9 @@ def recombine_scnlp_data(args):
             ofp_combined.close()
 
             counter += 1
+
+            if counter == limit:
+                break
 
 
 def tree2dict(tree):

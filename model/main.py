@@ -4,6 +4,7 @@ import json
 import os
 import time
 import random
+from datetime import datetime
 
 import numpy as np
 import sklearn.metrics as sk
@@ -12,9 +13,10 @@ import theano.tensor as T
 
 import myio
 import summarization_args
+
 from nn.basic import LSTM, apply_dropout, Layer
-from nn.extended_layers import ExtRCNN, ZLayer, ExtLSTM, HLLSTM, RCNN
-from nn.initialization import get_activation_by_name, softmax, create_shared, random_init
+from nn.extended_layers import ZLayer, HLLSTM, RCNN
+from nn.initialization import get_activation_by_name, softmax
 from nn.optimization import create_optimization_updates
 from nn.advanced import Bilinear
 from util import say
@@ -22,18 +24,25 @@ from util import say
 
 class Generator(object):
 
-    def __init__(self, args, embedding_layer,embedding_layer_pt):
+    def __init__(self, args, embedding_layer):
         self.args = args
         self.embedding_layer = embedding_layer
-        self.embedding_layer_pt = embedding_layer_pt
 
     def ready(self):
+
+        def c_reduce(h, m):
+            a = h[(m > 0).nonzero()]
+            ze = T.zeros(shape=(h.shape[0] - a.shape[0], h.shape[1]))
+
+            return T.concatenate([a, ze], axis=0)
+
+        def c_project(h, m):
+            return T.repeat(h, m)
+
         embedding_layer = self.embedding_layer
-        embedding_layer_pt = self.embedding_layer_pt
 
         args = self.args
-        self.padding_id = padding_id = embedding_layer.vocab_map["<padding>"]
-        self.padding_id_pt = padding_id_pt = embedding_layer_pt.vocab_map["<padding>"]
+        self.padding_id = embedding_layer.vocab_map["<padding>"]
 
         dropout = self.dropout = theano.shared(
                 np.float64(args.dropout).astype(theano.config.floatX)
@@ -41,8 +50,10 @@ class Generator(object):
 
         # inp_len x batch
         x = self.x = T.imatrix('x')
-        # parse_len x (inp_len * batch)
-        parse_tree = self.parse_tree = T.imatrix('parse_tree')
+        fw_mask = self.fw_mask = T.imatrix('fw')
+        chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
+
+        rv_mask = T.concatenate([T.ones((1, fw_mask.shape[1])), fw_mask[:-1]], axis=0)
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -50,7 +61,7 @@ class Generator(object):
 
         layers = self.layers = [ ]
 
-        for i in xrange(3):
+        for i in xrange(2):
             if args.layer == 'lstm':
                 l = LSTM(
                     n_in=n_e,
@@ -67,28 +78,32 @@ class Generator(object):
                 )
             layers.append(l)
 
-        self.masks = masks = T.cast(T.neq(x, padding_id), theano.config.floatX)
+        self.masks = masks = T.cast(T.neq(chunk_sizes, 0), theano.config.floatX)
 
         embs = embedding_layer.forward(x.ravel())
-        embs_pt = embedding_layer_pt.forward(parse_tree.ravel())
 
         self.word_embs = embs = embs.reshape((x.shape[0], x.shape[1], n_e))
         embs = apply_dropout(embs, dropout)
 
-        self.word_embs_pt = embs_pt = embs_pt.reshape((parse_tree.shape[0], parse_tree.shape[1], n_e))
-
         flipped_embs = embs[::-1]
 
         h1 = layers[0].forward_all(embs)
-        h2 = layers[1].forward_all(flipped_embs)
-        # 1 x inp_len * batch
-        h3 = layers[2].forward_all(embs_pt)
+        h2 = layers[1].forward_all(flipped_embs)[::-1]
 
-        h3 = h3.ravel().reshape((x.shape[0], x.shape[1], n_d))
+        h1_red, _ = theano.scan(fn=c_reduce,
+                                sequences=[h1.dimshuffle((1, 0, 2)), fw_mask.dimshuffle((1, 0))]
+                                )
+        h2_red, _ = theano.scan(fn=c_reduce,
+                                sequences=[h2.dimshuffle((1, 0, 2)), rv_mask.dimshuffle((1, 0))]
+                                )
 
-        h_final = T.concatenate([h1, h2[::-1], h3], axis=2)
+        h1_red = h1_red.dimshuffle((1, 0, 2))
+        h2_red = h2_red.dimshuffle((1, 0, 2))
+
+        h_final = T.concatenate([h1_red, h2_red], axis=2)
+
         self.h_final = h_final = apply_dropout(h_final, dropout)
-        size = n_d * 3
+        size = n_d * 2
 
         output_layer = self.output_layer = ZLayer(
                 n_in = size,
@@ -98,9 +113,20 @@ class Generator(object):
             )
 
         z_pred, sample_updates = output_layer.sample_all(h_final)
-        self.non_sampled_zpred, _ = output_layer.sample_all_pretrain(h_final)
+        non_sampled_zpred, _ = output_layer.sample_all_pretrain(h_final)
 
-        z_pred = self.z_pred = theano.gradient.disconnected_grad(z_pred)
+        z_pred = theano.gradient.disconnected_grad(z_pred)
+
+        z_pred_word_level, _ = theano.scan(fn=c_project,
+                                           sequences=[z_pred.dimshuffle((1, 0)), chunk_sizes.dimshuffle((1, 0))]
+                                           )
+        non_sampled_zpred, _ = theano.scan(fn=c_project,
+                                           sequences=[non_sampled_zpred.dimshuffle((1, 0)), chunk_sizes.dimshuffle((1, 0))]
+                                           )
+
+        self.z_pred = z_pred_word_level = z_pred_word_level.dimshuffle((1, 0))
+        self.non_sampled_zpred  = non_sampled_zpred.dimshuffle((1, 0))
+
         self.sample_updates = sample_updates
 
         probs = output_layer.forward_all(h_final, z_pred)
@@ -110,12 +136,12 @@ class Generator(object):
         probs = self.probs = probs.reshape(x.shape) * masks
 
         # batch
-        z = z_pred
+        z = z_pred_word_level
         self.zsum = T.sum(z, axis=0, dtype=theano.config.floatX)
         self.zdiff = T.sum(T.abs_(z[1:]-z[:-1]), axis=0, dtype=theano.config.floatX)
 
         params = self.params = [ ]
-        for l in layers + [ output_layer ] + [embedding_layer] + [embedding_layer_pt]:
+        for l in layers + [ output_layer ] + [embedding_layer]:
             for p in l.params:
                 params.append(p)
 
@@ -144,33 +170,6 @@ class Generator(object):
         cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.masks
         self.obj = obj = T.mean(T.sum(cross_ent, axis=0))
         self.cost_g = obj * args.coeff_cost_scale + self.l2_cost
-
-    def pretrain_sampling(self):
-        bm = self.bm = T.imatrix('bm')
-
-        z_shift = self.z_pred[1:]
-        z_new = self.z_pred[:-1]
-
-        valid_bg = z_new * z_shift
-        bigram_ol = valid_bg * bm[:-1]
-
-        total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
-        total_bg_per_sample = T.sum(bm, axis=0) + args.bigram_smoothing
-        self.bigram_loss = bigram_loss = total_z_bg_per_sample / total_bg_per_sample
-
-        z_totals = T.sum(self.masks, axis=0, dtype=theano.config.floatX)
-
-        zsum = T.abs_(self.zsum / z_totals - args.z_perc)
-        zdiff = self.zdiff / z_totals
-
-        self.logpz = logpz = T.sum(self.logpz, axis=0)
-
-        self.cost_vec = cost_vec = (1 - bigram_loss) + args.coeff_summ_len * zsum + args.coeff_fluency * zdiff
-
-        self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
-
-        self.obj = T.mean(cost_vec)
-        self.cost_g = cost_logpz * args.coeff_cost_scale + self.l2_cost
 
 
 class Encoder(object):
@@ -345,59 +344,60 @@ class Encoder(object):
 
 
 class Model(object):
-    def __init__(self, args, embedding_layer, embedding_layer_pt, nclasses):
+    def __init__(self, args, embedding_layer, nclasses):
         self.args = args
         self.embedding_layer = embedding_layer
-        self.embedding_layer_pt = embedding_layer_pt
         self.nclasses = nclasses
 
     def ready(self):
-        args, embedding_layer,embedding_layer_pt, nclasses = self.args, self.embedding_layer, self.embedding_layer_pt,  self.nclasses
-        self.generator = Generator(args, embedding_layer, embedding_layer_pt)
+        args, embedding_layer, nclasses = self.args, self.embedding_layer, self.nclasses
+
+        self.generator = Generator(args, embedding_layer)
         self.encoder = Encoder(args, nclasses, self.generator)
+
         self.generator.ready()
         self.encoder.ready()
+
         self.dropout = self.generator.dropout
         self.x = self.generator.x
-        self.parse_tree = self.generator.parse_tree
+        self.fw_mask = self.generator.fw_mask
+        self.chunk_sizes = self.generator.chunk_sizes
+
         self.y = self.encoder.y
         self.bm = self.encoder.bm
         self.gold_standard_entities = self.encoder.gold_standard_entities
+
         self.z = self.generator.z_pred
+
         self.params = self.encoder.params + self.generator.params
 
     def ready_test(self):
-        args, embedding_layer, embedding_layer_pt = self.args, self.embedding_layer, self.embedding_layer_pt
-        self.generator = Generator(args, embedding_layer, embedding_layer_pt)
+        args, embedding_layer = self.args, self.embedding_layer
+        self.generator = Generator(args, embedding_layer)
+
         self.generator.ready()
         self.dropout = self.generator.dropout
+
         self.x = self.generator.x
-        self.parse_tree = self.generator.parse_tree
+        self.fw_mask = self.generator.fw_mask
+        self.chunk_sizes = self.generator.chunk_sizes
         self.z = self.generator.non_sampled_zpred
 
     def ready_pretrain(self):
-        args, embedding_layer, embedding_layer_pt = self.args, self.embedding_layer, self.embedding_layer_pt
-        self.generator = Generator(args, embedding_layer,embedding_layer_pt)
+        args, embedding_layer = self.args, self.embedding_layer
+        self.generator = Generator(args, embedding_layer)
+
         self.generator.ready()
         self.generator.pretrain()
 
         self.dropout = self.generator.dropout
         self.x = self.generator.x
-        self.parse_tree = self.generator.parse_tree
         self.bm = self.generator.bm
+        self.fw_mask = self.generator.fw_mask
+        self.chunk_sizes = self.generator.chunk_sizes
+
         self.z = self.generator.non_sampled_zpred
         self.params = self.generator.params
-
-    def evaluate_rnn_weights(self, args, e, b):
-        fout= gzip.open(args.weight_eval + 'e_' + str(e) + '_b_' + str(b) + '_weights.pkl.gz', 'wb+')
-
-        pickle.dump(
-            ([x.get_value() for x in self.encoder.encoder_params]),
-            fout,
-            protocol=pickle.HIGHEST_PROTOCOL
-        )
-
-        fout.close()
 
     def save_model(self, path, args, pretrain=False):
         # append file suffix
@@ -499,7 +499,7 @@ class Model(object):
         args = self.args
 
         test_generator = theano.function(
-            inputs=[self.x, self.parse_tree],
+            inputs=[self.x, self.fw_mask, self.chunk_sizes],
             outputs=self.z,
             updates=self.generator.sample_updates
         )
@@ -512,7 +512,7 @@ class Model(object):
     def dev(self):
 
         eval_generator = theano.function(
-            inputs=[self.x, self.parse_tree, self.bm],
+            inputs=[self.x, self.bm, self.fw_mask, self.chunk_sizes],
             outputs=[self.z, self.generator.cost_g, self.generator.obj],
             updates=self.generator.sample_updates,
             on_unused_input='ignore'
@@ -525,7 +525,7 @@ class Model(object):
 
     def dev_full(self):
 
-        inputs_d = [self.x, self.y, self.parse_tree, self.bm, self.gold_standard_entities]
+        inputs_d = [self.x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes]
         if not args.pad_repeat:
             inputs_d.append(self.encoder.loss_mask)
 
@@ -570,8 +570,9 @@ class Model(object):
                      self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz,
                      self.encoder.cost_vec, self.generator.masks, self.encoder.bigram_loss, self.encoder.preds_clipped,
                      self.encoder.alpha, self.encoder.o]
-        inputs_d = [self.x, self.y, self.parse_tree, self.bm, self.gold_standard_entities]
-        inputs_t = [self.x, self.y, self.parse_tree, self.bm, self.gold_standard_entities]
+
+        inputs_d = [self.x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes]
+        inputs_t = [self.x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes]
 
         if not args.pad_repeat:
             inputs_d.append(self.encoder.loss_mask)
@@ -601,8 +602,6 @@ class Model(object):
         filename = myio.create_json_filename(args)
         ofp_train = open(filename, 'w+')
         json_train = dict()
-
-        rouge_fname = None
 
         for epoch in xrange(args.max_epochs):
             unchanged += 1
@@ -644,15 +643,15 @@ class Model(object):
 
                 for i in xrange(num_files):
                     if args.pad_repeat:
-                        train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_pt, _ = myio.load_batches(
+                        train_batches_x, train_batches_y, train_batches_e, train_batches_bm, _, train_batches_fw, train_batches_csz = myio.load_batches(
                             args.batch_dir + args.source + 'train', i)
                     else:
-                        train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_pt, train_batches_blm, _ = myio.load_batches(
+                        train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_blm, _, train_batches_fw, train_batches_csz = myio.load_batches(
                             args.batch_dir + args.source + 'train', i)
 
                     cur_len = len(train_batches_x)
 
-                    random.seed(5817)
+                    random.seed(datetime.now())
                     perm2 = range(cur_len)
                     random.shuffle(perm2)
 
@@ -660,7 +659,8 @@ class Model(object):
                     train_batches_y = [train_batches_y[k] for k in perm2]
                     train_batches_e = [train_batches_e[k] for k in perm2]
                     train_batches_bm = [train_batches_bm[k] for k in perm2]
-                    train_batches_pt = [train_batches_pt[k] for k in perm2]
+                    train_batches_fw = [train_batches_fw[k] for k in perm2]
+                    train_batches_csz = [train_batches_csz[k] for k in perm2]
 
                     if not args.pad_repeat:
                         train_batches_blm = [train_batches_blm[k] for k in perm2]
@@ -673,20 +673,16 @@ class Model(object):
                                 say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
                         if args.pad_repeat:
-                            bx, by, be, bm, bpt = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
-                                                  train_batches_bm[j], train_batches_pt[j]
+                            bx, by, be, bm, bfw, bcsz = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
+                                                  train_batches_bm[j], train_batches_fw[j], train_batches_csz[j]
                             cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr = train_generator(
-                                bx, by, bpt, bm, be)
+                                bx, by, bm, be, bfw, bcsz)
                         else:
-                            bx, by, be, bm, bpt, blm = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
-                                                  train_batches_bm[j], train_batches_pt[j], train_batches_blm[j]
+                            bx, by, be, bm, blm, bfw, bcsz = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
+                                                  train_batches_bm[j], train_batches_blm[j], train_batches_fw[j], train_batches_csz[j]
 
                             cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr, alpha, o = train_generator(
-                                bx, by, bpt, bm, be, blm)
-
-                            print 'alpha', alpha.shape
-                            print 'o', o.shape
-                            print 'x', bx.shape
+                                bx, by, bm, be, bfw, bcsz, blm)
 
                         mask = bx != padding_id
 
@@ -694,7 +690,6 @@ class Model(object):
                         obj_all.append(cost)
                         loss_all.append(loss)
                         zsum_all.append(np.mean(zsum))
-                        bigram_loss_all.append(np.mean(bigram_loss))
                         loss_vec_all.append(np.mean(loss_vec))
                         z_diff_all.append(np.mean(zdiff))
                         cost_logpz_all.append(np.mean(cost_logpz))
@@ -793,13 +788,13 @@ class Model(object):
         )[:3]
 
         eval_generator = theano.function(
-            inputs=[self.x, self.parse_tree, self.bm],
+            inputs=[self.x,  self.bm, self.fw_mask, self.chunk_sizes],
             outputs=[self.z, self.generator.cost_g, self.generator.obj],
             updates=self.generator.sample_updates
         )
 
         train_generator = theano.function(
-            inputs=[self.x, self.parse_tree, self.bm],
+            inputs=[self.x, self.bm, self.fw_mask, self.chunk_sizes],
             outputs=[self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g],
             updates=updates_g.items() + self.generator.sample_updates
         )
@@ -814,7 +809,6 @@ class Model(object):
         filename = myio.create_json_filename(args)
         ofp_train = open(filename, 'w+')
         json_train = dict()
-        rouge_fname = None
 
         for epoch in xrange(args.max_epochs):
             unchanged += 1
@@ -849,19 +843,20 @@ class Model(object):
 
                 for i in xrange(num_files):
                     if args.pad_repeat:
-                        train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_bpt, _ = myio.load_batches(
+                        train_batches_x, _, _, train_batches_bm,  _, train_batches_fw, train_batches_csz = myio.load_batches(
                             args.batch_dir + args.source + 'train', i)
                     else:
-                        train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_bpt, _, _ = myio.load_batches(
+                        train_batches_x, _, _, train_batches_bm, _, _, train_batches_fw, train_batches_csz = myio.load_batches(
                             args.batch_dir + args.source + 'train', i)
 
-                    random.seed(5817)
+                    random.seed(datetime.now())
                     perm2 = range(len(train_batches_x))
                     random.shuffle(perm2)
 
                     train_batches_x = [train_batches_x[k] for k in perm2]
                     train_batches_bm = [train_batches_bm[k] for k in perm2]
-                    train_batches_bpt = [train_batches_bpt[k] for k in perm2]
+                    train_batches_fw = [train_batches_fw[k] for k in perm2]
+                    train_batches_csz = [train_batches_csz[k] for k in perm2]
 
                     cur_len = len(train_batches_x)
 
@@ -872,11 +867,11 @@ class Model(object):
                         elif (i * args.online_batch_size + j + 1) % 10 == 0:
                             say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
-                        bx, bm, bpt = train_batches_x[j], train_batches_bm[j], train_batches_bpt[j]
+                        bx, bm, bfw, bcz = train_batches_x[j], train_batches_bm[j], train_batches_fw[j], train_batches_csz[j]
                         # print bx.shape, bm.shape
                         mask = bx != padding_id
 
-                        obj, z, zsum, zdiff,cost_g = train_generator(bx, bpt, bm)
+                        obj, z, zsum, zdiff,cost_g = train_generator(bx, bm, bfw, bcz)
                         zsum_all.append(np.mean(zsum))
                         z_diff_all.append(np.mean(zdiff))
                         z_pred_all.append(np.mean(np.sum(z, axis=0)))
@@ -967,17 +962,17 @@ class Model(object):
 
         for i in xrange(num_files):
             if args.pad_repeat:
-                batches_x, _, _, batches_bm, batches_pt, batches_sha, batches_rx = myio.load_batches(
+                batches_x, _, _, batches_bm, batches_sha, batches_rx, batches_fw, batches_cs = myio.load_batches(
                     self.args.batch_dir + self.args.source + 'dev', i)
             else:
-                batches_x, _, _, batches_bm, batches_pt, _, batches_sha, batches_rx = myio.load_batches(
+                batches_x, _, _, batches_bm, _, batches_sha, batches_rx, batches_fw, batches_cs = myio.load_batches(
                     self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, bm, sha, rx, bpt = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_pt[j]
-                bz, l, o = eval_func(bx,bpt,  bm)
+                bx, bm, sha, rx, bfw, bcs = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], batches_cs[j]
+                bz, l, o = eval_func(bx, bm, bfw, bcs)
                 tot_obj += o
                 N += len(bx)
 
@@ -998,14 +993,14 @@ class Model(object):
         num_files = self.args.num_files_dev
 
         for i in xrange(num_files):
-            batches_x, _, _, batches_bm, batches_pt, batches_sha, batches_rx = myio.load_batches(
+            batches_x, _, _, batches_bm, batches_sha, batches_rx, batches_fw, batches_cs = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, bm, sha, rx, bpt = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_pt[j]
-                bz, l, o = eval_func(bx, bpt, bm)
+                bx, bm, sha, rx, bfw, bcs = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], batches_cs[j]
+                bz, l, o = eval_func(bx, bm, bfw, bcs)
                 tot_obj += o
 
                 x.append(rx)
@@ -1031,23 +1026,24 @@ class Model(object):
 
         for i in xrange(num_files):
             if args.pad_repeat:
-                batches_x, batches_y, batches_e, batches_bm, batches_bpt, batches_sha, batches_rx = myio.load_batches(
+                batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_fw, batches_csz = myio.load_batches(
                     self.args.batch_dir + self.args.source + 'dev', i)
             else:
-                batches_x, batches_y, batches_e, batches_bm, batches_bpt, batches_lm,  batches_sha, batches_rx = myio.load_batches(
+                batches_x, batches_y, batches_e, batches_bm, batches_lm,  batches_sha, batches_rx, batches_fw, batches_csz = myio.load_batches(
                     self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
                 if args.pad_repeat:
-                    bx, by, be, bm, bpt, sha, rx = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], batches_bpt[
-                        j], batches_sha[j], batches_rx[j]
-                    bz, o, e, preds = eval_func(bx, by, bpt, bm, be)
+                    bx, by, be, bm, sha, rx, fw, csz = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], \
+                                                       batches_sha[j], batches_rx[j], batches_fw[j], batches_csz[j]
+                    bz, o, e, preds = eval_func(bx, by, bm, be, fw, csz)
                 else:
-                    bx, by, be, bm, bpt, sha, rx, ble = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], batches_bpt[
-                        j], batches_sha[j], batches_rx[j], batches_lm[j]
-                    bz, o, e, preds = eval_func(bx, by, bpt, bm, be, ble)
+                    bx, by, be, bm, sha, rx, ble, fw, csz = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], \
+                                                            batches_sha[j], batches_rx[j], batches_lm[j], batches_fw[j], \
+                                                            batches_csz[j]
+                    bz, o, e, preds = eval_func(bx, by, bm, be, fw, csz, ble)
 
                 tot_obj += o
 
@@ -1072,14 +1068,14 @@ class Model(object):
         num_files = self.args.num_files_test
 
         for i in xrange(num_files):
-            batches_x, batches_y, batches_e, _, batches_pt, batches_sha, batches_rx = myio.load_batches(
+            batches_x, batches_y, batches_e, _, batches_sha, batches_rx, batches_fw, batches_csz = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'test', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, rx, bsha, bpt, by, be = batches_x[j], batches_rx[j], batches_sha[j], batches_pt[j], batches_y[j], batches_e[j]
-                bz = eval_func(bx, bpt)
+                bx, rx, bsha, by, be, fw, csz = batches_x[j], batches_rx[j], batches_sha[j], batches_y[j], batches_e[j], batches_fw[j], batches_csz[j]
+                bz = eval_func(bx, fw, csz)
 
                 x.append(rx)
                 y.append(by)
@@ -1099,31 +1095,17 @@ class Model(object):
         return sk.accuracy_score(gs, system)
 
 
-def test_emb(test_x, embedding_layer):
-    d = test_x[0]
-    ofp = open('lol.out', 'w+')
-    for sent in d:
-
-        for w in sent:
-            word = embedding_layer.lst_words[w]
-            ofp.write(word + ' ')
-
-    ofp.close()
-
-
 def main():
     assert args.embedding, "Pre-trained word embeddings required."
 
     vocab, parse_v = myio.get_vocab(args)
     embedding_layer = myio.create_embedding_layer(args, args.embedding, vocab, '<unk>')
-    embedding_layer_pt = myio.create_embedding_layer(args, args.embedding, parse_v)
 
     n_classes =args.nclasses
 
     model = Model(
         args=args,
         embedding_layer=embedding_layer,
-        embedding_layer_pt=embedding_layer_pt,
         nclasses=n_classes
     )
 

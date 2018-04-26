@@ -94,12 +94,13 @@ def load_batches(name, iteration):
     ifp = open(name + str(iteration), 'rb')
     data = np.load(ifp)
     ifp.close()
-    if len(data) == 8:
+
+    if len(data) == 9:
+        return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]
+    elif len(data) == 8:
         return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]
-    elif len(data) == 7:
-        return data[0], data[1], data[2], data[3], data[4], data[5], data[6]
     else:
-        return data[0], data[1], data[2], data[3], data[4]
+        return data[0], data[1], data[2], data[3], data[4], data[5]
 
 
 def round_batch(lstx, lsty, lste, b_len):

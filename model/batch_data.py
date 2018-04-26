@@ -123,7 +123,7 @@ def create_batches_test(args, x, y, cy, pt, sha, rx, batch_size, padding_id, pad
 
 
 def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size, padding_id, padding_id_pt, stopwords, sort=True, model_type=''):
-    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt, batches_lm, batches_ch_f, batches_ch_r = [], [], [], [], [], [], [], [], [], []
+    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt, batches_lm, batches_ch_f, batches_ch_sz = [], [], [], [], [], [], [], [], [], []
 
     N = len(x)
     M = (N - 1) / batch_size + 1
@@ -143,7 +143,7 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
         sha = [sha[i] for i in perm]
 
     for i in xrange(M):
-        bx, by, be, bm, bpt, blm, bch = create_one_batch(
+        bx, by, be, bm, bpt, blm, bch, bsz = create_one_batch(
             args,
             n_classes,
             x[i * batch_size:(i + 1) * batch_size],
@@ -170,8 +170,8 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
         batches_pt.append(bpt)
         batches_lm.append(blm)
         batches_sha.append(bsh)
-        batches_ch_f.append(bch[0])
-        batches_ch_r.append(bch[1])
+        batches_ch_f.append(bch)
+        batches_ch_sz.append(bsz)
 
         num_batches += 1
 
@@ -187,10 +187,9 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
                         batches_y,
                         batches_e,
                         batches_bm,
-                        batches_pt,
                         batches_sha,
                         batches_ch_f,
-                        batches_ch_r
+                        batches_ch_sz
                     ]
                 else:
                     data = [
@@ -198,11 +197,10 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
                         batches_y,
                         batches_e,
                         batches_bm,
-                        batches_pt,
                         batches_lm,
                         batches_sha,
                         batches_ch_f,
-                        batches_ch_r
+                        batches_ch_sz
                     ]
             elif model_type == 'dev':
                 if args.pad_repeat:
@@ -211,11 +209,10 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
                         batches_y,
                         batches_e,
                         batches_bm,
-                        batches_pt,
                         batches_sha,
                         batches_rx,
                         batches_ch_f,
-                        batches_ch_r
+                        batches_ch_sz
                     ]
                 else:
                     data = [
@@ -223,12 +220,11 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
                         batches_y,
                         batches_e,
                         batches_bm,
-                        batches_pt,
                         batches_lm,
                         batches_sha,
                         batches_rx,
                         batches_ch_f,
-                        batches_ch_r
+                        batches_ch_sz
                     ]
             else:
                 data = [
@@ -236,16 +232,15 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
                     batches_y,
                     batches_e,
                     batches_bm,
-                    batches_pt,
                     batches_sha,
                     batches_rx,
-                        batches_ch_f,
-                        batches_ch_r
+                    batches_ch_f,
+                    batches_ch_sz
                 ]
             with open(fname + str(num_files), 'w+') as ofp:
                 np.save(ofp, data)
 
-                batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt, batches_lm, batches_ch_f, batches_ch_r = [], [], [], [], [], [], [], [], [], []
+                batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt, batches_lm, batches_ch_f, batches_ch_sz = [], [], [], [], [], [], [], [], [], []
             num_batches = 0
             num_files += 1
 
@@ -264,7 +259,7 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, lstpt, lstbm, lst
     else:
         unigrams = None
 
-    bch = create_chunk_mask(lstch, max_len)
+    bch, bsz = create_chunk_mask(lstch, max_len)
 
     bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=padding_id).astype('int32') for x in lstx])
@@ -279,9 +274,9 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, lstpt, lstbm, lst
     bpt = stack_pt(args, lstpt, padding_id_pt)
 
     if lste is not None:
-        return bx, by, be, bm, bpt, blm, bch
+        return bx, by, be, bm, bpt, blm, bch, bsz
     else:
-        return bx, [], [], bm, bpt, [], bch
+        return bx, [], [], bm, bpt, [], bch, bsz
 
 
 def create_one_batch_test(args, lstx_, lsty, lstcy, lstpt, padding_id, padding_id_pt, b_len, stopwords):
@@ -381,39 +376,53 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
     return by, unigrams, be, loss_mask
 
 
-def create_chunk_mask(lstch, max_len):
+def create_chunk_mask(lstch, max_len, word_level=False):
     fw_mask_ls = []
-    rev_mask_ls = []
+    mask_chunk_sizes = []
 
     for article in lstch:
         num_w = 0
         fw_mask = []
+        mask_csz = []
 
         for c in article:
             if num_w + c <= max_len:
-                fw_mask.append(0)
-                fw_mask.extend([1]*(c-1))
+                fw_mask.extend([0]*(c-1))
+                fw_mask.append(1)
+                mask_csz.append(c)
+
                 num_w += c
             else:
                 if num_w == max_len:
                     break
-                fw_mask.append(0)
-                fw_mask.extend([1] * (max_len - (num_w + 1)))
+                elif num_w < max_len:
+                    fw_mask.extend([0] * (max_len - (num_w + 1)))
+                    fw_mask.append(1)
 
-                break
+                    mask_csz.append(max_len - num_w)
+                    break
 
         if len(fw_mask) < max_len:
-            fw_mask.extend([0] * (max_len - len(fw_mask)))
+            left = max_len - len(fw_mask)
+            fw_mask.extend([0] * (max_len - (len(fw_mask) + 1)))
+            fw_mask.append(1)
 
-        rev_mask = [0] + fw_mask[1:][::-1]
+            mask_csz[-1] = mask_csz[-1] + left
+
+            print 'trunc inp', sum(article)
+
+        if word_level:
+            mask_csz = [1] * len(mask_csz)
+
+        mask_csz.extend([0]*(max_len - len(mask_csz)))
 
         fw_mask_ls.append(fw_mask)
-        rev_mask_ls.append(rev_mask)
+        mask_chunk_sizes.append(mask_csz)
 
     fw_mask_ls = np.column_stack([x for x in fw_mask_ls]).astype('int32')
-    rev_mask_ls = np.column_stack([x for x in rev_mask_ls]).astype('int32')
+    mask_chunk_sizes = np.column_stack([x for x in mask_chunk_sizes]).astype('int32')
 
-    return fw_mask_ls, rev_mask_ls
+    return fw_mask_ls, mask_chunk_sizes
 
 
 def process_hl_test(args, lsty, lstcy):
