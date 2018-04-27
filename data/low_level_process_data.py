@@ -18,12 +18,12 @@ def prune_hl(args):
     used_e = set()
 
     updated_train_y, updated_train_e, updated_train_x, updated_train_ve, updated_train_cly, updated_train_sha, updated_train_parse, updated_train_ma, updated_train_ch = prune_type(
-        train_x, train_y, train_e, train_ve, train_cly, None, train_parse, train_m, train_sha, train_ch, entity_map,
+        args, train_x, train_y, train_e, train_ve, train_cly, None, train_parse, train_m, train_sha, train_ch, entity_map,
         used_e)
     updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_sha, updated_dev_parse, updated_dev_ma, updated_dev_ch = prune_type(
-        dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_parse, dev_m, dev_sha, dev_ch, entity_map, used_e)
+        args, dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_parse, dev_m, dev_sha, dev_ch, entity_map, used_e)
     updated_test_y, updated_test_e, updated_test_x, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_parse, updated_test_ma, updated_test_ch = prune_type(
-        test_x, test_y, test_e, None, test_cy, test_rx, test_parse, test_m, test_sha, test_ch, None, used_e)
+        args, test_x, test_y, test_e, None, test_cy, test_rx, test_parse, test_m, test_sha, test_ch, None, used_e)
 
     print 'used/total entities = ', len(used_e)/ float(len(entity_map))
 
@@ -101,7 +101,7 @@ def write_model_ready(args, train, dev, test):
     ofp_test.close()
 
 
-def prune_type(x, y, e, ve, cy, rx, pt, ma, sha, ch, entity_map, used_e):
+def prune_type(args, x, y, e, ve, cy, rx, pt, ma, sha, ch, entity_map, used_e):
     length = len(y)
     updated_y = []
     updated_cy = []
@@ -179,7 +179,13 @@ def prune_type(x, y, e, ve, cy, rx, pt, ma, sha, ch, entity_map, used_e):
         updated_x.append([w for sent in x[i] for w in sent])
         updated_ma.append([w for sent in ma[i] for w in sent])
         updated_pt.append([w for sent in pt[i] for w in sent])
-        updated_ch.append([w for sent in ch[i] for w in sent])
+
+        if args.sent_level_c:
+            updated_ch.append([sum(sent) for sent in ch[i]])
+        elif args.word_level_c:
+            updated_ch.append([1 for sent in ch[i] for w in sent for _ in xrange(w)])
+        else:
+            updated_ch.append([w for sent in ch[i] for w in sent])
 
         if ve is not None:
             updated_ve.append(ve[i])

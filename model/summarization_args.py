@@ -38,6 +38,16 @@ def get_args():
                         default=False,
                         help='Pretrain Generator')
 
+    parser.add_argument('--sent_level_c',
+                        type='bool',
+                        default=True,
+                        help='Process chunks for a sentence level Model')
+
+    parser.add_argument('--word_level_c',
+                        type='bool',
+                        default=False,
+                        help='Process chunks for a word level Model')
+
     parser.add_argument('--extended_c_k',
                         type='bool',
                         default=True,

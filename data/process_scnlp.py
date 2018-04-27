@@ -436,7 +436,7 @@ def extract_tokens(args, document, hl, unique_words, parse_labels):
             else:
                 unique_words[text] = 1
 
-        chunk_ls, num_l = dfs_nltk_tree(tree, args.chunk_threshold)
+        chunk_ls, num_l = dfs_nltk_tree(args, tree, args.chunk_threshold)
 
         assert num_l == len(s)
 
@@ -489,12 +489,16 @@ def extract_tokens(args, document, hl, unique_words, parse_labels):
     return article
 
 
-def dfs_nltk_tree(tree, threshold=5):
+def dfs_nltk_tree(args, tree, threshold=5):
     stack = []
     subtrees = []
     total = 0
 
     stack.append(tree)
+
+    # if args.sent_level_c:
+    #     return subtrees, len(tree.leaves())
+    # elif args.word_level_c:
 
     while len(stack) > 0:
 
@@ -502,6 +506,7 @@ def dfs_nltk_tree(tree, threshold=5):
 
         if type(item) == ParentedTree:
             num_l = len(item.leaves())
+
             if num_l <= threshold:
                 total += num_l
                 subtrees.append(num_l)
