@@ -386,6 +386,9 @@ def create_chunk_mask(lstch, max_len, word_level=False):
         mask_csz = []
 
         for c in article:
+            if c == 0:
+                continue
+
             if num_w + c <= max_len:
                 fw_mask.extend([0]*(c-1))
                 fw_mask.append(1)
@@ -415,7 +418,6 @@ def create_chunk_mask(lstch, max_len, word_level=False):
             mask_csz = [1] * len(mask_csz)
 
         mask_csz.extend([0]*(max_len - len(mask_csz)))
-
         fw_mask_ls.append(fw_mask)
         mask_chunk_sizes.append(mask_csz)
 

@@ -26,7 +26,7 @@ def get_args():
 
     parser.add_argument('--sent_level_c',
                         type='bool',
-                        default=True,
+                        default=False,
                         help='Process chunks for a sentence level Model')
 
     parser.add_argument('--word_level_c',

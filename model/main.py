@@ -10,15 +10,16 @@ import numpy as np
 import sklearn.metrics as sk
 import theano
 import theano.tensor as T
+from theano.tensor.signal.pool import pool_2d
 
 import myio
 import summarization_args
 
 from nn.basic import LSTM, apply_dropout, Layer
 from nn.extended_layers import ZLayer, HLLSTM, RCNN
-from nn.initialization import get_activation_by_name, softmax
+from nn.initialization import get_activation_by_name, softmax, create_shared, random_init
 from nn.optimization import create_optimization_updates
-from nn.advanced import Bilinear
+from nn.advanced import Bilinear, Conv1d
 from util import say
 
 
@@ -39,6 +40,9 @@ class Generator(object):
         def c_project(h, m):
             return T.repeat(h, m)
 
+        def repeat_2d(a_max, tile_amt):
+            return T.tile(a_max, tile_amt)
+
         embedding_layer = self.embedding_layer
 
         args = self.args
@@ -55,55 +59,77 @@ class Generator(object):
 
         rv_mask = T.concatenate([T.ones((1, fw_mask.shape[1])), fw_mask[:-1]], axis=0)
 
+        window_sizes = [1, 3, 5, 7]
+        pool_sizes = [2, 3, 4, 5]
+
+        cnn_ls = []
+        layers = self.layers = []
+
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
         activation = get_activation_by_name(args.activation)
+        size = n_d * len(window_sizes)
 
-        layers = self.layers = [ ]
-
-        for i in xrange(2):
-            if args.layer == 'lstm':
-                l = LSTM(
-                    n_in=n_e,
-                    n_out=n_d,
-                    activation=activation,
-                    last_only=(i == 2)
-                )
-            else:
-                l = RCNN(
-                    n_in=n_e,
-                    n_out=n_d,
-                    activation=activation,
-                    order=args.order
-                )
-            layers.append(l)
-
-        self.masks = masks = T.cast(T.neq(chunk_sizes, 0), theano.config.floatX)
+        self.masks = masks_neq = T.cast(T.neq(chunk_sizes, 0), 'int32')
+        masks_eq = T.cast(T.eq(chunk_sizes, 0), 'int32').dimshuffle((1, 0))
 
         embs = embedding_layer.forward(x.ravel())
 
         self.word_embs = embs = embs.reshape((x.shape[0], x.shape[1], n_e))
         embs = apply_dropout(embs, dropout)
+        embs_for_c2d = embs.dimshuffle((1, 2, 0, 'x'))
 
-        flipped_embs = embs[::-1]
+        for c in xrange(len(window_sizes)):
+            border = window_sizes[c] / 2
 
-        h1 = layers[0].forward_all(embs)
-        h2 = layers[1].forward_all(flipped_embs)[::-1]
+            conv_layer = Conv1d(n_in=n_e,
+                                n_out=n_d,
+                                window=window_sizes[c],
+                                border_m=(border, 0))
 
-        h1_red, _ = theano.scan(fn=c_reduce,
-                                sequences=[h1.dimshuffle((1, 0, 2)), fw_mask.dimshuffle((1, 0))]
-                                )
-        h2_red, _ = theano.scan(fn=c_reduce,
-                                sequences=[h2.dimshuffle((1, 0, 2)), rv_mask.dimshuffle((1, 0))]
-                                )
+            conv_out = conv_layer.forward(embs_for_c2d)
+            conv_out_r = conv_out.reshape((conv_out.shape[0], conv_out.shape[1], conv_out.shape[2]))
+            conv_out_r = conv_out_r.dimshuffle((0, 2, 1))
 
-        h1_red = h1_red.dimshuffle((1, 0, 2))
-        h2_red = h2_red.dimshuffle((1, 0, 2))
+            cnn_ls.append(conv_out_r)
+            layers.append(conv_layer)
 
-        h_final = T.concatenate([h1_red, h2_red], axis=2)
+        cnn_concat = T.concatenate(cnn_ls, axis=2)
 
-        self.h_final = h_final = apply_dropout(h_final, dropout)
-        size = n_d * 2
+        pool_out = []
+
+        for p in xrange(len(pool_sizes)):
+            pooled = pool_2d(cnn_concat, ws=(pool_sizes[p], 1), stride=(1, 1))
+
+            z_shape = (pooled.shape[0], cnn_concat.shape[1] - pooled.shape[1], pooled.shape[2])
+            zeros = T.zeros(shape=z_shape)
+
+            padded_pooled = T.concatenate([pooled, zeros], axis=1)
+            pool_out.append(padded_pooled)
+
+        c_flat = chunk_sizes.dimshuffle((1, 0)).ravel()
+        m_flat = rv_mask.dimshuffle((1, 0)).ravel()
+
+        c_rep = T.repeat(c_flat, c_flat)
+        c_rep = c_rep * m_flat
+
+        all_chunks = [cnn_concat] + pool_out
+        pooled_chunks = []
+
+        for m in xrange(len(all_chunks)):
+            c_mask = T.cast(T.eq(c_rep, m + 1), 'int32')
+            c_mask_r = c_mask.reshape((1, c_mask.shape[0]))
+            c_mask_tiled = T.tile(c_mask, (cnn_concat.shape[2], 1)).dimshuffle((1, 0))
+
+            pooled_features = all_chunks[m].reshape(
+                (all_chunks[m].shape[0] * all_chunks[m].shape[1], all_chunks[m].shape[2]))
+
+            isolated_chunks = T.cast(pooled_features * c_mask_tiled, theano.config.floatX)
+            pooled_chunks.append(isolated_chunks.reshape((embs.shape[1], embs.shape[0], size)))
+
+        h = pooled_chunks[0] + pooled_chunks[1] + pooled_chunks[2]
+        o1, _ = theano.scan(fn=c_reduce, sequences=[h, rv_mask.dimshuffle((1, 0))])
+        h_final = o1.dimshuffle((1, 0, 2))
 
         output_layer = self.output_layer = ZLayer(
                 n_in = size,
@@ -124,16 +150,16 @@ class Generator(object):
                                            sequences=[non_sampled_zpred.dimshuffle((1, 0)), chunk_sizes.dimshuffle((1, 0))]
                                            )
 
-        self.z_pred = z_pred_word_level = z_pred_word_level.dimshuffle((1, 0))
-        self.non_sampled_zpred  = non_sampled_zpred.dimshuffle((1, 0))
-
         self.sample_updates = sample_updates
 
         probs = output_layer.forward_all(h_final, z_pred)
 
-        logpz = - T.nnet.binary_crossentropy(probs, z_pred) * masks
+        self.z_pred = z_pred_word_level = z_pred_word_level.dimshuffle((1, 0))
+        self.non_sampled_zpred = non_sampled_zpred.dimshuffle((1, 0))
+
+        logpz = - T.nnet.binary_crossentropy(probs, z_pred) * masks_neq
         logpz = self.logpz = logpz.reshape(x.shape)
-        probs = self.probs = probs.reshape(x.shape) * masks
+        probs = self.probs = probs.reshape(x.shape) * masks_neq
 
         # batch
         z = z_pred_word_level
@@ -165,7 +191,7 @@ class Generator(object):
         else:
             new_bm = T.cast(bm, theano.config.floatX)
 
-        new_probs = self.output_layer.forward_all(self.h_final, new_bm)
+        new_probs = self.output_layer.forward_all(self.a_max_final, new_bm)
 
         cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.masks
         self.obj = obj = T.mean(T.sum(cross_ent, axis=0))
@@ -264,7 +290,7 @@ class Encoder(object):
         inp_dot_hl = inp_dot_hl.ravel()
 
         # (batch * n) x inp_len
-        self.alpha = alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], args.inp_len)))
+        self.alpha = alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], x.shape[0])))
 
         # (batch * n) * n_d * 2
         o = T.batched_dot(alpha, gen_h_final)

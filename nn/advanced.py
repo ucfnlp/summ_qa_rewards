@@ -18,6 +18,7 @@
 import numpy as np
 import theano
 import theano.tensor as T
+from theano.tensor.nnet import conv2d
 
 from initialization import random_init, create_shared
 from initialization import ReLU, tanh, linear, sigmoid
@@ -475,3 +476,28 @@ class RCNN(Layer):
         self.bias.set_value(param_list[-1].get_value())
 
 
+class Conv1d(object):
+
+    def __init__(self, n_in, n_out, window, border_m):
+
+        self.n_in = n_in
+        self.n_out = n_out
+        self.border_m = border_m
+        self.window = window
+
+        self.create_parameters()
+
+    def create_parameters(self):
+        w_shp = (self.n_out, self.n_in, self.window, 1)
+        self.filter = create_shared(random_init(w_shp))
+
+    def forward(self, x):
+        return conv2d(x, self.filter, border_mode=self.border_m)
+
+    @property
+    def params(self):
+        return [self.filter]
+
+    @params.setter
+    def params(self, param_list):
+        self.filter.set_value(param_list[0].get_value())

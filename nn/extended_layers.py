@@ -108,6 +108,7 @@ class HLLSTM(LSTM):
     def forward(self, x_t, mask_t, hc_tm1):
         hc_t = super(HLLSTM, self).forward(x_t, hc_tm1)
         hc_t = mask_t * hc_t + (1 - mask_t) * hc_tm1
+
         return hc_t
 
     def forward_all(self, x, mask, h0=None, return_c=False):
