@@ -489,15 +489,18 @@ class Conv1d(object):
 
     def create_parameters(self):
         w_shp = (self.n_out, self.n_in, self.window, 1)
+
         self.filter = create_shared(random_init(w_shp))
+        self.bias = create_shared(random_init((w_shp[0],)), name="bias")
 
     def forward(self, x):
-        return conv2d(x, self.filter, border_mode=self.border_m)
+        return conv2d(x, self.filter, border_mode=self.border_m) + self.bias.dimshuffle('x', 0, 'x', 'x')
 
     @property
     def params(self):
-        return [self.filter]
+        return [self.filter] + [self.bias]
 
     @params.setter
     def params(self, param_list):
         self.filter.set_value(param_list[0].get_value())
+        self.bias.set_value(param_list[-1].get_value())

@@ -4,6 +4,7 @@ import sys
 
 import hashlib
 from nltk import ParentedTree
+import numpy as np
 
 import data_args
 
@@ -223,6 +224,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
     input_hl_clean = []
 
     tag_ls = ['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC']
+    dep_ls = ['']
 
     total_samples = len(inp)
 
@@ -242,15 +244,40 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
 
             # 1.) find sentence root
             working_anno_hl = highlights[h]
+
             basic_dep = working_anno_hl['basicDependencies']
+            enhanced_dep = working_anno_hl['enhancedDependencies']
             tokens_ls = working_anno_hl['tokens']
 
             root_basic_dep = basic_dep[0]
             root_idx = root_basic_dep['dependent']
 
-            root_token= tokens_ls[root_idx - 1]
+            root_token = tokens_ls[root_idx - 1]
             root_lemma = root_token['lemma']
             root_org = root_token['originalText']
+            root_first_word = root_org
+
+            start_r = end_r = root_idx -1
+
+            if args.enhanced_root:
+                root_enhancement = find_enhancement(root_idx, enhanced_dep)
+
+                if root_enhancement is not None:
+                    enh_idx = root_enhancement['dependent'] - 1
+
+                    assert np.abs(enh_idx - start_r) == 1
+
+                    if start_r > enh_idx:
+                        root_lemma = tokens_ls[enh_idx]['lemma'] + ' ' + root_lemma
+                        root_org = tokens_ls[enh_idx]['originalText'] + ' ' + root_org
+
+                        root_first_word = tokens_ls[enh_idx]['originalText']
+                    else:
+                        root_lemma = root_lemma + ' ' + tokens_ls[enh_idx]['lemma']
+                        root_org = root_org + ' ' + tokens_ls[enh_idx]['originalText']
+
+                    start_r = min(root_idx - 1, enh_idx)
+                    end_r = max(root_idx - 1, enh_idx)
 
             if root_lemma.lower() not in entity_set: # previously not found @entity
                 entity_info = [entity_counter, 'ROOT']
@@ -260,26 +287,29 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             if root_org not in raw_entity_mapping:
                 raw_entity_mapping[root_org] = root_lemma
 
-            if root_org not in first_word_map:
-                first_word_map[root_org] = [root_org]
+            if root_first_word not in first_word_map:
+                first_word_map[root_first_word] = [root_org]
             else:
-                originals = first_word_map[root_org]
+                originals = first_word_map[root_first_word]
 
                 if root_org not in originals:
-                    first_word_map[root_org].append(root_org)
+                    first_word_map[root_first_word].append(root_org)
 
             clean_hl_vec = create_hl_vector(args, vocab, tokens_ls, unk)
             single_inp_clean.append(clean_hl_vec)
 
-            hl_vec = clean_hl_vec[:]
-            hl_vec[root_idx - 1] = placeholder
+            if start_r == end_r:
+                hl_vec = clean_hl_vec[:]
+                hl_vec[root_idx - 1] = placeholder
+            else:
+                hl_vec = clean_hl_vec[:start_r] + [placeholder] + clean_hl_vec[end_r + 1:]
 
             single_inp_hl.append(hl_vec)
             single_sent_hl_entity_ls.append(entity_set[root_lemma.lower()][0])
 
             # 2.) find all instances of tags
             # named entities in the form : (entity name, start, end, type, raw name, first word)
-            entities = find_ner_tokens(tokens_ls, tag_ls)
+            entities = find_ner_tokens(args, tokens_ls, tag_ls)
 
             for entity_name, start, end, e_type, raw_name, first_word in entities:
                 if entity_name not in entity_set:
@@ -496,10 +526,6 @@ def dfs_nltk_tree(args, tree, threshold=5):
 
     stack.append(tree)
 
-    # if args.sent_level_c:
-    #     return subtrees, len(tree.leaves())
-    # elif args.word_level_c:
-
     while len(stack) > 0:
 
         item = stack.pop()
@@ -680,7 +706,22 @@ def sort_entries(first_word_map):
     return new_first_word_map
 
 
-def find_ner_tokens(tokens_ls, tag_ls):
+def find_enhancement(root_idx, enhanced_dep):
+
+    for item in enhanced_dep:
+
+        governor = item['governor']
+        dependent = item['dependent']
+
+        if governor == root_idx and np.abs(dependent - root_idx) == 1:
+            dep = item['dep']
+
+            if 'obj' in dep or 'subj' in dep:
+                return item
+
+    return None
+
+def find_ner_tokens(args, tokens_ls, tag_ls):
     ner_set = set()
     current_ner = None
     start_idx = end_idx = -1

@@ -126,6 +126,7 @@ def create_fname_identifier(args):
            '_inplen_' + str(args.inp_len) + \
            '_epochs_' + str(args.max_epochs) + \
            '_layer_' + str(args.layer) + \
+           '_gen_type_' + str(args.generator_encoding) + \
            '_bilin_' + str(args.bilinear) + \
            '_ext_ck_' + str(args.extended_c_k) + \
            '_ncl_' + str(args.nclasses) + \

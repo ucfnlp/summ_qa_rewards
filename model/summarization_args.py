@@ -23,6 +23,11 @@ def get_args():
                         default='../data/emb/trained/',
                         help='Path for pretrained word embs')
 
+    parser.add_argument('--generator_encoding',
+                        type=str,
+                        default='cnn',
+                        help='Encoding for sampling in generator')
+
     parser.add_argument('--stopwords',
                         type=str,
                         default='../data/stopwords.txt',

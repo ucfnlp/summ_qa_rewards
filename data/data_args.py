@@ -29,6 +29,11 @@ def get_args():
                         default=False,
                         help='Process chunks for a sentence level Model')
 
+    parser.add_argument('--enhanced_root',
+                        type='bool',
+                        default=True,
+                        help='XSUBJ XOBJ etc for a more useful root entity.')
+
     parser.add_argument('--word_level_c',
                         type='bool',
                         default=False,
