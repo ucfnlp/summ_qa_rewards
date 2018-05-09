@@ -212,7 +212,7 @@ class Generator(object):
             isolated_chunks = T.cast(pooled_features * c_mask_tiled, theano.config.floatX)
             pooled_chunks.append(isolated_chunks.reshape((embs.shape[1], embs.shape[0], size)))
 
-        h = pooled_chunks[0] + pooled_chunks[1] + pooled_chunks[2]
+        h = pooled_chunks[0] + pooled_chunks[1] + pooled_chunks[2] + pooled_chunks[3] + pooled_chunks[4]
         o1, _ = theano.scan(fn=self.c_reduce, sequences=[h, rv_mask.dimshuffle((1, 0))])
 
         h_final = o1.dimshuffle((1, 0, 2))
