@@ -201,6 +201,83 @@ def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_di
     ofp_json['e' + str(epoch)] = epoch_data
 
 
+def save_dev_results_s(args, epoch, dev_z, dev_batches_x, dev_sha):
+    s_num = 0
+
+    filename_ = get_readable_file(args, epoch)
+    filename_m = get_mask_file(args, epoch)
+
+    ofp_samples = open(filename_, 'w+')
+    ofp_samples_m = open(filename_m, 'w+')
+
+    ofp_samples_system = []
+    ofp_m = dict()
+    ofp_samples_sha = []
+
+    model_specific_dir = create_fname_identifier(args).replace('.', '_') + '/'
+    rouge_fname = args.system_summ_path + model_specific_dir
+
+    if not os.path.exists(rouge_fname):
+        os.mkdir(rouge_fname)
+
+    for i in xrange(len(dev_z)):
+
+        for j in xrange(len(dev_z[i][0])):
+            filename = rouge_fname + 'sum.' + str(s_num).zfill(6) + '.txt'
+
+            ofp_for_rouge = open(filename, 'w+')
+            ofp_system_output = []
+            sentence_idx = 0
+            sample_mask = []
+            sample_flat = []
+
+            for k in xrange(len(dev_z[i])):
+                if sentence_idx >= len(dev_batches_x[i][j]):
+                    break
+
+                if k%45 == 0:
+                    sentence = dev_batches_x[i][j][sentence_idx]
+                    sample_flat.extend(sentence)
+
+                    sentence_idx += 1
+
+                    if dev_z[i][k][j] < 0.5:
+                        sample_mask.extend([0]*len(sentence))
+                        continue
+
+                    sample_mask.extend([1] * len(sentence))
+
+                    ofp_for_rouge.write(' '.join(sentence))
+                    ofp_system_output.extend(sentence)
+
+            raw_and_mask = dict()
+            raw_and_mask['m'] = sample_mask
+            raw_and_mask['r'] = ' '.join(sample_flat)
+
+            ofp_m[dev_sha[i][j]] = raw_and_mask
+
+            ofp_samples_system.append(' '.join(ofp_system_output))
+            ofp_samples_sha.append(dev_sha[i][j])
+            ofp_for_rouge.close()
+            s_num += 1
+
+    for i in xrange(len(ofp_samples_system)):
+        ofp_samples.write(str(ofp_samples_sha[i]))
+        ofp_samples.write('\nSystem Summary : ')
+
+        if len(ofp_samples_system[i]) == 0:
+            ofp_samples.write('**No Summary**')
+        else:
+            ofp_samples.write(ofp_samples_system[i])
+
+        ofp_samples.write('\n\n')
+
+    json.dump(ofp_m, ofp_samples_m)
+
+    ofp_samples_m.close()
+    ofp_samples.close()
+
+
 def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
     s_num = 0
 

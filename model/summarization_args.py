@@ -121,8 +121,13 @@ def get_args():
 
     parser.add_argument('--inp_len',
                         type=int,
-                        default=100,
-                        help='length of single sentence')
+                        default=225,
+                        help='length of single sample')
+
+    parser.add_argument('--inp_len_sent',
+                        type=int,
+                        default=45,
+                        help='length of single sentence within the input')
 
     parser.add_argument('--hl_len',
                         type=int,

@@ -46,6 +46,8 @@ def split_data(args):
     articles_test = []
     hashes_test = []
 
+    sentence_lengths = []
+
     train_urls, dev_urls, test_urls = get_url_sets(args)
 
     data_dirs = [args.raw_data_cnn if args.source == 'cnn' else args.raw_data_dm]
@@ -65,7 +67,8 @@ def split_data(args):
                 # Here current_article is a list containing tuples (sentence, parse_paths, mask, chunk_ls)
                 current_article = extract_tokens(args, inp_json['document'], inp_json['highlights'], unique_words,
                                                  parse_labels)
-
+                for c in current_article:
+                    sentence_lengths.append(len(c[0]))
                 current_highlights = inp_json['highlights']
 
                 if len(current_article) == 0:
@@ -97,6 +100,7 @@ def split_data(args):
                     return (highlights_train, articles_train, hashes_train), (highlights_dev, articles_dev, hashes_dev), (
                     highlights_test, articles_test, hashes_test), unique_words, parse_labels
 
+    print np.percentile(sentence_lengths,95)
     return (highlights_train, articles_train, hashes_train), (highlights_dev, articles_dev, hashes_dev), (
     highlights_test, articles_test, hashes_test), unique_words, parse_labels
 

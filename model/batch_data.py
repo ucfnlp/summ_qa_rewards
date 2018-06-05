@@ -261,6 +261,8 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, lstpt, lstbm, lst
 
     bch, bsz = create_chunk_mask(lstch, max_len)
 
+    if args.sent_level_c:
+        lstx = pad_sentences(args, padding_id, lstx)
     bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=padding_id).astype('int32') for x in lstx])
 
@@ -374,6 +376,29 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
         be.extend(e_processed[i])
 
     return by, unigrams, be, loss_mask
+
+
+def pad_sentences(args, padding_id, lstx):
+    s_len = args.inp_len_sent
+    lstx_batch_flat = []
+
+    for sample in lstx:
+        flattened_sample = []
+
+        for sentence in sample:
+            cur_s_len = len(sentence)
+
+            if cur_s_len >= s_len:
+                flattened_sample.extend(sentence[:s_len])
+            else:
+                padding = [padding_id] * (s_len - cur_s_len)
+                flattened_sample.extend(sentence)
+                flattened_sample.extend(padding)
+                assert len(padding) + cur_s_len == s_len
+
+        lstx_batch_flat.append(flattened_sample)
+
+    return lstx_batch_flat
 
 
 def create_chunk_mask(lstch, max_len, word_level=False):

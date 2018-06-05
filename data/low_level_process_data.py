@@ -182,21 +182,24 @@ def prune_type(args, x, y, e, ve, cy, rx, pt, ma, sha, ch, entity_map, used_e, s
         updated_cy.append(cy[i])
         updated_sha.append(sha[i])
 
-        updated_x.append([w for sent in x[i] for w in sent])
+        if args.sent_level_c:
+            updated_x.append(x[i])
+        else:
+            updated_x.append([w for sent in x[i] for w in sent])
         updated_ma.append([w for sent in ma[i] for w in sent])
         updated_pt.append([w for sent in pt[i] for w in sent])
 
         if args.sent_level_c:
             updated_ch.append([sum(sent) for sent in ch[i]])
-
-            most_recent = updated_ch[-1]
-            longest = np.amax(most_recent)
-            shortest = np.amin(most_recent)
-
-            if sentence_bounds[0] is None or sentence_bounds[0] > shortest:
-                sentence_bounds[0] = shortest
-            if sentence_bounds[1] is None or sentence_bounds[1] < longest:
-                sentence_bounds[1] = longest
+            updated_ch.append([45]*len(ch[i]))
+            # most_recent = updated_ch[-1]
+            # longest = np.amax(most_recent)
+            # shortest = np.amin(most_recent)
+            #
+            # if sentence_bounds[0] is None or sentence_bounds[0] > shortest:
+            #     sentence_bounds[0] = shortest
+            # if sentence_bounds[1] is None or sentence_bounds[1] < longest:
+            #     sentence_bounds[1] = longest
         elif args.word_level_c:
             updated_ch.append([1 for sent in ch[i] for w in sent for _ in xrange(w)])
         else:
@@ -205,7 +208,10 @@ def prune_type(args, x, y, e, ve, cy, rx, pt, ma, sha, ch, entity_map, used_e, s
         if ve is not None:
             updated_ve.append(ve[i])
         if rx is not None and ve is not None:
-            updated_raw_x.append([w for sent in rx[i] for w in sent])
+            if args.sent_level_c:
+                updated_raw_x.append(rx[i])
+            else:
+                updated_raw_x.append([w for sent in rx[i] for w in sent])
         elif rx is not None:
             updated_raw_x.append(rx[i])
 

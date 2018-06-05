@@ -86,6 +86,8 @@ class Generator(object):
 
         # batch
         z = z_pred_word_level
+
+
         self.zsum = T.sum(z, axis=0, dtype=theano.config.floatX)
         self.zdiff = T.sum(T.abs_(z[1:]-z[:-1]), axis=0, dtype=theano.config.floatX)
 
@@ -155,7 +157,7 @@ class Generator(object):
 
     def cnn_encoding(self, chunk_sizes, rv_mask, n_e, n_d):
         window_sizes = [1, 3, 5, 7]
-        pool_sizes = [2, 3, 4, 5]
+        pool_sizes = [45]
 
         cnn_ls = []
         layers = self.layers
@@ -212,7 +214,7 @@ class Generator(object):
             isolated_chunks = T.cast(pooled_features * c_mask_tiled, theano.config.floatX)
             pooled_chunks.append(isolated_chunks.reshape((embs.shape[1], embs.shape[0], size)))
 
-        h = pooled_chunks[0] + pooled_chunks[1] + pooled_chunks[2] + pooled_chunks[3] + pooled_chunks[4]
+        h = pooled_chunks[0]
         o1, _ = theano.scan(fn=self.c_reduce, sequences=[h, rv_mask.dimshuffle((1, 0))])
 
         h_final = o1.dimshuffle((1, 0, 2))

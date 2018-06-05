@@ -436,7 +436,10 @@ class Model(object):
                             self.save_model(filename, args)
                             json_train['BEST_DEV_EPOCH'] = epoch
 
-                            myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
+                            if args.sent_level_c:
+                                myio.save_dev_results_s(self.args, None, dev_z, dev_x, dev_sha)
+                            else:
+                                myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
 
             if more_count > 5:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
