@@ -202,6 +202,7 @@ class Generator(object):
         all_chunks = [cnn_concat] + pool_out
         pooled_chunks = []
         size = n_d * len(window_sizes)
+        print 'all', len(all_chunks)
 
         for m in xrange(len(all_chunks)):
             c_mask = T.cast(T.eq(c_rep, m + 1), 'int32')
@@ -214,7 +215,7 @@ class Generator(object):
             isolated_chunks = T.cast(pooled_features * c_mask_tiled, theano.config.floatX)
             pooled_chunks.append(isolated_chunks.reshape((embs.shape[1], embs.shape[0], size)))
 
-        h = pooled_chunks[0]
+        h = pooled_chunks[0] + pooled_chunks[1]
         o1, _ = theano.scan(fn=self.c_reduce, sequences=[h, rv_mask.dimshuffle((1, 0))])
 
         h_final = o1.dimshuffle((1, 0, 2))

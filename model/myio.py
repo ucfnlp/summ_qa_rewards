@@ -236,7 +236,7 @@ def save_dev_results_s(args, epoch, dev_z, dev_batches_x, dev_sha):
                     break
 
                 if k%45 == 0:
-                    sentence = dev_batches_x[i][j][sentence_idx]
+                    sentence = dev_batches_x[i][j][sentence_idx][:45]
                     sample_flat.extend(sentence)
 
                     sentence_idx += 1
@@ -247,16 +247,16 @@ def save_dev_results_s(args, epoch, dev_z, dev_batches_x, dev_sha):
 
                     sample_mask.extend([1] * len(sentence))
 
-                    ofp_for_rouge.write(' '.join(sentence))
+                    ofp_for_rouge.write(' '.join(sentence).encode('utf-8'))
                     ofp_system_output.extend(sentence)
 
             raw_and_mask = dict()
             raw_and_mask['m'] = sample_mask
-            raw_and_mask['r'] = ' '.join(sample_flat)
+            raw_and_mask['r'] = ' '.join(sample_flat).encode('utf-8')
 
             ofp_m[dev_sha[i][j]] = raw_and_mask
 
-            ofp_samples_system.append(' '.join(ofp_system_output))
+            ofp_samples_system.append(' '.join(ofp_system_output).encode('utf-8'))
             ofp_samples_sha.append(dev_sha[i][j])
             ofp_for_rouge.close()
             s_num += 1

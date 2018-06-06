@@ -384,7 +384,7 @@ def get_args():
 
     parser.add_argument("--z_perc",
                         type=float,
-                        default=0.4,
+                        default=0.2,
                         help="z_perc"
                         )
 
