@@ -722,6 +722,8 @@ class Model(object):
                     bx, by, be, bm, sha, rx, ble, fw, csz = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], \
                                                             batches_sha[j], batches_rx[j], batches_lm[j], batches_fw[j], \
                                                             batches_csz[j]
+                    if len(bx[0]) < args.batch:
+                        break
                     bz, o, e, preds = eval_func(bx, by, bm, be, fw, csz, ble)
 
                 tot_obj += o

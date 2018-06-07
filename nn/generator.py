@@ -186,6 +186,7 @@ class Generator(object):
 
         for p in xrange(len(pool_sizes)):
             pooled = pool_2d(cnn_concat, ws=(pool_sizes[p], 1), stride=(1, 1), ignore_border=True)
+            pooled = T.nnet.relu(pooled)
 
             z_shape = (pooled.shape[0], cnn_concat.shape[1] - pooled.shape[1], pooled.shape[2])
             zeros = T.zeros(shape=z_shape)
