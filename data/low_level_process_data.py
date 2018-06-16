@@ -190,7 +190,7 @@ def prune_type(args, x, y, e, ve, cy, rx, pt, ma, sha, ch, entity_map, used_e, s
         updated_pt.append([w for sent in pt[i] for w in sent])
 
         if args.sent_level_c:
-            updated_ch.append([sum(sent) for sent in ch[i]])
+            # updated_ch.append([sum(sent) for sent in ch[i]])
             updated_ch.append([45]*len(ch[i]))
             # most_recent = updated_ch[-1]
             # longest = np.amax(most_recent)

@@ -215,7 +215,11 @@ class Model(object):
         self.dropout.set_value(0.0)
 
         dev_obj, dev_z, dev_x, dev_sha, dev_acc = self.evaluate_data(eval_generator)
-        myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
+        # myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
+        if self.args.sent_level_c:
+            myio.save_dev_results_s(self.args, None, dev_z, dev_x, dev_sha)
+        else:
+            myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
         myio.get_rouge(self.args)
 
     def train(self):
@@ -356,7 +360,7 @@ class Model(object):
                         else:
                             bx, by, be, bm, blm, bfw, bcsz = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
                                                   train_batches_bm[j], train_batches_blm[j], train_batches_fw[j], train_batches_csz[j]
-
+                            print bx.shape, bfw.shape
                             cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr, alpha, o = train_generator(
                                 bx, by, bm, be, bfw, bcsz, blm)
 
@@ -547,7 +551,7 @@ class Model(object):
                             say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
                         bx, bm, bfw, bcz = train_batches_x[j], train_batches_bm[j], train_batches_fw[j], train_batches_csz[j]
-                        # print bx.shape, bm.shape
+
                         mask = bx != padding_id
 
                         obj, z, zsum, zdiff,cost_g = train_generator(bx, bm, bfw, bcz)
@@ -722,8 +726,7 @@ class Model(object):
                     bx, by, be, bm, sha, rx, ble, fw, csz = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], \
                                                             batches_sha[j], batches_rx[j], batches_lm[j], batches_fw[j], \
                                                             batches_csz[j]
-                    if len(bx[0]) < args.batch:
-                        break
+                    print bx.shape, fw.shape
                     bz, o, e, preds = eval_func(bx, by, bm, be, fw, csz, ble)
 
                 tot_obj += o
