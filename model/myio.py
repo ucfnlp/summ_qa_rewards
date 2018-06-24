@@ -132,6 +132,7 @@ def create_fname_identifier(args):
            '_ncl_' + str(args.nclasses) + \
            '_q' + str(args.n) + \
            '_root_' + str(args.is_root) + \
+           '_chunk_type_' + chunk_type + \
            '_cf_z_' + str(args.coeff_z) + \
            '_cf_adq_' + str(args.coeff_adequacy) + \
            '_cf_cst_scl_' + str(args.coeff_cost_scale)

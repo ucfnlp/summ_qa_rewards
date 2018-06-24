@@ -257,35 +257,15 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             root_idx = root_basic_dep['dependent']
 
             root_token = tokens_ls[root_idx - 1]
-            root_lemma = root_token['lemma']
+            root_lemma = root_token['lemma'].lower()
             root_org = root_token['originalText']
             root_first_word = root_org
 
-            start_r = end_r = root_idx -1
+            start_r = end_r = root_idx - 1
 
-            if args.enhanced_root:
-                root_enhancement = find_enhancement(root_idx, enhanced_dep)
-
-                if root_enhancement is not None:
-                    enh_idx = root_enhancement['dependent'] - 1
-
-                    assert np.abs(enh_idx - start_r) == 1
-
-                    if start_r > enh_idx:
-                        root_lemma = tokens_ls[enh_idx]['lemma'] + ' ' + root_lemma
-                        root_org = tokens_ls[enh_idx]['originalText'] + ' ' + root_org
-
-                        root_first_word = tokens_ls[enh_idx]['originalText']
-                    else:
-                        root_lemma = root_lemma + ' ' + tokens_ls[enh_idx]['lemma']
-                        root_org = root_org + ' ' + tokens_ls[enh_idx]['originalText']
-
-                    start_r = min(root_idx - 1, enh_idx)
-                    end_r = max(root_idx - 1, enh_idx)
-
-            if root_lemma.lower() not in entity_set: # previously not found @entity
+            if root_lemma not in entity_set: # previously not found @entity
                 entity_info = [entity_counter, 'ROOT']
-                entity_set[root_lemma.lower()] = entity_info
+                entity_set[root_lemma] = entity_info
                 entity_counter += 1
 
             if root_org not in raw_entity_mapping:
@@ -311,7 +291,36 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             single_inp_hl.append(hl_vec)
             single_sent_hl_entity_ls.append(entity_set[root_lemma.lower()][0])
 
-            # 2.) find all instances of tags
+            # 2.) find all xobj, xsubj
+            usable_question_dependencies = find_dependencies(basic_dep, tokens_ls)
+
+            for (tok, type_, t_idx) in usable_question_dependencies:
+                tok_lemma = tok['lemma'].lower()
+                tok_org = tok['originalText']
+
+                if tok_lemma not in entity_set:  # previously not found @entity
+                    entity_info = [entity_counter, type_]
+                    entity_set[tok_lemma] = entity_info
+                    entity_counter += 1
+
+                if tok_org not in raw_entity_mapping:
+                    raw_entity_mapping[tok_org] = tok_lemma
+
+                if tok_org not in first_word_map:
+                    first_word_map[tok_org] = [tok_org]
+                else:
+                    originals = first_word_map[tok_org]
+
+                    if tok_org not in originals:
+                        first_word_map[tok_org].append(tok_org)
+
+                hl_vec = clean_hl_vec[:]
+                hl_vec[t_idx] = placeholder
+
+                single_inp_hl.append(hl_vec)
+                single_sent_hl_entity_ls.append(entity_set[tok_lemma.lower()][0])
+
+            # 3.) find all instances of tags
             # named entities in the form : (entity name, start, end, type, raw name, first word)
             entities = find_ner_tokens(args, tokens_ls, tag_ls)
 
@@ -710,20 +719,20 @@ def sort_entries(first_word_map):
     return new_first_word_map
 
 
-def find_enhancement(root_idx, enhanced_dep):
+def find_dependencies(basic_dep, tokens):
+    found_ls = []
 
-    for item in enhanced_dep:
+    for item in basic_dep:
+        dep = item['dep']
 
-        governor = item['governor']
-        dependent = item['dependent']
+        if 'obj' in dep or 'subj' in dep:
+            index = int(item['dependent']) -1
+            token = tokens[index]
 
-        if governor == root_idx and np.abs(dependent - root_idx) == 1:
-            dep = item['dep']
+            found_ls.append((token, dep, index))
 
-            if 'obj' in dep or 'subj' in dep:
-                return item
+    return found_ls
 
-    return None
 
 def find_ner_tokens(args, tokens_ls, tag_ls):
     ner_set = set()
