@@ -222,13 +222,12 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
         return inp_seqs, inp_ents, inp_parse_paths, inp_seqs_mask, inp_s_chunks
 
 
-def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, first_word_map,  type, placeholder, unk):
+def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, first_word_map, type, placeholder, unk):
     input_hl_seqs = []
     input_hl_entities = []
     input_hl_clean = []
 
     tag_ls = ['PERSON', 'LOCATION', 'ORGANIZATION', 'MISC']
-    dep_ls = ['']
 
     total_samples = len(inp)
 
@@ -292,7 +291,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             single_sent_hl_entity_ls.append(entity_set[root_lemma.lower()][0])
 
             # 2.) find all xobj, xsubj
-            usable_question_dependencies = find_dependencies(basic_dep, tokens_ls)
+            usable_question_dependencies = find_dependencies(False, basic_dep, tokens_ls)
 
             for (tok, type_, t_idx) in usable_question_dependencies:
                 tok_lemma = tok['lemma'].lower()
@@ -719,8 +718,10 @@ def sort_entries(first_word_map):
     return new_first_word_map
 
 
-def find_dependencies(basic_dep, tokens):
+def find_dependencies(enh, basic_dep, tokens):
     found_ls = []
+    if not enh:
+        return found_ls
 
     for item in basic_dep:
         dep = item['dep']

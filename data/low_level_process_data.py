@@ -19,12 +19,12 @@ def prune_hl(args):
 
     sentence_bounds = [None, None]
 
-    updated_train_y, updated_train_e, updated_train_x, updated_train_ve, updated_train_cly, updated_train_sha, updated_train_parse, updated_train_ma, updated_train_ch = prune_type(
+    updated_train_y, updated_train_e, updated_train_x, updated_train_ve, updated_train_cly, updated_train_sha, updated_train_parse, updated_train_ma, updated_train_ch, sentence_bounds_train = prune_type(
         args, train_x, train_y, train_e, train_ve, train_cly, None, train_parse, train_m, train_sha, train_ch, entity_map,
         used_e, sentence_bounds)
-    updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_sha, updated_dev_parse, updated_dev_ma, updated_dev_ch = prune_type(
+    updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_sha, updated_dev_parse, updated_dev_ma, updated_dev_ch, sentence_bounds_dev = prune_type(
         args, dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_parse, dev_m, dev_sha, dev_ch, entity_map, used_e, sentence_bounds)
-    updated_test_y, updated_test_e, updated_test_x, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_parse, updated_test_ma, updated_test_ch = prune_type(
+    updated_test_y, updated_test_e, updated_test_x, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_parse, updated_test_ma, updated_test_ch, sentence_bounds_test = prune_type(
         args, test_x, test_y, test_e, None, test_cy, test_rx, test_parse, test_m, test_sha, test_ch, None, used_e, sentence_bounds)
 
     print 'used/total entities = ', len(used_e)/ float(len(entity_map))
@@ -42,9 +42,9 @@ def prune_hl(args):
 
     save_updated_e(args, e_map_new, entity_map)
 
-    return (updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly, updated_train_parse, updated_train_ma, updated_train_sha, updated_train_ch), \
-           (updated_dev_x, updated_dev_y, updated_dev_e, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_parse, updated_dev_ma, updated_dev_sha, updated_dev_ch), \
-            (updated_test_x, updated_test_y, updated_test_e, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_parse, updated_test_ma, updated_test_ch)
+    return (updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly, updated_train_parse, updated_train_ma, updated_train_sha, updated_train_ch, sentence_bounds_train), \
+           (updated_dev_x, updated_dev_y, updated_dev_e, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_parse, updated_dev_ma, updated_dev_sha, updated_dev_ch, sentence_bounds_dev), \
+            (updated_test_x, updated_test_y, updated_test_e, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_parse, updated_test_ma, updated_test_ch, sentence_bounds_test)
 
 
 def write_model_ready(args, train, dev, test):
@@ -59,10 +59,11 @@ def write_model_ready(args, train, dev, test):
     final_json_train['e'] = train[2]
     final_json_train['valid_e'] = train[3]
     final_json_train['clean_y'] = train[4]
-    final_json_train['parse'] = train[5]
+    final_json_train['s_bound'] = train[9]
     final_json_train['mask'] = train[6]
     final_json_train['sha'] = train[7]
     final_json_train['chunk'] = train[8]
+
 
     json.dump(final_json_train, ofp_train)
     ofp_train.close()
@@ -79,7 +80,7 @@ def write_model_ready(args, train, dev, test):
     final_json_dev['valid_e'] = dev[3]
     final_json_dev['clean_y'] = dev[4]
     final_json_dev['raw_x'] = dev[5]
-    final_json_dev['parse'] = dev[6]
+    final_json_dev['s_bound'] = dev[10]
     final_json_dev['mask'] = dev[7]
     final_json_dev['sha'] = dev[8]
     final_json_dev['chunk'] = dev[9]
@@ -99,7 +100,7 @@ def write_model_ready(args, train, dev, test):
     final_json_test['clean_y'] = test[3]
     final_json_test['raw_x'] = test[4]
     final_json_test['sha'] = test[5]
-    final_json_test['parse'] = test[6]
+    final_json_test['s_bound'] = test[9]
     final_json_test['mask'] = test[7]
     final_json_test['chunk'] = test[8]
 
@@ -119,8 +120,8 @@ def prune_type(args, x, y, e, ve, cy, rx, pt, ma, sha, ch, entity_map, used_e, s
     updated_ma = []
     updated_sha = []
     updated_ch = []
+    sentence_bounds = []
 
-    restricted_types = generate_valid_entity_types(args)
     invalid_articles = 0
 
     for i in xrange(length):
@@ -188,18 +189,10 @@ def prune_type(args, x, y, e, ve, cy, rx, pt, ma, sha, ch, entity_map, used_e, s
             updated_x.append([w for sent in x[i] for w in sent])
         updated_ma.append([w for sent in ma[i] for w in sent])
         updated_pt.append([w for sent in pt[i] for w in sent])
+        sentence_bounds.append([len(sent) for sent in x[i]])
 
         if args.sent_level_c:
-            # updated_ch.append([sum(sent) for sent in ch[i]])
             updated_ch.append([45]*len(ch[i]))
-            # most_recent = updated_ch[-1]
-            # longest = np.amax(most_recent)
-            # shortest = np.amin(most_recent)
-            #
-            # if sentence_bounds[0] is None or sentence_bounds[0] > shortest:
-            #     sentence_bounds[0] = shortest
-            # if sentence_bounds[1] is None or sentence_bounds[1] < longest:
-            #     sentence_bounds[1] = longest
         elif args.word_level_c:
             updated_ch.append([1 for sent in ch[i] for w in sent for _ in xrange(w)])
         else:
@@ -219,11 +212,11 @@ def prune_type(args, x, y, e, ve, cy, rx, pt, ma, sha, ch, entity_map, used_e, s
     print length, "of Articles"
 
     if ve is None:
-        return updated_y, updated_e, updated_x, updated_cy, updated_raw_x, updated_sha, updated_pt, updated_ma, updated_ch
+        return updated_y, updated_e, updated_x, updated_cy, updated_raw_x, updated_sha, updated_pt, updated_ma, updated_ch, sentence_bounds
     if rx is None:
-        return updated_y, updated_e, updated_x, updated_ve, updated_cy, updated_sha, updated_pt, updated_ma, updated_ch
+        return updated_y, updated_e, updated_x, updated_ve, updated_cy, updated_sha, updated_pt, updated_ma, updated_ch, sentence_bounds
     else:
-        return updated_y, updated_e, updated_x, updated_ve, updated_cy, updated_raw_x, updated_sha, updated_pt, updated_ma, updated_ch
+        return updated_y, updated_e, updated_x, updated_ve, updated_cy, updated_raw_x, updated_sha, updated_pt, updated_ma, updated_ch, sentence_bounds
 
 
 def re_map_entities(e, new_map):

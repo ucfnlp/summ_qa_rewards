@@ -36,7 +36,7 @@ def get_args():
 
     parser.add_argument('--word_level_c',
                         type='bool',
-                        default=False,
+                        default=True,
                         help='Process chunks for a word level Model')
 
     parser.add_argument('--pipeline',

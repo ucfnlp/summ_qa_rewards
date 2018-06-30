@@ -60,10 +60,10 @@ def get_vocab(args):
     return vocab, vocab_pt
 
 
-def create_embedding_layer(args, path, vocab, oov=None):
+def create_embedding_layer(args, path, vocab, embedding_dim, oov=None):
 
     embedding_layer = EmbeddingLayer(
-        n_d=args.embedding_dim,
+        n_d=embedding_dim,
         vocab=vocab,
         embs=load_embedding_iterator(path) if path is not None else None,
         oov=oov,
@@ -95,12 +95,12 @@ def load_batches(name, iteration):
     data = np.load(ifp)
     ifp.close()
 
-    if len(data) == 9:
+    if len(data) == 10:
+        return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]
+    elif len(data) == 9:
         return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]
-    elif len(data) == 8:
-        return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]
     else:
-        return data[0], data[1], data[2], data[3], data[4], data[5]
+        return data[0], data[1], data[2], data[3], data[4], data[5], data[6]
 
 
 def round_batch(lstx, lsty, lste, b_len):
@@ -117,6 +117,7 @@ def round_batch(lstx, lsty, lste, b_len):
 
 
 def create_fname_identifier(args):
+    # chunk_type = 'word' if not args.
     return 'source_' + str(args.source) + \
            '_pretrain_' + str(args.pretrain) + \
            '_load_model_pre_' + str(args.load_model_pretrain) + \
@@ -132,7 +133,7 @@ def create_fname_identifier(args):
            '_ncl_' + str(args.nclasses) + \
            '_q' + str(args.n) + \
            '_root_' + str(args.is_root) + \
-           '_chunk_type_' + chunk_type + \
+           # '_chunk_type_' + chunk_type + \
            '_cf_z_' + str(args.coeff_z) + \
            '_cf_adq_' + str(args.coeff_adequacy) + \
            '_cf_cst_scl_' + str(args.coeff_cost_scale)

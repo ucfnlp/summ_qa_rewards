@@ -11,13 +11,15 @@ from nn.advanced import Conv1d
 
 class Generator(object):
 
-    def __init__(self, args, embedding_layer):
+    def __init__(self, args, embedding_layer, embedding_layer_posit):
         self.args = args
         self.embedding_layer = embedding_layer
+        self.embedding_layer_posit = embedding_layer_posit
 
     def ready(self):
 
         embedding_layer = self.embedding_layer
+        embedding_layer_posit = self.embedding_layer_posit
 
         args = self.args
         self.padding_id = embedding_layer.vocab_map["<padding>"]
@@ -30,19 +32,23 @@ class Generator(object):
         x = self.x = T.imatrix('x')
         fw_mask = self.fw_mask = T.imatrix('fw')
         chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
+        posit_x = self.posit_x = T.imatrix('pos')
 
         rv_mask = T.concatenate([T.ones((1, fw_mask.shape[1])), fw_mask[:-1]], axis=0)
 
         layers = self.layers = []
 
         n_d = args.hidden_dimension
-        n_e = embedding_layer.n_d
+        n_e = embedding_layer.n_d + embedding_layer_posit.n_d
         activation = get_activation_by_name(args.activation)
 
         self.masks = masks_neq = T.cast(T.neq(chunk_sizes, 0), 'int32')
         masks_eq = T.cast(T.eq(chunk_sizes, 0), 'int32').dimshuffle((1, 0))
 
         embs = embedding_layer.forward(x.ravel())
+        embs_p = embedding_layer_posit.forward(posit_x.ravel())
+
+        embs = T.concatenate([embs, embs_p], axis=1)
 
         self.word_embs = embs = embs.reshape((x.shape[0], x.shape[1], n_e))
         self.embs = apply_dropout(embs, dropout)
@@ -92,7 +98,7 @@ class Generator(object):
         self.zdiff = T.sum(T.abs_(z[1:]-z[:-1]), axis=0, dtype=theano.config.floatX)
 
         params = self.params = [ ]
-        for l in layers + [ output_layer ] + [embedding_layer]:
+        for l in layers + [ output_layer ] + [embedding_layer] + [embedding_layer_posit]:
             for p in l.params:
                 params.append(p)
 
@@ -157,7 +163,7 @@ class Generator(object):
 
     def cnn_encoding(self, chunk_sizes, rv_mask, n_e, n_d):
         window_sizes = [1, 3, 5, 7]
-        pool_sizes = [45]
+        pool_sizes = []
 
         cnn_ls = []
         layers = self.layers
@@ -216,7 +222,7 @@ class Generator(object):
             isolated_chunks = T.cast(pooled_features * c_mask_tiled, theano.config.floatX)
             pooled_chunks.append(isolated_chunks.reshape((embs.shape[1], embs.shape[0], size)))
 
-        h = pooled_chunks[0] + pooled_chunks[1]
+        h = pooled_chunks[0]
         o1, _ = theano.scan(fn=self.c_reduce, sequences=[h, rv_mask.dimshuffle((1, 0))])
 
         h_final = o1.dimshuffle((1, 0, 2))

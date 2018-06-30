@@ -14,11 +14,11 @@ def read_docs(args, type):
         data = json.load(data_file)
 
     if type == 'test':
-        return data['x'], data['y'], data['e'], data['sha'], data['clean_y'], data['raw_x'], data['parse'], data['mask'], data['chunk']
+        return data['x'], data['y'], data['e'], data['sha'], data['clean_y'], data['raw_x'], data['s_bound'], data['mask'], data['chunk']
     elif type == 'dev':
-        return data['x'], data['y'], data['e'], data['clean_y'], data['raw_x'], data['sha'], data['parse'], data['mask'], data['chunk']
+        return data['x'], data['y'], data['e'], data['clean_y'], data['raw_x'], data['sha'], data['s_bound'], data['mask'], data['chunk']
     else:
-        return data['x'], data['y'], data['e'], data['clean_y'], data['sha'], data['parse'], data['mask'], data['chunk']
+        return data['x'], data['y'], data['e'], data['clean_y'], data['sha'], data['s_bound'], data['mask'], data['chunk']
 
 
 def create_vocab(args):
@@ -123,7 +123,7 @@ def create_batches_test(args, x, y, cy, pt, sha, rx, batch_size, padding_id, pad
 
 
 def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size, padding_id, padding_id_pt, stopwords, sort=True, model_type=''):
-    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt, batches_lm, batches_ch_f, batches_ch_sz = [], [], [], [], [], [], [], [], [], []
+    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pi, batches_lm, batches_ch_f, batches_ch_sz = [], [], [], [], [], [], [], [], [], []
 
     N = len(x)
     M = (N - 1) / batch_size + 1
@@ -143,7 +143,7 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
         sha = [sha[i] for i in perm]
 
     for i in xrange(M):
-        bx, by, be, bm, bpt, blm, bch, bsz = create_one_batch(
+        bx, by, be, bm, bpt, blm, bch, bsz, bpi = create_one_batch(
             args,
             n_classes,
             x[i * batch_size:(i + 1) * batch_size],
@@ -167,7 +167,7 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
         batches_y.append(by)
         batches_e.append(be)
         batches_bm.append(bm)
-        batches_pt.append(bpt)
+        batches_pi.append(bpi)
         batches_lm.append(blm)
         batches_sha.append(bsh)
         batches_ch_f.append(bch)
@@ -189,7 +189,8 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
                         batches_bm,
                         batches_sha,
                         batches_ch_f,
-                        batches_ch_sz
+                        batches_ch_sz,
+                        batches_pi
                     ]
                 else:
                     data = [
@@ -200,7 +201,8 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
                         batches_lm,
                         batches_sha,
                         batches_ch_f,
-                        batches_ch_sz
+                        batches_ch_sz,
+                        batches_pi
                     ]
             elif model_type == 'dev':
                 if args.pad_repeat:
@@ -212,7 +214,8 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
                         batches_sha,
                         batches_rx,
                         batches_ch_f,
-                        batches_ch_sz
+                        batches_ch_sz,
+                        batches_pi
                     ]
                 else:
                     data = [
@@ -224,7 +227,8 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
                         batches_sha,
                         batches_rx,
                         batches_ch_f,
-                        batches_ch_sz
+                        batches_ch_sz,
+                        batches_pi
                     ]
             else:
                 data = [
@@ -235,12 +239,13 @@ def create_batches(args, n_classes, x, y, e, cy, pt, m, sha, ch, rx,  batch_size
                     batches_sha,
                     batches_rx,
                     batches_ch_f,
-                    batches_ch_sz
+                    batches_ch_sz,
+                    batches_pi
                 ]
             with open(fname + str(num_files), 'w+') as ofp:
                 np.save(ofp, data)
 
-                batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pt, batches_lm, batches_ch_f, batches_ch_sz = [], [], [], [], [], [], [], [], [], []
+                batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_pi, batches_lm, batches_ch_f, batches_ch_sz = [], [], [], [], [], [], [], [], [], []
             num_batches = 0
             num_files += 1
 
@@ -273,12 +278,12 @@ def create_one_batch(args, n_classes, lstx, lsty, lste, lstcy, lstpt, lstbm, lst
         bm = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=0).astype('int32') for x in lstbm])
 
-    bpt = stack_pt(args, lstpt, padding_id_pt)
+    position_vec_idx = stack_p_vec(max_len, lstpt, lstx, 50)
 
     if lste is not None:
-        return bx, by, be, bm, bpt, blm, bch, bsz
+        return bx, by, be, bm, None, blm, bch, bsz, position_vec_idx
     else:
-        return bx, [], [], bm, bpt, [], bch, bsz
+        return bx, [], [], bm, None, [], bch, bsz, position_vec_idx
 
 
 def create_one_batch_test(args, lstx_, lsty, lstcy, lstpt, padding_id, padding_id_pt, b_len, stopwords):
@@ -399,6 +404,31 @@ def pad_sentences(args, padding_id, lstx):
         lstx_batch_flat.append(flattened_sample)
 
     return lstx_batch_flat
+
+
+def stack_p_vec(max_x, sent_bounds, x, padding_id):
+    position_idx_batch = []
+
+    for a_idx in xrange(len(x)):
+        position_idx_x = []
+        total_x = 0
+
+        for sent_len in sent_bounds[a_idx]:
+            cur_s = [i for i in xrange(sent_len)]
+
+            position_idx_x.extend(cur_s)
+
+            total_x += sent_len
+
+            if total_x > max_x:
+                position_idx_x = position_idx_x[:max_x]
+                break
+        if len(position_idx_x) < max_x:
+            position_idx_x.extend([padding_id] * (max_x - len(position_idx_x)))
+
+        position_idx_batch.append(position_idx_x)
+
+    return np.column_stack([x for x in position_idx_batch]).astype('int32')
 
 
 def create_chunk_mask(lstch, max_len, word_level=False):
