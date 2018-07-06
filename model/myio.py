@@ -117,7 +117,13 @@ def round_batch(lstx, lsty, lste, b_len):
 
 
 def create_fname_identifier(args):
-    # chunk_type = 'word' if not args.
+    if args.sent_level_c:
+        chunk_typ = 'sent'
+    elif args.word_level_c:
+        chunk_typ = 'word'
+    else:
+        chunk_typ = 'chnk'
+
     return 'source_' + str(args.source) + \
            '_pretrain_' + str(args.pretrain) + \
            '_load_model_pre_' + str(args.load_model_pretrain) + \
@@ -133,7 +139,7 @@ def create_fname_identifier(args):
            '_ncl_' + str(args.nclasses) + \
            '_q' + str(args.n) + \
            '_root_' + str(args.is_root) + \
-           # '_chunk_type_' + chunk_type + \
+           '_chunk_type_' + chunk_typ + \
            '_cf_z_' + str(args.coeff_z) + \
            '_cf_adq_' + str(args.coeff_adequacy) + \
            '_cf_cst_scl_' + str(args.coeff_cost_scale)

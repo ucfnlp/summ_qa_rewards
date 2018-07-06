@@ -325,10 +325,10 @@ class Model(object):
                 for i in xrange(num_files):
                     if args.pad_repeat:
                         train_batches_x, train_batches_y, train_batches_e, train_batches_bm, _, train_batches_fw, train_batches_csz, train_batches_bpi = myio.load_batches(
-                            args.batch_dir + args.source + 'train', i)
+                            args.batch_dir + 'batches_' + str(args.inp_len) + args.source + 'train', i)
                     else:
                         train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_blm, _, train_batches_fw, train_batches_csz, train_batches_bpi = myio.load_batches(
-                            args.batch_dir + args.source + 'train', i)
+                            args.batch_dir + 'batches_' + str(args.inp_len) + args.source + 'train', i)
 
                     cur_len = len(train_batches_x)
 
@@ -713,10 +713,10 @@ class Model(object):
         for i in xrange(num_files):
             if args.pad_repeat:
                 batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_fw, batches_csz, batches_bpi = myio.load_batches(
-                    self.args.batch_dir + self.args.source + 'dev', i)
+                    self.args.batch_dir + 'batches_' + str(args.inp_len) + self.args.source + 'dev', i)
             else:
                 batches_x, batches_y, batches_e, batches_bm, batches_lm,  batches_sha, batches_rx, batches_fw, batches_csz, batches_bpi = myio.load_batches(
-                    self.args.batch_dir + self.args.source + 'dev', i)
+                    self.args.batch_dir + 'batches_' + str(args.inp_len) + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
@@ -787,7 +787,7 @@ def main():
 
     vocab, parse_v = myio.get_vocab(args)
     embedding_layer = myio.create_embedding_layer(args, args.embedding, vocab, args.embedding_dim, '<unk>')
-    position_emb_layer = myio.create_embedding_layer(args, None, [i for i in xrange(51)], 50, oov=None)
+    position_emb_layer = myio.create_embedding_layer(args, None, [i for i in xrange(51)], 100, oov=None)
 
     n_classes = args.nclasses
 

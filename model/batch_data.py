@@ -412,23 +412,26 @@ def stack_p_vec(max_x, sent_bounds, x, padding_id):
     for a_idx in xrange(len(x)):
         position_idx_x = []
         total_x = 0
+        cur_encoding = 0
 
         for sent_len in sent_bounds[a_idx]:
-            cur_s = [i for i in xrange(sent_len)]
+            cur_s = [cur_encoding] * sent_len
 
             position_idx_x.extend(cur_s)
 
             total_x += sent_len
+            cur_encoding += 1
 
             if total_x > max_x:
                 position_idx_x = position_idx_x[:max_x]
                 break
+
         if len(position_idx_x) < max_x:
             position_idx_x.extend([padding_id] * (max_x - len(position_idx_x)))
 
         position_idx_batch.append(position_idx_x)
 
-    return np.column_stack([x for x in position_idx_batch]).astype('int32')
+    return np.column_stack([j for j in position_idx_batch]).astype('int32')
 
 
 def create_chunk_mask(lstch, max_len, word_level=False):
