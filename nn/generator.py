@@ -39,7 +39,7 @@ class Generator(object):
         layers = self.layers = []
 
         n_d = args.hidden_dimension
-        n_e = embedding_layer.n_d + embedding_layer_posit.n_d
+        n_e = embedding_layer.n_d
         activation = get_activation_by_name(args.activation)
 
         self.masks = masks_neq = T.cast(T.neq(chunk_sizes, 0), 'int32')
@@ -48,20 +48,24 @@ class Generator(object):
         embs = embedding_layer.forward(x.ravel())
         embs_p = embedding_layer_posit.forward(posit_x.ravel())
 
-        embs = T.concatenate([embs, embs_p], axis=1)
+        # embs_gen = T.concatenate([embs, embs_p], axis=1)
 
         self.word_embs = embs = embs.reshape((x.shape[0], x.shape[1], n_e))
         self.embs = apply_dropout(embs, dropout)
+
+        embs_p = embs.reshape((x.shape[0], x.shape[1], embedding_layer_posit.n_d))
+        self.embs_p = embs_p = apply_dropout(embs_p, dropout)
 
         if args.generator_encoding == 'cnn':
             h_final, size = self.cnn_encoding(chunk_sizes, rv_mask, n_e, n_d)
         else:
             h_final, size = self.lstm_encoding(fw_mask, rv_mask, n_e, n_d, activation)
 
-        self.h_final = h_final = apply_dropout(h_final, dropout)
+        h_final = apply_dropout(h_final, dropout)
+        self.h_final = h_final = T.concatenate([h_final, embs_p], axis=2)
 
         output_layer = self.output_layer = ZLayer(
-                n_in = size,
+                n_in = size + embedding_layer_posit.n_d,
                 n_hidden = args.hidden_dimension2,
                 activation = activation,
                 layer='rcnn',
