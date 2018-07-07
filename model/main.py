@@ -363,7 +363,7 @@ class Model(object):
                         else:
                             bx, by, be, bm, blm, bfw, bcsz, bpi = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
                                                   train_batches_bm[j], train_batches_blm[j], train_batches_fw[j], train_batches_csz[j], train_batches_bpi[j]
-                            print bx.shape, bfw.shape
+
                             cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr, alpha, o = train_generator(
                                 bx, bpi, by, bm, be, bfw, bcsz, blm)
 
