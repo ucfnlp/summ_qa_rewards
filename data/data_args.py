@@ -24,11 +24,6 @@ def get_args():
                         default=True,
                         help='Process full selection of CNN data')
 
-    parser.add_argument('--sent_level_c',
-                        type='bool',
-                        default=False,
-                        help='Process chunks for a sentence level Model')
-
     parser.add_argument('--enhanced_root',
                         type='bool',
                         default=True,
@@ -36,8 +31,8 @@ def get_args():
 
     parser.add_argument('--word_level_c',
                         type='bool',
-                        default=True,
-                        help='Process chunks for a word level Model')
+                        default=False,
+                        help='Process chunks for a word level Model (most granular)')
 
     parser.add_argument('--pipeline',
                         type='bool',

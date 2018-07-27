@@ -14,25 +14,22 @@ sys.setdefaultencoding('utf8')
 
 
 def process_data(args):
-    train, dev, test, unique_w, parse_labels = split_data(args)
+    train, dev, test, unique_w = split_data(args)
 
     prepare_rouge(args, test[0], 'test')
     prepare_rouge(args, dev[0], 'dev')
 
     word_counts = [args.vocab_size]
 
-    create_pt_map(args, parse_labels)
-
     for count in word_counts:
         print 'Building dataset for vocab size : ' + str(count)
         vocab, placeholder, unk = create_vocab_map(args, unique_w, count)
-        machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_labels)
+        machine_ready(args, train, dev, test, vocab, count, placeholder, unk)
 
 
 def split_data(args):
     small_size_counter = 0
     unique_words = dict()
-    parse_labels = dict()
 
     highlights_train = []
     articles_train = []
@@ -64,9 +61,8 @@ def split_data(args):
 
                 inp_json = json.load(file_in)
 
-                # Here current_article is a list containing tuples (sentence, parse_paths, mask, chunk_ls)
-                current_article = extract_tokens(args, inp_json['document'], inp_json['highlights'], unique_words,
-                                                 parse_labels)
+                # Here current_article is a list containing tuples (sentence, mask, chunk_ls)
+                current_article = extract_tokens(args, inp_json['document'], inp_json['highlights'], unique_words)
                 for c in current_article:
                     sentence_lengths.append(len(c[0]))
                 current_highlights = inp_json['highlights']
@@ -97,12 +93,15 @@ def split_data(args):
                 small_size_counter += 1
 
                 if not args.full_test and small_size_counter >= args.small_limit:
-                    return (highlights_train, articles_train, hashes_train), (highlights_dev, articles_dev, hashes_dev), (
-                    highlights_test, articles_test, hashes_test), unique_words, parse_labels
+                    return (highlights_train, articles_train, hashes_train), \
+                           (highlights_dev, articles_dev, hashes_dev), \
+                           (highlights_test, articles_test, hashes_test), \
+                           unique_words
 
-    print np.percentile(sentence_lengths,95)
-    return (highlights_train, articles_train, hashes_train), (highlights_dev, articles_dev, hashes_dev), (
-    highlights_test, articles_test, hashes_test), unique_words, parse_labels
+    return (highlights_train, articles_train, hashes_train), \
+           (highlights_dev, articles_dev, hashes_dev), \
+           (highlights_test, articles_test, hashes_test), \
+           unique_words
 
 
 def prepare_rouge(args, inp, type):
@@ -125,13 +124,12 @@ def prepare_rouge(args, inp, type):
         rouge_counter += 1
 
 
-def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, unk, parse_labels, return_r=False):
+def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, unk, return_r=False):
     inp_seqs = []
     inp_s_chunks = []
     inp_seqs_mask = []
     inp_seqs_raw = []
     inp_ents = []
-    inp_parse_paths = []
 
     counter = 0
 
@@ -147,18 +145,15 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
         single_inp_s_chunks = []
         single_inp_seqs_mask = []
         single_inp_seqs_raw = []
-        single_inp_parse_paths = []
         entities_in_article = set()
 
         for i in xrange(len(article)):
 
             sent = article[i][0]
-            parse_paths = article[i][1]
-            masks = article[i][2]
-            chunk_ls = article[i][3]
+            masks = article[i][1]
+            chunk_ls = article[i][2]
 
             single_inp_sent = []
-            single_inp_sent_pp = []
             single_inp_sent_raw = []
 
             for w in xrange(len(sent)):
@@ -183,12 +178,12 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
                         ent_len = len(text_ls)
                         entity_found = True
 
-                        for i in xrange(ent_len):
-                            if w + i >= len(sent):
+                        for l in xrange(ent_len):
+                            if w + l >= len(sent):
                                 entity_found = False
                                 break
 
-                            if sent[w + i] != text_ls[i]:
+                            if sent[w + l] != text_ls[l]:
                                 entity_found = False
                                 break
 
@@ -197,12 +192,9 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
                             entities_in_article.add(entity[0])
                             break
 
-                single_inp_sent_pp.append([parse_labels[item] for item in parse_paths[w]])
-
             single_inp_seqs_mask.append(masks)
             single_inp_s_chunks.append(chunk_ls)
             single_inp_seqs.append(single_inp_sent)
-            single_inp_parse_paths.append(single_inp_sent_pp)
 
             if return_r:
                 single_inp_seqs_raw.append(single_inp_sent_raw)
@@ -211,15 +203,14 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
         inp_seqs.append(single_inp_seqs)
         inp_s_chunks.append(single_inp_s_chunks)
         inp_seqs_mask.append(single_inp_seqs_mask)
-        inp_parse_paths.append(single_inp_parse_paths)
 
         if return_r:
             inp_seqs_raw.append(single_inp_seqs_raw)
 
     if return_r:
-        return inp_seqs, inp_ents, inp_seqs_raw, inp_parse_paths, inp_seqs_mask, inp_s_chunks
+        return inp_seqs, inp_ents, inp_seqs_raw, inp_seqs_mask, inp_s_chunks
     else:
-        return inp_seqs, inp_ents, inp_parse_paths, inp_seqs_mask, inp_s_chunks
+        return inp_seqs, inp_ents, inp_seqs_mask, inp_s_chunks
 
 
 def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, first_word_map, type, placeholder, unk):
@@ -354,7 +345,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
     return input_hl_seqs, input_hl_entities, input_hl_clean, entity_counter
 
 
-def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_labels):
+def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     entity_set = dict()
     raw_entity_mapping = dict()
     first_word_map = dict()
@@ -374,14 +365,21 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     sorted_first_word_map = sort_entries(first_word_map)
 
     print 'Train data indexing..'
-    seqs_train_articles, seq_train_art_ents, seq_train_art_parse, seq_train_art_m, seq_train_chunks = seqs_art(args, train[1], vocab, entity_set, raw_entity_mapping,
-                                                       sorted_first_word_map, unk, parse_labels)
+    seqs_train_articles, seq_train_art_ents, seq_train_art_m, seq_train_chunks = seqs_art(args,
+                                                                                          train[1],
+                                                                                          vocab,
+                                                                                          entity_set,
+                                                                                          raw_entity_mapping,
+                                                                                          sorted_first_word_map,
+                                                                                          unk)
     print 'Dev data indexing..'
-    seqs_dev_articles, seq_dev_art_ents, seq_dev_art_raw, seq_dev_art_parse, seq_dev_art_m, seq_dev_chunks = seqs_art(args, dev[1], vocab, entity_set, raw_entity_mapping,
-                                                   sorted_first_word_map, unk, parse_labels, return_r=True)
+    seqs_dev_articles, seq_dev_art_ents, seq_dev_art_raw, seq_dev_art_m, seq_dev_chunks = seqs_art(
+        args, dev[1], vocab, entity_set, raw_entity_mapping,
+        sorted_first_word_map, unk, return_r=True)
     print 'Test data indexing..'
-    seqs_test_articles, seq_test_art_ents, seq_test_art_raw, seq_test_art_parse, seq_test_art_m, seq_test_chunks = seqs_art(args, test[1], vocab, entity_set, raw_entity_mapping,
-                                                     sorted_first_word_map, unk, parse_labels, return_r=True)
+    seqs_test_articles, seq_test_art_ents, seq_test_art_raw, seq_test_art_m, seq_test_chunks = seqs_art(
+        args, test[1], vocab, entity_set, raw_entity_mapping,
+        sorted_first_word_map, unk, return_r=True)
 
     filename_train = args.train if args.full_test else "small_" + args.train
     filename_train = args.source + '_' + str(count) + '_' + filename_train
@@ -395,7 +393,6 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     final_json_train['sha'] = train[2]
     final_json_train['valid_e'] = seq_train_art_ents
     final_json_train['clean_y'] = seqs_clean_train
-    final_json_train['parse'] = seq_train_art_parse
     final_json_train['mask'] = seq_train_art_m
     final_json_train['chunk'] = seq_train_chunks
 
@@ -415,7 +412,6 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     final_json_dev['sha'] = dev[2]
     final_json_dev['valid_e'] = seq_dev_art_ents
     final_json_dev['clean_y'] = seqs_clean_dev
-    final_json_dev['parse'] = seq_dev_art_parse
     final_json_dev['mask'] = seq_dev_art_m
     final_json_dev['chunk'] = seq_dev_chunks
 
@@ -434,7 +430,6 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     final_json_test['sha'] = test[2]
     final_json_test['raw_x'] = seq_test_art_raw
     final_json_test['clean_y'] = seqs_clean_test
-    final_json_test['parse'] = seq_test_art_parse
     final_json_test['mask'] = seq_test_art_m
     final_json_test['chunk'] = seq_test_chunks
 
@@ -452,7 +447,7 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk, parse_
     ofp_entities.close()
 
 
-def extract_tokens(args, document, hl, unique_words, parse_labels):
+def extract_tokens(args, document, hl, unique_words):
     article = []
 
     top_sent = True
@@ -460,18 +455,14 @@ def extract_tokens(args, document, hl, unique_words, parse_labels):
     for sent in document:
         tokens = sent['tokens']
         tree = ParentedTree.fromstring(sent['parse'])
-        s, parse_paths, mask, chunk_ls = [], [], [], []
+        s, mask, chunk_ls = [], [], []
 
         for token in tokens:
             text = token['originalText'].lower()
-            pt = token['trace'][1]
             pretrain = token['pretrain']
 
             s.append(text)
-            parse_paths.append(pt)
             mask.append(pretrain)
-
-            process_labels(parse_labels, pt)
 
             if text in unique_words:
                 unique_words[text] += 1
@@ -490,7 +481,6 @@ def extract_tokens(args, document, hl, unique_words, parse_labels):
                 k = s.index('-RRB-')
                 if k < 10:
                     s = s[k + 1:]
-                    parse_paths = parse_paths[k + 1:]
                     mask = mask[k + 1:]
 
                     chunk_ls = trim_chunk_ls(k + 1, chunk_ls)
@@ -499,7 +489,6 @@ def extract_tokens(args, document, hl, unique_words, parse_labels):
                 k = s.index('--')
                 if k < 10:
                     s = s[k + 1:]
-                    parse_paths = parse_paths[k + 1:]
                     mask = mask[k + 1:]
 
                     chunk_ls = trim_chunk_ls(k + 1, chunk_ls)
@@ -508,14 +497,13 @@ def extract_tokens(args, document, hl, unique_words, parse_labels):
                 k = s.index('-rrb-')
                 if k < 10:
                     s = s[k + 1:]
-                    parse_paths = parse_paths[k + 1:]
                     mask = mask[k + 1:]
 
                     chunk_ls = trim_chunk_ls(k + 1, chunk_ls)
 
         assert sum(chunk_ls) == len(s)
 
-        article.append((s, parse_paths, mask, chunk_ls))
+        article.append((s, mask, chunk_ls))
 
     for sent in hl:
         tokens = sent['tokens']
@@ -559,6 +547,7 @@ def dfs_nltk_tree(args, tree, threshold=5):
 
 
 def create_pt_map(args, parse_labels):
+    # Should not be used, keep anyway
     ofp = open(args.source + '_' + 'vocab_pt_.txt', 'w+')
 
     for label, value in parse_labels.iteritems():

@@ -43,11 +43,6 @@ def get_args():
                         default=False,
                         help='Pretrain Generator')
 
-    parser.add_argument('--sent_level_c',
-                        type='bool',
-                        default=False,
-                        help='Process chunks for a sentence level Model')
-
     parser.add_argument('--word_level_c',
                         type='bool',
                         default=False,
@@ -108,11 +103,6 @@ def get_args():
                         type=int,
                         default=100,
                         help='Size of word vectors')
-
-    parser.add_argument('--pt_pad_id',
-                        type=int,
-                        default=236,
-                        help='<padding> for parse tree labels')
 
     parser.add_argument('--vocab_size',
                         type=int,
