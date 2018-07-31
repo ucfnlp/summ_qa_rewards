@@ -56,13 +56,13 @@ class ExtRCNN(RCNN):
         self.bias = from_obj.bias
 
 
-class ExtLSTM(LSTM):
-    def forward(self, x_t, mask_t, hc_tm1):
-        hc_t = super(ExtLSTM, self).forward(x_t, hc_tm1)
-        hc_t = mask_t * hc_t + (1 - mask_t) * hc_tm1
+class SamplingLSTM(LSTM):
+    def forward(self, x_t, h_tm1):
+        hc_t = super(SamplingLSTM, self).forward(x_t, h_tm1)
+
         return hc_t
 
-    def forward_all(self, x, mask, h0=None, return_c=False):
+    def forward_all(self, x, y, h0=None, return_c=False):
         if h0 is None:
             if x.ndim > 1:
                 h0 = T.zeros((x.shape[1], self.n_out), dtype=theano.config.floatX)
@@ -70,29 +70,9 @@ class ExtLSTM(LSTM):
                 h0 = T.zeros((self.n_out * (self.order + 1),), dtype=theano.config.floatX)
         h, _ = theano.scan(
             fn=self.forward,
-            sequences=[x, mask],
+            sequences=[x],
             outputs_info=[h0]
         )
-        if return_c:
-            return h
-        elif x.ndim > 1:
-            return h[:, :, self.n_out:]
-        else:
-            return h[:, self.n_out * self.order:]
-
-    def forward_all_2(self, x, mask, h0=None, return_c=False):
-        if h0 is None:
-            if x.ndim > 1:
-                h0 = T.zeros((x.shape[1], self.n_out), dtype=theano.config.floatX)
-            else:
-                h0 = T.zeros((self.n_out * (self.order + 1),), dtype=theano.config.floatX)
-        h, _ = theano.scan(
-            fn=self.forward,
-            sequences=[x, mask],
-            outputs_info=[h0]
-        )
-
-        return h
         if return_c:
             return h
         elif x.ndim > 1:
@@ -131,6 +111,35 @@ class HLLSTM(LSTM):
             return h[-1 :, self.n_out:]
 
     def forward_all_x(self, x, mask, h0=None, return_c=False):
+        if h0 is None:
+            if x.ndim > 1:
+                h0 = T.zeros((x.shape[1], self.n_out*2), dtype=theano.config.floatX)
+            else:
+                h0 = T.zeros((self.n_out *2,), dtype=theano.config.floatX)
+        h, _ = theano.scan(
+            fn=self.forward,
+            sequences=[x, mask],
+            outputs_info=[h0]
+        )
+
+        if return_c:
+            return h
+        elif x.ndim > 1:
+            return h[:, :, self.n_out:]
+        else:
+            return h[ :, self.n_out:]
+
+    def copy_params(self, from_obj):
+        self.internal_layers = from_obj.internal_layers
+
+
+class PreTrain(LSTM):
+    def forward(self, x_t, mask_t, hc_tm1):
+        x_t = x_t * mask_t
+        hc_t = super(PreTrain, self).forward(x_t, hc_tm1)
+        return hc_t
+
+    def forward_all(self, x, mask, h0=None, return_c=False):
         if h0 is None:
             if x.ndim > 1:
                 h0 = T.zeros((x.shape[1], self.n_out*2), dtype=theano.config.floatX)

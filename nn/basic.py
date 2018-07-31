@@ -459,6 +459,92 @@ class EmbeddingLayer(object):
         self.embeddings.set_value(param_list[0].get_value())
 
 
+class PositionEmbeddingLayer(object):
+    '''
+    See: https://github.com/jadore801120/attention-is-all-you-need-pytorch/blob/4f4a192f0fd272102c8852b00b1007dffd292b90/transformer/Models.py#L11
+    '''
+    def __init__(self, n_d, vocab, fix_init_embs=True):
+        lst_words = []
+        vocab_map = {}
+
+        self.init_end = None
+
+        for w in xrange(vocab):
+            if self.init_end is None:
+                self.init_end = len(lst_words) if fix_init_embs else -1
+            vocab_map[w] = len(vocab_map)
+            lst_words.append(w)
+
+            emb_vals = np.array([
+            [pos / np.power(10000, 2 * i / n_d) for i in range(n_d)]
+            if pos != 0 else np.zeros(n_d) for pos in range(vocab)])
+
+        emb_vals[1:, 0::2] = np.sin(emb_vals[1:, 0::2])  # dim 2i
+        emb_vals[1:, 1::2] = np.cos(emb_vals[1:, 1::2])
+
+        say("{} sinosidial-init embeddings loaded.\n".format(len(emb_vals)))
+
+        emb_vals = np.vstack(emb_vals).astype(theano.config.floatX)
+        self.vocab_map = vocab_map
+        self.lst_words = lst_words
+
+        self.oov_tok = None
+        self.oov_id = -1
+
+        self.embeddings = create_shared(emb_vals)
+        if self.init_end > -1:
+            self.embeddings_trainable = self.embeddings[self.init_end:]
+        else:
+            self.embeddings_trainable = self.embeddings
+
+        self.n_V = len(self.vocab_map)
+        self.n_d = n_d
+
+    def map_to_words(self, ids):
+        n_V, lst_words = self.n_V, self.lst_words
+        return [lst_words[i] if i < n_V else "<err>" for i in ids]
+
+    def map_to_ids(self, words, filter_oov=False):
+        vocab_map = self.vocab_map
+        oov_id = self.oov_id
+        if filter_oov:
+            not_oov = lambda x: x != oov_id
+            return np.array(
+                filter(not_oov, [vocab_map.get(x, oov_id) for x in words]),
+                dtype="int32"
+            )
+        else:
+            return np.array(
+                [vocab_map.get(x, oov_id) for x in words],
+                dtype="int32"
+            )
+
+    def forward(self, x):
+        '''
+            Fetch and return the word embeddings given word IDs x
+
+            Inputs
+            ------
+
+            x           : a theano array of integer IDs
+
+
+            Outputs
+            -------
+
+            a theano matrix of word embeddings
+        '''
+        return self.embeddings[x]
+
+    @property
+    def params(self):
+        return [self.embeddings_trainable]
+
+    @params.setter
+    def params(self, param_list):
+        self.embeddings.set_value(param_list[0].get_value())
+
+
 class LSTM(Layer):
     '''
         LSTM implementation.

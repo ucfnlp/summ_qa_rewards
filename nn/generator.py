@@ -3,8 +3,8 @@ import theano
 import theano.tensor as T
 from theano.tensor.signal.pool import pool_2d
 
-from nn.basic import LSTM, apply_dropout
-from nn.extended_layers import ZLayer
+from nn.basic import LSTM, apply_dropout, Layer
+from nn.extended_layers import ZLayer, PreTrain
 from nn.initialization import get_activation_by_name
 from nn.advanced import Conv1d
 
@@ -19,7 +19,6 @@ class Generator(object):
     def ready(self):
 
         embedding_layer = self.embedding_layer
-        embedding_layer_posit = self.embedding_layer_posit
 
         args = self.args
         self.padding_id = embedding_layer.vocab_map["<padding>"]
@@ -31,40 +30,36 @@ class Generator(object):
         # inp_len x batch
         x = self.x = T.imatrix('x')
         fw_mask = self.fw_mask = T.imatrix('fw')
-        chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
-        posit_x = self.posit_x = T.imatrix('pos')
 
         rv_mask = T.concatenate([T.ones((1, fw_mask.shape[1])), fw_mask[:-1]], axis=0)
 
-        layers = self.layers = []
+        self.layers = []
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
         activation = get_activation_by_name(args.activation)
 
-        self.masks = masks_neq = T.cast(T.neq(chunk_sizes, 0), 'int32')
-        masks_eq = T.cast(T.eq(chunk_sizes, 0), 'int32').dimshuffle((1, 0))
+        self.pad_mask = T.cast(T.neq(x, self.padding_id), 'int32')
 
         embs = embedding_layer.forward(x.ravel())
-        embs_p = embedding_layer_posit.forward(posit_x.ravel())
-
-        # embs_gen = T.concatenate([embs, embs_p], axis=1)
 
         self.word_embs = embs = embs.reshape((x.shape[0], x.shape[1], n_e))
         self.embs = apply_dropout(embs, dropout)
-
-        embs_p = embs.reshape((x.shape[0], x.shape[1], embedding_layer_posit.n_d))
-        self.embs_p = embs_p = apply_dropout(embs_p, dropout)
 
         if args.generator_encoding == 'cnn':
             h_final, size = self.cnn_encoding(chunk_sizes, rv_mask, n_e, n_d)
         else:
             h_final, size = self.lstm_encoding(fw_mask, rv_mask, n_e, n_d, activation)
 
-        h_final = apply_dropout(h_final, dropout)
-        self.h_final = h_final = T.concatenate([h_final, embs_p], axis=2)
+        self.size = size
+        self.h_final = apply_dropout(h_final, dropout)
 
-        output_layer = self.output_layer = ZLayer(
+    def sample_for_qa(self):
+        chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
+        masks_neq = T.cast(T.neq(chunk_sizes, 0), 'int32')
+        masks_eq = T.cast(T.eq(chunk_sizes, 0), 'int32').dimshuffle((1, 0))
+
+        output_layer =  ZLayer(
                 n_in = size + embedding_layer_posit.n_d,
                 n_hidden = args.hidden_dimension2,
                 activation = activation,
@@ -97,7 +92,6 @@ class Generator(object):
         # batch
         z = z_pred_word_level
 
-
         self.zsum = T.sum(z, axis=0, dtype=theano.config.floatX)
         self.zdiff = T.sum(T.abs_(z[1:]-z[:-1]), axis=0, dtype=theano.config.floatX)
 
@@ -116,7 +110,14 @@ class Generator(object):
         self.l2_cost = l2_cost
 
     def pretrain(self):
+        embedding_layer_posit = self.embedding_layer_posit
+
         bm = self.bm = T.imatrix('bm')
+        posit_x = self.posit_x = T.imatrix('pos')
+
+        embs_p = embedding_layer_posit.forward(posit_x.ravel())
+        embs_p = embs_p.reshape((bm.shape[0], bm.shape[1], embedding_layer_posit.n_d))
+        self.embs_p = embs_p = apply_dropout(embs_p, self.dropout)
 
         if self.args.bigram_m:
             padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
@@ -126,11 +127,55 @@ class Generator(object):
         else:
             new_bm = T.cast(bm, theano.config.floatX)
 
-        new_probs = self.output_layer.forward_all(self.a_max_final, new_bm)
+        output_rnn = PreTrain(n_in=self.size, n_out=128)
+        h_final_partial_summary_output = output_rnn.forward_all(self.h_final, new_bm.dimshuffle((0, 1, 'x')))
 
-        cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.masks
+        final_concat_d = self.size + embedding_layer_posit.n_d + 128
+
+        final_concat = T.concatenate([self.h_final, embs_p, h_final_partial_summary_output], axis=2)
+        final_concat = final_concat.reshape((bm.shape[0] * bm.shape[1], final_concat_d))
+
+        fc_layer = Layer(n_in=final_concat_d,
+                         n_out=128,
+                         activation=get_activation_by_name('relu'),
+                         has_bias=True)
+
+        fc_output = fc_layer.forward(final_concat)
+
+        fc_layer_final = Layer(n_in=128,
+                               n_out=1,
+                               activation=get_activation_by_name('sigmoid'),
+                               has_bias=True)
+
+        new_probs = fc_layer_final.forward(fc_output)
+        new_probs = new_probs.reshape((bm.shape[0], bm.shape[1]))
+
+        cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.pad_mask
+
+        self.non_sampled_zpred = z = T.cast(T.round(cross_ent, mode='half_away_from_zero'), theano.config.floatX)
+        self.zsum = T.sum(z, axis=0, dtype=theano.config.floatX)
+        self.zdiff = T.sum(T.abs_(z[1:] - z[:-1]), axis=0, dtype=theano.config.floatX)
+
+        self.layers.append(output_rnn)
+        self.layers.append(fc_layer)
+        self.layers.append(fc_layer_final)
+
+        params = self.params = []
+        for l in self.layers + [self.embedding_layer]:
+            for p in l.params:
+                params.append(p)
+
+        l2_cost = None
+        for p in params:
+            if l2_cost is None:
+                l2_cost = T.sum(p ** 2)
+            else:
+                l2_cost = l2_cost + T.sum(p ** 2)
+        l2_cost = l2_cost * self.args.l2_reg
+
+        self.l2_cost = l2_cost
         self.obj = obj = T.mean(T.sum(cross_ent, axis=0))
-        self.cost_g = obj * args.coeff_cost_scale + self.l2_cost
+        self.cost_g = obj * self.args.coeff_cost_scale + self.l2_cost
 
     def lstm_encoding(self, fw_mask, rv_mask, n_e, n_d, activation, layer_type='lstm'):
         layers = self.layers
@@ -167,7 +212,7 @@ class Generator(object):
 
     def cnn_encoding(self, chunk_sizes, rv_mask, n_e, n_d):
         window_sizes = [1, 3, 5, 7]
-        pool_sizes = []
+        pool_sizes = [2,3,4,5]
 
         cnn_ls = []
         layers = self.layers
@@ -226,7 +271,7 @@ class Generator(object):
             isolated_chunks = T.cast(pooled_features * c_mask_tiled, theano.config.floatX)
             pooled_chunks.append(isolated_chunks.reshape((embs.shape[1], embs.shape[0], size)))
 
-        h = pooled_chunks[0]
+        h = pooled_chunks[0] + pooled_chunks[1] + pooled_chunks[2] + pooled_chunks[3] + pooled_chunks[4]
         o1, _ = theano.scan(fn=self.c_reduce, sequences=[h, rv_mask.dimshuffle((1, 0))])
 
         h_final = o1.dimshuffle((1, 0, 2))

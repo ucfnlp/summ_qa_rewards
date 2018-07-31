@@ -71,7 +71,6 @@ class Model(object):
         self.x = self.generator.x
         self.bm = self.generator.bm
         self.fw_mask = self.generator.fw_mask
-        self.chunk_sizes = self.generator.chunk_sizes
 
         self.z = self.generator.non_sampled_zpred
         self.params = self.generator.params
@@ -252,12 +251,8 @@ class Model(object):
                      self.encoder.cost_vec, self.generator.masks, self.encoder.bigram_loss, self.encoder.preds_clipped,
                      self.encoder.alpha, self.encoder.o]
 
-        inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes]
-        inputs_t = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes]
-
-        if not args.pad_repeat:
-            inputs_d.append(self.encoder.loss_mask)
-            inputs_t.append(self.encoder.loss_mask)
+        inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
+        inputs_t = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
 
         eval_generator = theano.function(
             inputs=inputs_d,
@@ -323,12 +318,9 @@ class Model(object):
                 N = args.online_batch_size * num_files
 
                 for i in xrange(num_files):
-                    if args.pad_repeat:
-                        train_batches_x, train_batches_y, train_batches_e, train_batches_bm, _, train_batches_fw, train_batches_csz, train_batches_bpi = myio.load_batches(
-                            args.batch_dir + args.source + 'train', i)
-                    else:
-                        train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_blm, _, train_batches_fw, train_batches_csz, train_batches_bpi = myio.load_batches(
-                            args.batch_dir + args.source + 'train', i)
+
+                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_blm, _, train_batches_fw, train_batches_csz, train_batches_bpi = myio.load_batches(
+                        args.batch_dir + args.source + 'train', i)
 
                     cur_len = len(train_batches_x)
 
@@ -354,17 +346,10 @@ class Model(object):
                         elif (i* args.online_batch_size + j + 1) % 10 == 0:
                                 say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
-                        if args.pad_repeat:
-                            bx, by, be, bm, bfw, bcsz, bpi = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
-                                                  train_batches_bm[j], train_batches_fw[j], train_batches_csz[j], \
-                                                        train_batches_bpi[j]
-                            cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr = train_generator(
-                                bx, bpi, by, bm, be, bfw, bcsz)
-                        else:
-                            bx, by, be, bm, blm, bfw, bcsz, bpi = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
+                        bx, by, be, bm, blm, bfw, bcsz, bpi = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
                                                   train_batches_bm[j], train_batches_blm[j], train_batches_fw[j], train_batches_csz[j], train_batches_bpi[j]
 
-                            cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr, alpha, o = train_generator(
+                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr, alpha, o = train_generator(
                                 bx, bpi, by, bm, be, bfw, bcsz, blm)
 
                         mask = bx != padding_id
@@ -473,17 +458,23 @@ class Model(object):
             lr=args.learning_rate
         )[:3]
 
+        outputs_d = [self.generator.non_sampled_zpred, self.generator.cost_g, self.generator.obj]
+        outputs_t = [self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g]
+
+        inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask]
+        inputs_t = [self.x, self.generator.posit_x, self.bm, self.fw_mask]
+
         eval_generator = theano.function(
-            inputs=[self.x,  self.bm, self.fw_mask, self.chunk_sizes],
-            outputs=[self.z, self.generator.cost_g, self.generator.obj],
-            updates=self.generator.sample_updates
+            inputs=inputs_d,
+            outputs=outputs_d
         )
 
         train_generator = theano.function(
-            inputs=[self.x, self.bm, self.fw_mask, self.chunk_sizes],
-            outputs=[self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g],
-            updates=updates_g.items() + self.generator.sample_updates
+            inputs=inputs_t,
+            outputs=outputs_t,
+            updates=updates_g.items()
         )
+        say("Model Built")
 
         unchanged = 0
         best_dev = 1e+2
@@ -528,12 +519,8 @@ class Model(object):
                 N = args.online_batch_size * num_files
 
                 for i in xrange(num_files):
-                    if args.pad_repeat:
-                        train_batches_x, _, _, train_batches_bm,  _, train_batches_fw, train_batches_csz = myio.load_batches(
-                            args.batch_dir + args.source + 'train', i)
-                    else:
-                        train_batches_x, _, _, train_batches_bm, _, _, train_batches_fw, train_batches_csz = myio.load_batches(
-                            args.batch_dir + args.source + 'train', i)
+                    train_batches_x, _, _, train_batches_bm, _, _, train_batches_fw, _, train_batches_bpi = myio.load_batches(
+                        args.batch_dir + args.source + 'train', i)
 
                     random.seed(datetime.now())
                     perm2 = range(len(train_batches_x))
@@ -542,7 +529,7 @@ class Model(object):
                     train_batches_x = [train_batches_x[k] for k in perm2]
                     train_batches_bm = [train_batches_bm[k] for k in perm2]
                     train_batches_fw = [train_batches_fw[k] for k in perm2]
-                    train_batches_csz = [train_batches_csz[k] for k in perm2]
+                    train_batches_bpi = [train_batches_bpi[k] for k in perm2]
 
                     cur_len = len(train_batches_x)
 
@@ -553,11 +540,12 @@ class Model(object):
                         elif (i * args.online_batch_size + j + 1) % 10 == 0:
                             say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
-                        bx, bm, bfw, bcz = train_batches_x[j], train_batches_bm[j], train_batches_fw[j], train_batches_csz[j]
+                        bx, bm, bfw, bpi = train_batches_x[j], train_batches_bm[j], train_batches_fw[j], train_batches_bpi[j]
 
+                        print bm.shape
                         mask = bx != padding_id
 
-                        obj, z, zsum, zdiff,cost_g = train_generator(bx, bm, bfw, bcz)
+                        obj, z, zsum, zdiff,cost_g = train_generator(bx, bpi, bm, bfw)
                         zsum_all.append(np.mean(zsum))
                         z_diff_all.append(np.mean(zdiff))
                         z_pred_all.append(np.mean(np.sum(z, axis=0)))
@@ -647,18 +635,15 @@ class Model(object):
         num_files = self.args.num_files_dev
 
         for i in xrange(num_files):
-            if args.pad_repeat:
-                batches_x, _, _, batches_bm, batches_sha, batches_rx, batches_fw, batches_cs = myio.load_batches(
-                    self.args.batch_dir + self.args.source + 'dev', i)
-            else:
-                batches_x, _, _, batches_bm, _, batches_sha, batches_rx, batches_fw, batches_cs = myio.load_batches(
-                    self.args.batch_dir + self.args.source + 'dev', i)
+
+            batches_x, _, _, batches_bm, _, batches_sha, batches_rx, batches_fw, batches_cs, batches_bpi = myio.load_batches(
+                self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, bm, sha, rx, bfw, bcs = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], batches_cs[j]
-                bz, l, o = eval_func(bx, bm, bfw, bcs)
+                bx, bm, sha, rx, bfw, bpi = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], batches_cs[j]
+                bz, l, o = eval_func(bx, bpi, bm, bfw)
                 tot_obj += o
                 N += len(bx)
 
@@ -787,7 +772,7 @@ def main():
 
     vocab, parse_v = myio.get_vocab(args)
     embedding_layer = myio.create_embedding_layer(args, args.embedding, vocab, args.embedding_dim, '<unk>')
-    position_emb_layer = myio.create_embedding_layer(args, None, [i for i in xrange(51)], 100, oov=None)
+    position_emb_layer = myio.create_posit_embedding_layer(20, 30)
 
     n_classes = args.nclasses
 

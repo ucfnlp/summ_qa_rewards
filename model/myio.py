@@ -3,7 +3,7 @@ import json
 
 import numpy as np
 from pyrouge import Rouge155
-from nn.basic import EmbeddingLayer
+from nn.basic import EmbeddingLayer, PositionEmbeddingLayer
 from util import load_embedding_iterator
 import shutil
 
@@ -67,7 +67,17 @@ def create_embedding_layer(args, path, vocab, embedding_dim, oov=None):
         vocab=vocab,
         embs=load_embedding_iterator(path) if path is not None else None,
         oov=oov,
-        fix_init_embs = False
+        fix_init_embs=False
+    )
+    return embedding_layer
+
+
+def create_posit_embedding_layer(vocab, embedding_dim):
+
+    embedding_layer = PositionEmbeddingLayer(
+        n_d=embedding_dim,
+        vocab=vocab,
+        fix_init_embs=False
     )
     return embedding_layer
 
@@ -95,12 +105,12 @@ def load_batches(name, iteration):
     data = np.load(ifp)
     ifp.close()
 
-    if len(data) == 10:
-        return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]
+    if len(data) == 8:
+        return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]
     elif len(data) == 9:
         return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]
     else:
-        return data[0], data[1], data[2], data[3], data[4], data[5], data[6]
+        return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]
 
 
 def round_batch(lstx, lsty, lste, b_len):
@@ -117,9 +127,7 @@ def round_batch(lstx, lsty, lste, b_len):
 
 
 def create_fname_identifier(args):
-    if args.sent_level_c:
-        chunk_typ = 'sent'
-    elif args.word_level_c:
+    if args.word_level_c:
         chunk_typ = 'word'
     else:
         chunk_typ = 'chnk'
