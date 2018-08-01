@@ -38,26 +38,14 @@ def load_e(args):
 
 def get_vocab(args):
     ifp = open('../data/'+ str(args.source) + '_vocab_' + str(args.vocab_size) + '.txt', 'r')
-    ifp_pt = open('../data/' + str(args.source) + '_vocab_pt_.txt', 'r')
 
     vocab = []
-    vocab_pt = []
-    pt_dict = dict()
 
     for line in ifp:
         vocab.append(line.rstrip())
     ifp.close()
 
-    for line in ifp_pt:
-        items = line.rstrip().split()
-        pt_dict[int(items[1])] = items[0]
-
-    for key in sorted(pt_dict.keys()):
-        vocab_pt.append(pt_dict[key])
-
-    ifp_pt.close()
-
-    return vocab, vocab_pt
+    return vocab
 
 
 def create_embedding_layer(args, path, vocab, embedding_dim, oov=None):

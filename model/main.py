@@ -770,7 +770,7 @@ class Model(object):
 def main():
     assert args.embedding, "Pre-trained word embeddings required."
 
-    vocab, parse_v = myio.get_vocab(args)
+    vocab = myio.get_vocab(args)
     embedding_layer = myio.create_embedding_layer(args, args.embedding, vocab, args.embedding_dim, '<unk>')
     position_emb_layer = myio.create_posit_embedding_layer(20, 30)
 
