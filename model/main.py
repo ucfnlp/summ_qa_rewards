@@ -474,7 +474,7 @@ class Model(object):
             outputs=outputs_t,
             updates=updates_g.items()
         )
-        say("Model Built")
+        say("Model Built\n\n")
 
         unchanged = 0
         best_dev = 1e+2
@@ -542,10 +542,10 @@ class Model(object):
 
                         bx, bm, bfw, bpi = train_batches_x[j], train_batches_bm[j], train_batches_fw[j], train_batches_bpi[j]
 
-                        print bm.shape
                         mask = bx != padding_id
 
                         obj, z, zsum, zdiff,cost_g = train_generator(bx, bpi, bm, bfw)
+
                         zsum_all.append(np.mean(zsum))
                         z_diff_all.append(np.mean(zdiff))
                         z_pred_all.append(np.mean(np.sum(z, axis=0)))

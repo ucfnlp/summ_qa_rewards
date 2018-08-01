@@ -309,7 +309,7 @@ def get_args():
 
     parser.add_argument("-d", "--hidden_dimension",
                         type=int,
-                        default=128,
+                        default=256,
                         help="hidden dimension"
                         )
 

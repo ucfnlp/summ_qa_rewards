@@ -47,7 +47,7 @@ class Generator(object):
         self.embs = apply_dropout(embs, dropout)
 
         if args.generator_encoding == 'cnn':
-            h_final, size = self.cnn_encoding(chunk_sizes, rv_mask, n_e, n_d)
+            h_final, size = self.cnn_encoding(chunk_sizes, rv_mask, n_e, n_d/2)
         else:
             h_final, size = self.lstm_encoding(fw_mask, rv_mask, n_e, n_d, activation)
 
@@ -128,13 +128,14 @@ class Generator(object):
             new_bm = T.cast(bm, theano.config.floatX)
 
         output_rnn = PreTrain(n_in=self.size, n_out=128)
-        h_final_partial_summary_output = output_rnn.forward_all(self.h_final, new_bm.dimshuffle((0, 1, 'x')))
+        h_final_partial_summary_output = output_rnn.forward_all(self.h_final, new_bm)
 
         final_concat_d = self.size + embedding_layer_posit.n_d + 128
 
         final_concat = T.concatenate([self.h_final, embs_p, h_final_partial_summary_output], axis=2)
         final_concat = final_concat.reshape((bm.shape[0] * bm.shape[1], final_concat_d))
 
+        # EQ 4
         fc_layer = Layer(n_in=final_concat_d,
                          n_out=128,
                          activation=get_activation_by_name('relu'),
@@ -142,6 +143,7 @@ class Generator(object):
 
         fc_output = fc_layer.forward(final_concat)
 
+        # EQ 5
         fc_layer_final = Layer(n_in=128,
                                n_out=1,
                                activation=get_activation_by_name('sigmoid'),
@@ -210,7 +212,7 @@ class Generator(object):
 
         return h_final, size
 
-    def cnn_encoding(self, chunk_sizes, rv_mask, n_e, n_d):
+    def cnn_encoding(self, chunk_sizes, rv_mask, n_e, n_d=64):
         window_sizes = [1, 3, 5, 7]
         pool_sizes = [2,3,4,5]
 

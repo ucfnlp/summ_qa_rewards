@@ -145,11 +145,19 @@ class PreTrain(LSTM):
                 h0 = T.zeros((x.shape[1], self.n_out*2), dtype=theano.config.floatX)
             else:
                 h0 = T.zeros((self.n_out *2,), dtype=theano.config.floatX)
+
+        padded = T.shape_padaxis(T.zeros_like(x[0]), axis=1).dimshuffle((1, 0, 2))
+        x = T.concatenate([padded, x[:-1]], axis=0)
+
+        padded_mask = T.shape_padaxis(T.zeros_like(mask[0]), axis=1).dimshuffle((1, 0))
+        mask = T.concatenate([padded_mask, mask[:-1]], axis=0).dimshuffle((0, 1, 'x'))
+
         h, _ = theano.scan(
             fn=self.forward,
             sequences=[x, mask],
             outputs_info=[h0]
         )
+        h = T.concatenate([h0.dimshuffle('x', 0, 1), h[:-1]], axis=0)
 
         if return_c:
             return h
