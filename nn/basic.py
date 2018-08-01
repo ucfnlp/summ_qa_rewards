@@ -475,14 +475,14 @@ class PositionEmbeddingLayer(object):
             vocab_map[w] = len(vocab_map)
             lst_words.append(w)
 
-            emb_vals = np.array([
+        emb_vals = np.array([
             [pos / np.power(10000, 2 * i / n_d) for i in range(n_d)]
             if pos != 0 else np.zeros(n_d) for pos in range(vocab)])
 
         emb_vals[1:, 0::2] = np.sin(emb_vals[1:, 0::2])  # dim 2i
         emb_vals[1:, 1::2] = np.cos(emb_vals[1:, 1::2])
 
-        say("{} sinosidial-init embeddings loaded.\n".format(len(emb_vals)))
+        say("{} sinosodal-init embeddings loaded.\n".format(len(emb_vals)))
 
         emb_vals = np.vstack(emb_vals).astype(theano.config.floatX)
         self.vocab_map = vocab_map

@@ -772,7 +772,7 @@ def main():
 
     vocab = myio.get_vocab(args)
     embedding_layer = myio.create_embedding_layer(args, args.embedding, vocab, args.embedding_dim, '<unk>')
-    position_emb_layer = myio.create_posit_embedding_layer(20, 30)
+    position_emb_layer = myio.create_posit_embedding_layer(args.inp_len, 30)
 
     n_classes = args.nclasses
 

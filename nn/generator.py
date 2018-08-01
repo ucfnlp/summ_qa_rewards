@@ -151,6 +151,7 @@ class Generator(object):
 
         new_probs = fc_layer_final.forward(fc_output)
         new_probs = new_probs.reshape((bm.shape[0], bm.shape[1]))
+        new_probs = T.clip(new_probs, 1e-7, 1.0 - 1e-7)
 
         cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.pad_mask
 
