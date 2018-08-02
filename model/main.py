@@ -186,9 +186,12 @@ class Model(object):
         myio.save_test_results_rouge(args, z, x, y, e, sha, self.embedding_layer)
 
     def dev(self):
+        inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask]
+        if self.args.generator_encoding == 'cnn':
+            inputs_d.append(self.generator.chunk_sizes)
 
         eval_generator = theano.function(
-            inputs=[self.x, self.generator.posit_x, self.bm, self.fw_mask],
+            inputs=inputs_d,
             outputs=[self.generator.non_sampled_zpred, self.generator.cost_g, self.generator.obj],
             on_unused_input='ignore'
         )
@@ -649,8 +652,11 @@ class Model(object):
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, bm, sha, rx, bfw, bpi = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], batches_cs[j]
-                bz, l, o = eval_func(bx, bpi, bm, bfw)
+                bx, bm, sha, rx, bfw, bpi, bsc = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], batches_bpi[j], batches_cs[j]
+                if self.args.generator_encoding == 'cnn':
+                    bz, l, o = eval_func(bx, bpi, bm, bfw, bsc)
+                else:
+                    bz, l, o = eval_func(bx, bpi, bm, bfw)
                 tot_obj += o
                 N += len(bx)
 
@@ -677,9 +683,12 @@ class Model(object):
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, bm, sha, rx, bfw, bpi = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], \
+                bx, bm, sha, rx, bfw, bpi, bsc = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], \
                                             batches_cs[j]
-                bz, l, o = eval_func(bx, bpi, bm, bfw)
+                if self.args.generator_encoding == 'cnn':
+                    bz, l, o = eval_func(bx, bpi, bm, bfw, bsc)
+                else:
+                    bz, l, o = eval_func(bx, bpi, bm, bfw)
                 tot_obj += o
 
                 x.append(rx)
