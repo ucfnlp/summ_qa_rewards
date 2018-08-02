@@ -4,7 +4,7 @@ import theano.tensor as T
 from theano.tensor.signal.pool import pool_2d
 
 from nn.basic import LSTM, apply_dropout, Layer
-from nn.extended_layers import ZLayer, PreTrain
+from nn.extended_layers import ZLayer, PreTrain2
 from nn.initialization import get_activation_by_name
 from nn.advanced import Conv1d
 
@@ -47,6 +47,7 @@ class Generator(object):
         self.embs = apply_dropout(embs, dropout)
 
         if args.generator_encoding == 'cnn':
+            chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
             h_final, size = self.cnn_encoding(chunk_sizes, rv_mask, n_e, n_d/2)
         else:
             h_final, size = self.lstm_encoding(fw_mask, rv_mask, n_e, n_d, activation)
@@ -55,7 +56,6 @@ class Generator(object):
         self.h_final = apply_dropout(h_final, dropout)
 
     def sample_for_qa(self):
-        chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
         masks_neq = T.cast(T.neq(chunk_sizes, 0), 'int32')
         masks_eq = T.cast(T.eq(chunk_sizes, 0), 'int32').dimshuffle((1, 0))
 
@@ -109,7 +109,8 @@ class Generator(object):
         l2_cost = l2_cost * args.l2_reg
         self.l2_cost = l2_cost
 
-    def pretrain(self):
+    def pretrain(self, inference):
+
         embedding_layer_posit = self.embedding_layer_posit
 
         bm = self.bm = T.imatrix('bm')
@@ -127,30 +128,14 @@ class Generator(object):
         else:
             new_bm = T.cast(bm, theano.config.floatX)
 
-        output_rnn = PreTrain(n_in=self.size, n_out=128)
-        h_final_partial_summary_output = output_rnn.forward_all(self.h_final, new_bm)
+        final_concat_d = self.size + embedding_layer_posit.n_d + 128 * 2
+        output_rnn = PreTrain2(n_in=self.size, n_out=128, fc_in=final_concat_d, fc_out=128)
 
-        final_concat_d = self.size + embedding_layer_posit.n_d + 128
+        if inference:
+            new_probs = output_rnn.pt_forward_all_inference(self.h_final, embs_p)
+        else:
+            new_probs = output_rnn.pt_forward_all(self.h_final, embs_p, new_bm)
 
-        final_concat = T.concatenate([self.h_final, embs_p, h_final_partial_summary_output], axis=2)
-        final_concat = final_concat.reshape((bm.shape[0] * bm.shape[1], final_concat_d))
-
-        # EQ 4
-        fc_layer = Layer(n_in=final_concat_d,
-                         n_out=128,
-                         activation=get_activation_by_name('relu'),
-                         has_bias=True)
-
-        fc_output = fc_layer.forward(final_concat)
-
-        # EQ 5
-        fc_layer_final = Layer(n_in=128,
-                               n_out=1,
-                               activation=get_activation_by_name('sigmoid'),
-                               has_bias=True)
-
-        new_probs = fc_layer_final.forward(fc_output)
-        new_probs = new_probs.reshape((bm.shape[0], bm.shape[1]))
         new_probs = T.clip(new_probs, 1e-7, 1.0 - 1e-7)
 
         cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.pad_mask
@@ -160,8 +145,8 @@ class Generator(object):
         self.zdiff = T.sum(T.abs_(z[1:] - z[:-1]), axis=0, dtype=theano.config.floatX)
 
         self.layers.append(output_rnn)
-        self.layers.append(fc_layer)
-        self.layers.append(fc_layer_final)
+        self.layers.append(output_rnn.fc_layer)
+        self.layers.append(output_rnn.fc_layer_final)
 
         params = self.params = []
         for l in self.layers + [self.embedding_layer]:
