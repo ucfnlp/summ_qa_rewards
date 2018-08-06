@@ -447,9 +447,6 @@ def create_chunk_mask(lstch, max_len, word_level=False):
 
             print 'trunc inp', sum(article)
 
-        if word_level:
-            mask_csz = [1] * len(mask_csz)
-
         mask_csz.extend([0]*(max_len - len(mask_csz)))
         fw_mask_ls.append(fw_mask)
         mask_chunk_sizes.append(mask_csz)

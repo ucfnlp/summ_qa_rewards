@@ -133,46 +133,12 @@ class HLLSTM(LSTM):
         self.internal_layers = from_obj.internal_layers
 
 
-class PreTrain(LSTM):
-    def forward(self, x_t, mask_t, hc_tm1):
-        x_t = x_t * mask_t
-        hc_t = super(PreTrain, self).forward(x_t, hc_tm1)
-        return hc_t
+class Sampler(LSTM):
+    def __init__(self, n_in, n_out, fc_in, fc_out, sample=False):
+        super(Sampler, self).__init__(n_in=n_in, n_out=n_out)
 
-    def forward_all(self, x, mask, h0=None, return_c=True):
-        if h0 is None:
-            if x.ndim > 1:
-                h0 = T.zeros((x.shape[1], self.n_out*2), dtype=theano.config.floatX)
-            else:
-                h0 = T.zeros((self.n_out * 2,), dtype=theano.config.floatX)
-
-        padded = T.shape_padaxis(T.zeros_like(x[0]), axis=1).dimshuffle((1, 0, 2))
-        x = T.concatenate([padded, x[:-1]], axis=0)
-
-        padded_mask = T.shape_padaxis(T.zeros_like(mask[0]), axis=1).dimshuffle((1, 0))
-        mask = T.concatenate([padded_mask, mask[:-1]], axis=0).dimshuffle((0, 1, 'x'))
-
-        h, _ = theano.scan(
-            fn=self.forward,
-            sequences=[x, mask],
-            outputs_info=[h0]
-        )
-        h = T.concatenate([h0.dimshuffle('x', 0, 1), h[:-1]], axis=0)
-
-        if return_c:
-            return h
-        elif x.ndim > 1:
-            return h[:, :, self.n_out:]
-        else:
-            return h[ :, self.n_out:]
-
-    def copy_params(self, from_obj):
-        self.internal_layers = from_obj.internal_layers
-
-
-class PreTrain2(LSTM):
-    def __init__(self, n_in, n_out, fc_in, fc_out):
-        super(PreTrain2, self).__init__(n_in=n_in, n_out=n_out)
+        if sample:
+            self.MRG_rng = MRG_RandomStreams()
 
         self.fc_layer = Layer(n_in=fc_in,
                               n_out=fc_out,
@@ -186,7 +152,7 @@ class PreTrain2(LSTM):
 
     def _forward(self, x_t, x_tm1, posit_x_t, mask_t, hc_tm1):
         x_tm1 = x_tm1 * mask_t
-        hc_t = super(PreTrain2, self).forward(x_tm1, hc_tm1)
+        hc_t = super(Sampler, self).forward(x_tm1, hc_tm1)
 
         concat_in = T.concatenate([x_t, posit_x_t, hc_tm1], axis=1)
         a_t = self.fc_layer.forward(concat_in)
@@ -196,13 +162,26 @@ class PreTrain2(LSTM):
 
     def _forward_inf(self, x_t, x_tm1, posit_x_t, mask_t, hc_tm1):
         x_tm1 = x_tm1 * mask_t
-        hc_t = super(PreTrain2, self).forward(x_tm1, hc_tm1)
+        hc_t = super(Sampler, self).forward(x_tm1, hc_tm1)
 
         concat_in = T.concatenate([x_t, posit_x_t, hc_tm1], axis=1)
         a_t = self.fc_layer.forward(concat_in)
         pt = self.fc_layer_final.forward(a_t)
 
         mask_next = T.cast(T.round(pt, mode='half_away_from_zero'), theano.config.floatX).reshape((x_t.shape[0],))
+        return mask_next.dimshuffle((0, 'x')), hc_t, pt
+
+    def _forward_sample(self, x_t, x_tm1, posit_x_t, mask_t, hc_tm1):
+        x_tm1 = x_tm1 * mask_t
+        hc_t = super(Sampler, self).forward(x_tm1, hc_tm1)
+
+        concat_in = T.concatenate([x_t, posit_x_t, hc_tm1], axis=1)
+        a_t = self.fc_layer.forward(concat_in)
+        pt = self.fc_layer_final.forward(a_t)
+
+        mask_next = T.cast(self.MRG_rng.binomial(size=pt.shape,
+                                           p=pt), theano.config.floatX)
+
         return mask_next.dimshuffle((0, 'x')), hc_t, pt
 
     def pt_forward_all(self, x, posit_x, mask, h0=None):
@@ -246,6 +225,28 @@ class PreTrain2(LSTM):
 
         new_probs = o[2].reshape((x.shape[0], x.shape[1]))
         return new_probs
+
+    def pt_forward_all_sample(self, x, posit_x, h0=None):
+        if h0 is None:
+            if x.ndim > 1:
+                h0 = T.zeros((x.shape[1], self.n_out * 2), dtype=theano.config.floatX)
+            else:
+                h0 = T.zeros((self.n_out * 2,), dtype=theano.config.floatX)
+
+        padded = T.shape_padaxis(T.zeros_like(x[0]), axis=1).dimshuffle((1, 0, 2))
+        x_shifted = T.concatenate([padded, x[:-1]], axis=0)
+        mask = T.zeros(shape=(x.shape[1],)).dimshuffle((0, 'x'))
+
+        o, updates = theano.scan(
+            fn=self._forward_sample,
+            sequences=[x, x_shifted, posit_x],
+            outputs_info=[mask, h0, None]
+        )
+
+        new_probs = o[2].reshape((x.shape[0], x.shape[1]))
+        samples = o[0].reshape((x.shape[0], x.shape[1]))
+
+        return new_probs, updates, samples
 
     def copy_params(self, from_obj):
         self.internal_layers = from_obj.internal_layers

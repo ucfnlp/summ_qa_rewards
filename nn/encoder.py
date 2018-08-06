@@ -3,7 +3,7 @@ import theano.tensor as T
 
 from nn.basic import Layer
 from nn.extended_layers import HLLSTM
-from nn.initialization import softmax
+from nn.initialization import softmax, get_activation_by_name
 from nn.advanced import Bilinear
 
 
@@ -104,22 +104,31 @@ class Encoder(object):
         # (batch * n) * n_d * 2
         o = T.batched_dot(alpha, gen_h_final)
 
-        if self.args.extended_c_k:
-            size *= 4
-            h_concat_y = h_concat_y.reshape((o.shape[0], o.shape[1]))
-            self.o = o = T.concatenate([o, h_concat_y, T.abs_(o - h_concat_y), o * h_concat_y], axis=1)
+        size *= 4
+        h_concat_y = h_concat_y.reshape((o.shape[0], o.shape[1]))
+        self.o = o = T.concatenate([o, h_concat_y, T.abs_(o - h_concat_y), o * h_concat_y], axis=1)
+
+        fc7 = Layer(
+            n_in=size,
+            n_out=128,
+            activation=get_activation_by_name('relu'),
+            has_bias=True
+        )
+        fc7_out = fc7.forward(o)
 
         output_layer = Layer(
             n_in=size,
             n_out=self.nclasses,
-            activation=softmax
+            activation=softmax,
+            has_bias=True
         )
 
         layers.append(rnn_fw)
         layers.append(rnn_rv)
+        layers.append(fc7)
         layers.append(output_layer)
 
-        preds = output_layer.forward(o)
+        preds = output_layer.forward(fc7_out)
         self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
 
         cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)

@@ -4,7 +4,7 @@ import theano.tensor as T
 from theano.tensor.signal.pool import pool_2d
 
 from nn.basic import LSTM, apply_dropout, Layer
-from nn.extended_layers import ZLayer, PreTrain2
+from nn.extended_layers import ZLayer, Sampler
 from nn.initialization import get_activation_by_name
 from nn.advanced import Conv1d
 
@@ -30,6 +30,7 @@ class Generator(object):
         # inp_len x batch
         x = self.x = T.imatrix('x')
         fw_mask = self.fw_mask = T.imatrix('fw')
+        chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
 
         rv_mask = T.concatenate([T.ones((1, fw_mask.shape[1])), fw_mask[:-1]], axis=0)
 
@@ -40,6 +41,7 @@ class Generator(object):
         activation = get_activation_by_name(args.activation)
 
         self.pad_mask = T.cast(T.neq(x, self.padding_id), 'int32')
+        self.chunk_mask = T.cast(T.neq(chunk_sizes, 0), 'int32')
 
         embs = embedding_layer.forward(x.ravel())
 
@@ -47,7 +49,6 @@ class Generator(object):
         self.embs = apply_dropout(embs, dropout)
 
         if args.generator_encoding == 'cnn':
-            chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
             h_final, size = self.cnn_encoding(chunk_sizes, rv_mask, n_e, n_d/2)
         else:
             h_final, size = self.lstm_encoding(fw_mask, rv_mask, n_e, n_d, activation)
@@ -120,6 +121,10 @@ class Generator(object):
         embs_p = embs_p.reshape((bm.shape[0], bm.shape[1], embedding_layer_posit.n_d))
         self.embs_p = embs_p = apply_dropout(embs_p, self.dropout)
 
+        reduced_p_embs, _ = theano.scan(fn=self.c_reduce,
+                                        sequences=[embs_p.dimshuffle((1, 0, 2)), self.fw_mask.dimshuffle((1, 0))])
+        reduced_p_embs = reduced_p_embs.dimshuffle((1, 0, 2))
+
         if self.args.bigram_m:
             padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
             bm_shift = T.concatenate([padded, bm[:-1]], axis=0)
@@ -128,19 +133,33 @@ class Generator(object):
         else:
             new_bm = T.cast(bm, theano.config.floatX)
 
+            new_bm, _ = theano.scan(fn=self.bm_reduce,
+                                    sequences=[new_bm.dimshuffle((1, 0)), self.fw_mask.dimshuffle((1, 0))])
+            new_bm = new_bm.dimshuffle((1, 0))
+
         final_concat_d = self.size + embedding_layer_posit.n_d + 128 * 2
-        output_rnn = PreTrain2(n_in=self.size, n_out=128, fc_in=final_concat_d, fc_out=128)
+        output_rnn = Sampler(n_in=self.size,
+                             n_out=128,
+                             fc_in=final_concat_d,
+                             fc_out=128,
+                             sample=False)
 
         if inference:
-            new_probs = output_rnn.pt_forward_all_inference(self.h_final, embs_p)
+            new_probs = output_rnn.pt_forward_all_inference(self.h_final, reduced_p_embs)
         else:
-            new_probs = output_rnn.pt_forward_all(self.h_final, embs_p, new_bm)
+            new_probs = output_rnn.pt_forward_all(self.h_final, reduced_p_embs, new_bm)
 
         new_probs = T.clip(new_probs, 1e-7, 1.0 - 1e-7)
 
-        cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.pad_mask
+        cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.chunk_mask
 
-        self.non_sampled_zpred = z = T.cast(T.round(cross_ent, mode='half_away_from_zero'), theano.config.floatX)
+        sz = T.cast(T.round(cross_ent, mode='half_away_from_zero'), theano.config.floatX)
+
+        z_pred_word_level, _ = theano.scan(fn=self.c_project,
+                                           sequences=[sz.dimshuffle((1, 0)), self.chunk_sizes.dimshuffle((1, 0))]
+                                           )
+        self.non_sampled_zpred = z = z_pred_word_level.dimshuffle((1, 0))
+
         self.zsum = T.sum(z, axis=0, dtype=theano.config.floatX)
         self.zdiff = T.sum(T.abs_(z[1:] - z[:-1]), axis=0, dtype=theano.config.floatX)
 
@@ -165,7 +184,82 @@ class Generator(object):
         self.obj = obj = T.mean(T.sum(cross_ent, axis=0))
         self.cost_g = obj * self.args.coeff_cost_scale + self.l2_cost
 
-    def lstm_encoding(self, fw_mask, rv_mask, n_e, n_d, activation, layer_type='lstm'):
+    def sample_no_qa(self, inference):
+        embedding_layer_posit = self.embedding_layer_posit
+
+        bm = self.bm = T.imatrix('bm')
+        posit_x = self.posit_x = T.imatrix('pos')
+
+        embs_p = embedding_layer_posit.forward(posit_x.ravel())
+        embs_p = embs_p.reshape((bm.shape[0], bm.shape[1], embedding_layer_posit.n_d))
+        self.embs_p = embs_p = apply_dropout(embs_p, self.dropout)
+
+        if self.args.bigram_m:
+            padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
+            bm_shift = T.concatenate([padded, bm[:-1]], axis=0)
+
+            new_bm = T.cast(T.or_(bm, bm_shift), theano.config.floatX)
+        else:
+            new_bm = T.cast(bm, theano.config.floatX)
+
+        final_concat_d = self.size + embedding_layer_posit.n_d + 128 * 2
+        output_rnn = Sampler(n_in=self.size, n_out=128, fc_in=final_concat_d, fc_out=128, sample=True)
+
+        probs, updates, samples = output_rnn.pt_forward_all_sample(self.h_final, embs_p)
+        self.sample_updates = updates
+
+        z_pred_word_level, _ = theano.scan(fn=self.c_project,
+                                           sequences=[samples.dimshuffle((1, 0)), self.chunk_sizes.dimshuffle((1, 0))]
+                                           )
+        self.z_pred = z_pred_word_level = z_pred_word_level.dimshuffle((1, 0))
+        logpz = - T.nnet.binary_crossentropy(probs, z_pred_word_level) * self.pad_mask
+
+        self.zsum = zsum = T.sum(z_pred_word_level, axis=0, dtype=theano.config.floatX)
+        self.zdiff = zdiff = T.sum(T.abs_(z_pred_word_level[1:] - z_pred_word_level[:-1]), axis=0, dtype=theano.config.floatX)
+
+        self.layers.append(output_rnn)
+        self.layers.append(output_rnn.fc_layer)
+        self.layers.append(output_rnn.fc_layer_final)
+
+        params = self.params = []
+        for l in self.layers + [self.embedding_layer]:
+            for p in l.params:
+                params.append(p)
+
+        l2_cost = None
+        for p in params:
+            if l2_cost is None:
+                l2_cost = T.sum(p ** 2)
+            else:
+                l2_cost = l2_cost + T.sum(p ** 2)
+        l2_cost = l2_cost * self.args.l2_reg
+
+        self.l2_cost = l2_cost
+
+        z_shift = z_pred_word_level[1:]
+        z_new = z_pred_word_level[:-1]
+
+        if self.args.bigram_m:
+            valid_bg = z_new * z_shift
+            bigram_ol = valid_bg * bm[:-1]
+        else:
+            bigram_ol = z_pred_word_level * bm
+
+        total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
+        total_bg_per_sample = T.sum(bm, axis=0) + self.args.bigram_smoothing
+
+        self.bigram_loss = bigram_loss = total_z_bg_per_sample / total_bg_per_sample
+
+        self.cost_vec = cost_vec = self.args.coeff_adequacy * (1 - bigram_loss) + self.args.coeff_z * (
+                2 * zsum + zdiff)
+
+        self.logpz = logpz = T.sum(logpz, axis=0)
+        self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
+
+        self.obj = obj = T.mean(T.sum(cost_vec, axis=0))
+        self.cost_g = cost_logpz * self.args.coeff_cost_scale + l2_cost
+
+    def lstm_encoding(self, fw_mask, rv_mask, n_e, n_d, activation):
         layers = self.layers
         for i in xrange(2):
             l = LSTM(
@@ -246,7 +340,6 @@ class Generator(object):
         all_chunks = [cnn_concat] + pool_out
         pooled_chunks = []
         size = n_d * len(window_sizes)
-        print 'all', len(all_chunks)
 
         for m in xrange(len(all_chunks)):
             c_mask = T.cast(T.eq(c_rep, m + 1), 'int32')
@@ -269,6 +362,12 @@ class Generator(object):
     def c_reduce(self, h, m):
         a = h[(m > 0).nonzero()]
         ze = T.zeros(shape=(h.shape[0] - a.shape[0], h.shape[1]))
+
+        return T.concatenate([a, ze], axis=0)
+
+    def bm_reduce(self, h, m):
+        a = h[(m > 0).nonzero()]
+        ze = T.zeros(shape=(h.shape[0] - a.shape[0],))
 
         return T.concatenate([a, ze], axis=0)
 

@@ -463,12 +463,8 @@ class Model(object):
         outputs_d = [self.generator.non_sampled_zpred, self.generator.cost_g, self.generator.obj]
         outputs_t = [self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g]
 
-        inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask]
-        inputs_t = [self.x, self.generator.posit_x, self.bm, self.fw_mask]
-
-        if args.generator_encoding == 'cnn':
-            inputs_d.append(self.generator.chunk_sizes)
-            inputs_t.append(self.generator.chunk_sizes)
+        inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
+        inputs_t = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
 
         eval_generator = theano.function(
             inputs=inputs_d,
@@ -551,10 +547,7 @@ class Model(object):
 
                         mask = bx != padding_id
 
-                        if args.generator_encoding == 'cnn':
-                            obj, z, zsum, zdiff,cost_g = train_generator(bx, bpi, bm, bfw,bcz)
-                        else:
-                            obj, z, zsum, zdiff, cost_g = train_generator(bx, bpi, bm, bfw)
+                        obj, z, zsum, zdiff,cost_g = train_generator(bx, bpi, bm, bfw, bcz)
 
                         zsum_all.append(np.mean(zsum))
                         z_diff_all.append(np.mean(zdiff))
@@ -653,10 +646,8 @@ class Model(object):
 
             for j in xrange(cur_len):
                 bx, bm, sha, rx, bfw, bpi, bsc = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], batches_bpi[j], batches_cs[j]
-                if self.args.generator_encoding == 'cnn':
-                    bz, l, o = eval_func(bx, bpi, bm, bfw, bsc)
-                else:
-                    bz, l, o = eval_func(bx, bpi, bm, bfw)
+
+                bz, l, o = eval_func(bx, bpi, bm, bfw, bsc)
                 tot_obj += o
                 N += len(bx)
 
@@ -684,7 +675,7 @@ class Model(object):
 
             for j in xrange(cur_len):
                 bx, bm, sha, rx, bfw, bpi, bsc = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], \
-                                            batches_cs[j]
+                                                 batches_bpi[j], batches_cs[j]
                 if self.args.generator_encoding == 'cnn':
                     bz, l, o = eval_func(bx, bpi, bm, bfw, bsc)
                 else:

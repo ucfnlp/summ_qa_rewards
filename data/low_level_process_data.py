@@ -179,7 +179,7 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, entity_map, used_e):
         sentence_cutoffs.append([len(sent) for sent in x[i]])
 
         if args.word_level_c:
-            updated_ch.append([1 for sent in ch[i] for w in sent for _ in xrange(w)])
+            updated_ch.append([1 for sent in ch[i] for _ in sent])
         else:
             updated_ch.append([w for sent in ch[i] for w in sent])
 
