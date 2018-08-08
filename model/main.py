@@ -75,6 +75,36 @@ class Model(object):
         self.z = self.generator.non_sampled_zpred
         self.params = self.generator.params
 
+    def ready_rl_no_qa(self):
+        args, embedding_layer, embedding_layer_posit = self.args, self.embedding_layer, self.embedding_layer_posit
+        self.generator = Generator(args, embedding_layer, embedding_layer_posit)
+
+        self.generator.ready()
+        self.generator.sample(False)
+        self.generator.rl_out()
+
+        self.dropout = self.generator.dropout
+        self.x = self.generator.x
+        self.bm = self.generator.bm
+        self.fw_mask = self.generator.fw_mask
+
+        self.z = self.generator.non_sampled_zpred
+        self.params = self.generator.params
+
+    def ready_rl_no_qa_inference(self):
+        args, embedding_layer, embedding_layer_posit = self.args, self.embedding_layer, self.embedding_layer_posit
+        self.generator = Generator(args, embedding_layer, embedding_layer_posit)
+
+        self.generator.ready()
+        self.generator.sample(True)
+
+        self.dropout = self.generator.dropout
+        self.x = self.generator.x
+        self.bm = self.generator.bm
+        self.fw_mask = self.generator.fw_mask
+
+        self.z = self.generator.non_sampled_zpred
+
     def save_model(self, path, args, pretrain=False):
         # append file suffix
         if not path.endswith(".pkl.gz"):
@@ -171,6 +201,23 @@ class Model(object):
         for x, v in zip(self.generator.params, gparams):
             x.set_value(v)
 
+    def load_model_no_qa(self, path):
+        if not os.path.exists(path):
+            if path.endswith(".pkl"):
+                path += ".gz"
+            else:
+                path += ".pkl.gz"
+
+        with gzip.open(path, "rb") as fin:
+            gparams, nclasses, args = pickle.load(fin)
+
+        self.args = args
+        self.nclasses = nclasses
+        self.ready_rl_no_qa_inference()
+
+        for x, v in zip(self.generator.params, gparams):
+            x.set_value(v)
+
     def test(self):
         args = self.args
 
@@ -186,9 +233,7 @@ class Model(object):
         myio.save_test_results_rouge(args, z, x, y, e, sha, self.embedding_layer)
 
     def dev(self):
-        inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask]
-        if self.args.generator_encoding == 'cnn':
-            inputs_d.append(self.generator.chunk_sizes)
+        inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
 
         eval_generator = theano.function(
             inputs=inputs_d,
@@ -676,10 +721,9 @@ class Model(object):
             for j in xrange(cur_len):
                 bx, bm, sha, rx, bfw, bpi, bsc = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], \
                                                  batches_bpi[j], batches_cs[j]
-                if self.args.generator_encoding == 'cnn':
-                    bz, l, o = eval_func(bx, bpi, bm, bfw, bsc)
-                else:
-                    bz, l, o = eval_func(bx, bpi, bm, bfw)
+                
+                bz, l, o = eval_func(bx, bpi, bm, bfw, bsc)
+
                 tot_obj += o
 
                 x.append(rx)
@@ -833,6 +877,9 @@ def main():
         if args.pretrain:
             model.ready_pretrain()
             model.pretrain()
+        elif args.rl_no_qa:
+            model.ready_rl_no_qa()
+            model.pretrain()
         else:
             if args.load_model_pretrain:
                 model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model)
@@ -844,6 +891,9 @@ def main():
     elif args.dev:
         if args.pretrain:
             model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model)
+            model.dev()
+        elif args.rl_no_qa:
+            model.load_model_no_qa(args.save_model + args.load_model)
             model.dev()
         else:
             model.load_model(args.save_model + args.load_model)

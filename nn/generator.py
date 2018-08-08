@@ -56,60 +56,6 @@ class Generator(object):
         self.size = size
         self.h_final = apply_dropout(h_final, dropout)
 
-    def sample_for_qa(self):
-        masks_neq = T.cast(T.neq(chunk_sizes, 0), 'int32')
-        masks_eq = T.cast(T.eq(chunk_sizes, 0), 'int32').dimshuffle((1, 0))
-
-        output_layer =  ZLayer(
-                n_in = size + embedding_layer_posit.n_d,
-                n_hidden = args.hidden_dimension2,
-                activation = activation,
-                layer='rcnn',
-            )
-
-        z_pred, sample_updates = output_layer.sample_all(h_final)
-        non_sampled_zpred, _ = output_layer.sample_all_pretrain(h_final)
-
-        z_pred = theano.gradient.disconnected_grad(z_pred)
-
-        z_pred_word_level, _ = theano.scan(fn=self.c_project,
-                                           sequences=[z_pred.dimshuffle((1, 0)), chunk_sizes.dimshuffle((1, 0))]
-                                           )
-        non_sampled_zpred, _ = theano.scan(fn=self.c_project,
-                                           sequences=[non_sampled_zpred.dimshuffle((1, 0)), chunk_sizes.dimshuffle((1, 0))]
-                                           )
-
-        self.sample_updates = sample_updates
-
-        probs = output_layer.forward_all(h_final, z_pred)
-
-        self.z_pred = z_pred_word_level = z_pred_word_level.dimshuffle((1, 0))
-        self.non_sampled_zpred = non_sampled_zpred.dimshuffle((1, 0))
-
-        logpz = - T.nnet.binary_crossentropy(probs, z_pred) * masks_neq
-        logpz = self.logpz = logpz.reshape(x.shape)
-        probs = self.probs = probs.reshape(x.shape) * masks_neq
-
-        # batch
-        z = z_pred_word_level
-
-        self.zsum = T.sum(z, axis=0, dtype=theano.config.floatX)
-        self.zdiff = T.sum(T.abs_(z[1:]-z[:-1]), axis=0, dtype=theano.config.floatX)
-
-        params = self.params = [ ]
-        for l in layers + [ output_layer ] + [embedding_layer] + [embedding_layer_posit]:
-            for p in l.params:
-                params.append(p)
-
-        l2_cost = None
-        for p in params:
-            if l2_cost is None:
-                l2_cost = T.sum(p**2)
-            else:
-                l2_cost = l2_cost + T.sum(p**2)
-        l2_cost = l2_cost * args.l2_reg
-        self.l2_cost = l2_cost
-
     def pretrain(self, inference):
 
         embedding_layer_posit = self.embedding_layer_posit
@@ -153,7 +99,7 @@ class Generator(object):
 
         cross_ent = T.nnet.binary_crossentropy(new_probs, new_bm) * self.chunk_mask
 
-        sz = T.cast(T.round(cross_ent, mode='half_away_from_zero'), theano.config.floatX)
+        sz = T.cast(T.round(new_probs, mode='half_away_from_zero'), theano.config.floatX)
 
         z_pred_word_level, _ = theano.scan(fn=self.c_project,
                                            sequences=[sz.dimshuffle((1, 0)), self.chunk_sizes.dimshuffle((1, 0))]
@@ -184,7 +130,7 @@ class Generator(object):
         self.obj = obj = T.mean(T.sum(cross_ent, axis=0))
         self.cost_g = obj * self.args.coeff_cost_scale + self.l2_cost
 
-    def sample_no_qa(self, inference):
+    def sample(self, inference):
         embedding_layer_posit = self.embedding_layer_posit
 
         bm = self.bm = T.imatrix('bm')
@@ -194,28 +140,33 @@ class Generator(object):
         embs_p = embs_p.reshape((bm.shape[0], bm.shape[1], embedding_layer_posit.n_d))
         self.embs_p = embs_p = apply_dropout(embs_p, self.dropout)
 
-        if self.args.bigram_m:
-            padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
-            bm_shift = T.concatenate([padded, bm[:-1]], axis=0)
-
-            new_bm = T.cast(T.or_(bm, bm_shift), theano.config.floatX)
-        else:
-            new_bm = T.cast(bm, theano.config.floatX)
+        reduced_p_embs, _ = theano.scan(fn=self.c_reduce,
+                                        sequences=[embs_p.dimshuffle((1, 0, 2)), self.fw_mask.dimshuffle((1, 0))])
+        reduced_p_embs = reduced_p_embs.dimshuffle((1, 0, 2))
 
         final_concat_d = self.size + embedding_layer_posit.n_d + 128 * 2
-        output_rnn = Sampler(n_in=self.size, n_out=128, fc_in=final_concat_d, fc_out=128, sample=True)
 
-        probs, updates, samples = output_rnn.pt_forward_all_sample(self.h_final, embs_p)
-        self.sample_updates = updates
+        output_rnn = Sampler(n_in=self.size,
+                             n_out=128,
+                             fc_in=final_concat_d,
+                             fc_out=128,
+                             sample=True)
+        if inference:
+            probs = output_rnn.pt_forward_all_inference(self.h_final, reduced_p_embs)
+            samples = T.cast(T.round(probs, mode='half_away_from_zero'), theano.config.floatX)
+        else:
+            probs, updates, samples = output_rnn.pt_forward_all_sample(self.h_final, reduced_p_embs)
+            self.sample_updates = updates
 
         z_pred_word_level, _ = theano.scan(fn=self.c_project,
-                                           sequences=[samples.dimshuffle((1, 0)), self.chunk_sizes.dimshuffle((1, 0))]
+                                           sequences=[samples.dimshuffle((1, 0)),
+                                                      self.chunk_sizes.dimshuffle((1, 0))]
                                            )
         self.z_pred = z_pred_word_level = z_pred_word_level.dimshuffle((1, 0))
-        logpz = - T.nnet.binary_crossentropy(probs, z_pred_word_level) * self.pad_mask
+        self.logpz = - T.nnet.binary_crossentropy(probs, samples) * self.pad_mask
 
-        self.zsum = zsum = T.sum(z_pred_word_level, axis=0, dtype=theano.config.floatX)
-        self.zdiff = zdiff = T.sum(T.abs_(z_pred_word_level[1:] - z_pred_word_level[:-1]), axis=0, dtype=theano.config.floatX)
+        self.zsum = T.sum(z_pred_word_level, axis=0, dtype=theano.config.floatX)
+        self.zdiff = T.sum(T.abs_(z_pred_word_level[1:] - z_pred_word_level[:-1]), axis=0, dtype=theano.config.floatX)
 
         self.layers.append(output_rnn)
         self.layers.append(output_rnn.fc_layer)
@@ -232,14 +183,17 @@ class Generator(object):
                 l2_cost = T.sum(p ** 2)
             else:
                 l2_cost = l2_cost + T.sum(p ** 2)
-        l2_cost = l2_cost * self.args.l2_reg
 
-        self.l2_cost = l2_cost
+        self.l2_cost = l2_cost * self.args.l2_reg
 
-        z_shift = z_pred_word_level[1:]
-        z_new = z_pred_word_level[:-1]
+    def rl_out(self):
+        z_pred_word_level = self.z_pred
+        bm = self.bm
 
         if self.args.bigram_m:
+            z_shift = z_pred_word_level[1:]
+            z_new = z_pred_word_level[:-1]
+
             valid_bg = z_new * z_shift
             bigram_ol = valid_bg * bm[:-1]
         else:
@@ -251,13 +205,13 @@ class Generator(object):
         self.bigram_loss = bigram_loss = total_z_bg_per_sample / total_bg_per_sample
 
         self.cost_vec = cost_vec = self.args.coeff_adequacy * (1 - bigram_loss) + self.args.coeff_z * (
-                2 * zsum + zdiff)
+                2 * self.zsum + self.zdiff)
 
-        self.logpz = logpz = T.sum(logpz, axis=0)
+        self.logpz = logpz = T.sum(self.logpz, axis=0)
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
 
-        self.obj = obj = T.mean(T.sum(cost_vec, axis=0))
-        self.cost_g = cost_logpz * self.args.coeff_cost_scale + l2_cost
+        self.obj = T.mean(T.sum(cost_vec, axis=0))
+        self.cost_g = cost_logpz * self.args.coeff_cost_scale + self.l2_cost
 
     def lstm_encoding(self, fw_mask, rv_mask, n_e, n_d, activation):
         layers = self.layers
