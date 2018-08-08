@@ -88,7 +88,7 @@ class Model(object):
         self.bm = self.generator.bm
         self.fw_mask = self.generator.fw_mask
 
-        self.z = self.generator.non_sampled_zpred
+        self.z = self.generator.z_pred
         self.params = self.generator.params
 
     def ready_rl_no_qa_inference(self):
@@ -672,6 +672,187 @@ class Model(object):
         json.dump(json_train, ofp_train)
         ofp_train.close()
 
+    def rl_no_qa(self):
+        args = self.args
+        padding_id = self.embedding_layer.vocab_map["<padding>"]
+
+        updates_g, lr_g, gnorm_g = create_optimization_updates(
+            cost=self.generator.cost_g,
+            params=self.generator.params,
+            method=args.learning,
+            beta1=args.beta1,
+            beta2=args.beta2,
+            lr=args.learning_rate
+        )[:3]
+
+        outputs_d = [self.z, self.generator.cost_g, self.generator.obj]
+        outputs_t = [self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g]
+
+        inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
+        inputs_t = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
+
+        eval_generator = theano.function(
+            inputs=inputs_d,
+            outputs=outputs_d,
+            updates=self.generator.sample_updates
+        )
+
+        train_generator = theano.function(
+            inputs=inputs_t,
+            outputs=outputs_t,
+            updates=updates_g.items() + self.generator.sample_updates
+        )
+        say("Model Built\n\n")
+
+        unchanged = 0
+        best_dev = 1e+2
+        last_train_avg_cost = None
+        last_dev_avg_cost = None
+        tolerance = 0.10 + 1e-3
+        dropout_prob = np.float64(args.dropout).astype(theano.config.floatX)
+
+        filename = myio.create_json_filename(args)
+        ofp_train = open(filename, 'w+')
+        json_train = dict()
+
+        for epoch in xrange(args.max_epochs):
+            unchanged += 1
+            more_count = 0
+
+            say("Unchanged : {}\n".format(unchanged))
+
+            if unchanged > 20:
+                break
+
+            more = True
+            if args.decay_lr:
+                param_bak = [p.get_value(borrow=False) for p in self.params]
+
+            while more:
+                train_cost = 0.0
+                train_loss = 0.0
+                p1 = 0.0
+                more_count += 1
+
+                if more_count > 5:
+                    break
+                start_time = time.time()
+
+                obj_all = []
+                zsum_all = []
+                z_diff_all = []
+                z_pred_all = []
+
+                num_files = args.num_files_train
+                N = args.online_batch_size * num_files
+
+                for i in xrange(num_files):
+                    train_batches_x, _, _, train_batches_bm, _, _, train_batches_fw, train_batches_cz, train_batches_bpi = myio.load_batches(
+                        args.batch_dir + args.source + 'train', i)
+
+                    random.seed(datetime.now())
+                    perm2 = range(len(train_batches_x))
+                    random.shuffle(perm2)
+
+                    train_batches_x = [train_batches_x[k] for k in perm2]
+                    train_batches_bm = [train_batches_bm[k] for k in perm2]
+                    train_batches_fw = [train_batches_fw[k] for k in perm2]
+                    train_batches_bpi = [train_batches_bpi[k] for k in perm2]
+                    train_batches_cz = [train_batches_cz[k] for k in perm2]
+
+                    cur_len = len(train_batches_x)
+
+                    for j in xrange(cur_len):
+                        if args.full_test:
+                            if (i * args.online_batch_size + j + 1) % 10 == 0:
+                                say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
+                        elif (i * args.online_batch_size + j + 1) % 10 == 0:
+                            say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
+
+                        bx, bm, bfw, bpi, bcz = train_batches_x[j], train_batches_bm[j], train_batches_fw[j], train_batches_bpi[j], train_batches_cz[j]
+
+                        mask = bx != padding_id
+
+                        obj, z, zsum, zdiff,cost_g = train_generator(bx, bpi, bm, bfw, bcz)
+
+                        zsum_all.append(np.mean(zsum))
+                        z_diff_all.append(np.mean(zdiff))
+                        z_pred_all.append(np.mean(np.sum(z, axis=0)))
+                        obj_all.append(np.mean(obj))
+
+                        train_cost += obj
+
+                        p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
+
+                cur_train_avg_cost = train_cost / N
+
+                if args.dev:
+                    self.dropout.set_value(0.0)
+                    dev_obj, dev_z, x, sha_ls = self.evaluate_pretrain_data(eval_generator)
+                    self.dropout.set_value(dropout_prob)
+                    cur_dev_avg_cost = dev_obj
+
+                more = False
+
+                if args.decay_lr and last_train_avg_cost is not None:
+                    if cur_train_avg_cost > last_train_avg_cost * (1 + tolerance):
+                        more = True
+                        say("\nTrain cost {} --> {}\n".format(
+                            last_train_avg_cost, cur_train_avg_cost
+                        ))
+                    if args.dev and cur_dev_avg_cost > last_dev_avg_cost * (1 + tolerance):
+                        more = True
+                        say("\nDev cost {} --> {}\n".format(
+                            last_dev_avg_cost, cur_dev_avg_cost
+                        ))
+
+                if more:
+                    lr_val = lr_g.get_value() * 0.5
+                    lr_val = np.float64(lr_val).astype(theano.config.floatX)
+                    lr_g.set_value(lr_val)
+                    say("Decrease learning rate to {}\n".format(float(lr_val)))
+                    for p, v in zip(self.params, param_bak):
+                        p.set_value(v)
+                    continue
+
+                myio.record_observations_pretrain(json_train, epoch + 1, obj_all, zsum_all, z_diff_all, z_pred_all)
+
+                last_train_avg_cost = cur_train_avg_cost
+
+                say("\n")
+                say(("Generator Epoch {:.2f}  costg={:.4f}  lossg={:.4f}  " +
+                     "\t[{:.2f}m / {:.2f}m]\n").format(
+                    epoch,
+                    train_cost / N,
+                    train_loss / N,
+                    (time.time() - start_time) / 60.0,
+                    (time.time() - start_time) / 60.0 / (i * args.online_batch_size + j + 1) * N
+                ))
+
+                if args.dev:
+                    last_dev_avg_cost = cur_dev_avg_cost
+                    if dev_obj < best_dev:
+                        best_dev = dev_obj
+                        unchanged = 0
+                        if args.save_model:
+                            filename = self.args.save_model + 'pretrain/' + myio.create_fname_identifier(self.args)
+                            self.save_model(filename, self.args, pretrain=True)
+                            json_train['BEST_DEV_EPOCH'] = epoch
+
+                            myio.save_dev_results(self.args, None, dev_z, x, sha_ls)
+
+            if more_count > 5:
+                json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
+                json.dump(json_train, ofp_train)
+                ofp_train.close()
+                return
+
+        if unchanged > 20:
+            json_train['UNCHANGED'] = unchanged
+
+        json.dump(json_train, ofp_train)
+        ofp_train.close()
+
     def evaluate_pretrain_data(self, eval_func):
         tot_obj = 0.0
         N = 0
@@ -879,7 +1060,7 @@ def main():
             model.pretrain()
         elif args.rl_no_qa:
             model.ready_rl_no_qa()
-            model.pretrain()
+            model.rl_no_qa()
         else:
             if args.load_model_pretrain:
                 model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model)

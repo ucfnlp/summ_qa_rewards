@@ -122,9 +122,8 @@ def create_fname_identifier(args):
 
     return 'source_' + str(args.source) + \
            '_pretrain_' + str(args.pretrain) + \
-           '_load_model_pre_' + str(args.load_model_pretrain) + \
+           '_load_pre_' + str(args.load_model_pretrain) + \
            '_train_data_edim_' + str(args.embedding_dim) + \
-           '_vocab_' + str(args.vocab_size) + \
            '_batch_' + str(args.batch) + \
            '_inplen_' + str(args.inp_len) + \
            '_epochs_' + str(args.max_epochs) + \
@@ -132,6 +131,7 @@ def create_fname_identifier(args):
            '_gen_type_' + str(args.generator_encoding) + \
            '_bilin_' + str(args.bilinear) + \
            '_ext_ck_' + str(args.extended_c_k) + \
+           '_rl_noqa_' + str(args.rl_no_qa) + \
            '_ncl_' + str(args.nclasses) + \
            '_q' + str(args.n) + \
            '_root_' + str(args.is_root) + \

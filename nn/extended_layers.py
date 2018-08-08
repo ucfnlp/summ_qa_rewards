@@ -136,7 +136,6 @@ class HLLSTM(LSTM):
 class Sampler(LSTM):
     def __init__(self, n_in, n_out, fc_in, fc_out, sample=False):
         super(Sampler, self).__init__(n_in=n_in, n_out=n_out)
-
         if sample:
             self.MRG_rng = MRG_RandomStreams()
 
@@ -177,12 +176,12 @@ class Sampler(LSTM):
 
         concat_in = T.concatenate([x_t, posit_x_t, hc_tm1], axis=1)
         a_t = self.fc_layer.forward(concat_in)
-        pt = self.fc_layer_final.forward(a_t)
+        pt = self.fc_layer_final.forward(a_t).ravel()
 
         mask_next = T.cast(self.MRG_rng.binomial(size=pt.shape,
                                            p=pt), theano.config.floatX)
-
-        return mask_next.dimshuffle((0, 'x')), hc_t, pt
+        mask_next = mask_next.reshape((-1,1))
+        return mask_next, hc_t, pt
 
     def pt_forward_all(self, x, posit_x, mask, h0=None):
         if h0 is None:
@@ -237,16 +236,22 @@ class Sampler(LSTM):
         x_shifted = T.concatenate([padded, x[:-1]], axis=0)
         mask = T.zeros(shape=(x.shape[1],)).dimshuffle((0, 'x'))
 
-        o, updates = theano.scan(
+        [s, _, _], updates = theano.scan(
             fn=self._forward_sample,
             sequences=[x, x_shifted, posit_x],
             outputs_info=[mask, h0, None]
         )
+        samples = theano.gradient.disconnected_grad(s).reshape((x.shape[0], x.shape[1]))
+        padded_mask = T.shape_padaxis(T.zeros_like(samples[0]), axis=1).dimshuffle((1, 0))
+        mask_from_samples = T.concatenate([padded_mask, samples[:-1]], axis=0).dimshuffle((0, 1, 'x'))
 
-        new_probs = o[2].reshape((x.shape[0], x.shape[1]))
-        samples = o[0].reshape((x.shape[0], x.shape[1]))
+        [_, probs], _ = theano.scan(
+            fn=self._forward,
+            sequences=[x, x_shifted, posit_x, mask_from_samples],
+            outputs_info=[h0, None]
+        )
 
-        return new_probs, updates, samples
+        return probs.reshape((x.shape[0], x.shape[1])), updates, samples
 
     def copy_params(self, from_obj):
         self.internal_layers = from_obj.internal_layers

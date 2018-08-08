@@ -58,6 +58,11 @@ def get_args():
                         default=True,
                         help='Bilinear attn.')
 
+    parser.add_argument('--rl_no_qa',
+                        type='bool',
+                        default=True,
+                        help='RL reward for summarization with no QA')
+
     parser.add_argument('--bigram_m',
                         type='bool',
                         default=False,
