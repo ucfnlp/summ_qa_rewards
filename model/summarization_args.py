@@ -295,7 +295,7 @@ def get_args():
 
     parser.add_argument("--learning_rate",
                         type=float,
-                        default=0.0005,
+                        default=0.0001,
                         help="learning rate"
                         )
 
@@ -367,13 +367,13 @@ def get_args():
 
     parser.add_argument("--coeff_z",
                         type=float,
-                        default=10.0,
+                        default=1.0,
                         help="Scaling in encoder loss"
                         )
 
     parser.add_argument("--coeff_adequacy",
                         type=float,
-                        default=10.0,
+                        default=1.0,
                         help="Scaling in encoder loss"
                         )
 
@@ -384,7 +384,7 @@ def get_args():
 
     parser.add_argument("--z_perc",
                         type=float,
-                        default=0.2,
+                        default=0.4,
                         help="z_perc"
                         )
 

@@ -33,7 +33,7 @@ class Generator(object):
         chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
 
         rv_mask = T.concatenate([T.ones((1, fw_mask.shape[1])), fw_mask[:-1]], axis=0)
-
+        self.z_totals = T.sum(T.neq(self.x, self.padding_id), axis=0, dtype=theano.config.floatX)
         self.layers = []
 
         n_d = args.hidden_dimension
@@ -168,6 +168,8 @@ class Generator(object):
                                            )
         self.z_pred = z_pred_word_level = z_pred_word_level.dimshuffle((1, 0))
         self.logpz = - T.nnet.binary_crossentropy(probs, samples) * self.pad_mask
+        self.probz = probs
+        self.samps = samples
 
         self.zsum = T.sum(z_pred_word_level, axis=0, dtype=theano.config.floatX)
         self.zdiff = T.sum(T.abs_(z_pred_word_level[1:] - z_pred_word_level[:-1]), axis=0, dtype=theano.config.floatX)
@@ -207,13 +209,11 @@ class Generator(object):
         total_bg_per_sample = T.sum(bm, axis=0) + self.args.bigram_smoothing
 
         self.bigram_loss = bigram_loss = total_z_bg_per_sample / total_bg_per_sample
+        self.zsum = T.abs_(self.zsum / self.z_totals - self.args.z_perc)
 
+        self.zdiff = self.zdiff / self.z_totals
         cost_vec = self.args.coeff_adequacy * (1 - bigram_loss) + self.args.coeff_z * (
                 2 * self.zsum + self.zdiff)
-
-        if self.args.self_critical:
-            critical_reward = self.get_critical_reward()
-            cost_vec = cost_vec - critical_reward
 
         self.cost_vec = cost_vec
 

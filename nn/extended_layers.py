@@ -181,7 +181,7 @@ class Sampler(LSTM):
         mask_next = T.cast(self.MRG_rng.binomial(size=pt.shape,
                                            p=pt), theano.config.floatX)
         mask_next = mask_next.reshape((-1,1))
-        return mask_next, hc_t, pt
+        return mask_next, hc_t
 
     def pt_forward_all(self, x, posit_x, mask, h0=None):
         if h0 is None:
@@ -236,10 +236,10 @@ class Sampler(LSTM):
         x_shifted = T.concatenate([padded, x[:-1]], axis=0)
         mask = T.zeros(shape=(x.shape[1],)).dimshuffle((0, 'x'))
 
-        [s, _, _], updates = theano.scan(
+        [s, _], updates = theano.scan(
             fn=self._forward_sample,
             sequences=[x, x_shifted, posit_x],
-            outputs_info=[mask, h0, None]
+            outputs_info=[mask, h0]
         )
         samples = theano.gradient.disconnected_grad(s).reshape((x.shape[0], x.shape[1]))
         padded_mask = T.shape_padaxis(T.zeros_like(samples[0]), axis=1).dimshuffle((1, 0))

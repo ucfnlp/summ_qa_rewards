@@ -196,7 +196,6 @@ class Model(object):
             self.nclasses = nclasses
             self.ready_pretrain(inference=inference)
         elif self.args.rl_no_qa:
-            self.args = args
             self.nclasses = nclasses
 
             if inference:
@@ -694,7 +693,7 @@ class Model(object):
         )[:3]
 
         outputs_d = [self.z, self.generator.cost_g, self.generator.obj]
-        outputs_t = [self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g]
+        outputs_t = [self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g, self.generator.probz, self.generator.samps, self.generator.cost_vec]
 
         inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
         inputs_t = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
@@ -781,7 +780,7 @@ class Model(object):
 
                         mask = bx != padding_id
 
-                        obj, z, zsum, zdiff,cost_g = train_generator(bx, bpi, bm, bfw, bcz)
+                        obj, z, zsum, zdiff,cost_g, _, _, _ = train_generator(bx, bpi, bm, bfw, bcz)
 
                         zsum_all.append(np.mean(zsum))
                         z_diff_all.append(np.mean(zdiff))
@@ -793,7 +792,7 @@ class Model(object):
                         p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
 
                 cur_train_avg_cost = train_cost / N
-
+                print args.dev
                 if args.dev:
                     self.dropout.set_value(0.0)
                     dev_obj, dev_z, x, sha_ls = self.evaluate_pretrain_data(eval_generator)
@@ -843,7 +842,7 @@ class Model(object):
                         best_dev = dev_obj
                         unchanged = 0
                         if args.save_model:
-                            filename = self.args.save_model + 'pretrain/' + myio.create_fname_identifier(self.args)
+                            filename = self.args.save_model + myio.create_fname_identifier(self.args)
                             self.save_model(filename, self.args, pretrain=True)
                             json_train['BEST_DEV_EPOCH'] = epoch
 
