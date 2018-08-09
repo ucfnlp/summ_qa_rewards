@@ -158,6 +158,10 @@ class Generator(object):
             probs, updates, samples = output_rnn.pt_forward_all_sample(self.h_final, reduced_p_embs)
             self.sample_updates = updates
 
+        if self.args.self_critical:
+            arg_max = T.cast(T.round(probs, mode='half_away_from_zero'), theano.config.floatX)
+            self.arg_max = theano.gradient.disconnected_grad(arg_max)
+
         z_pred_word_level, _ = theano.scan(fn=self.c_project,
                                            sequences=[samples.dimshuffle((1, 0)),
                                                       self.chunk_sizes.dimshuffle((1, 0))]
@@ -204,14 +208,21 @@ class Generator(object):
 
         self.bigram_loss = bigram_loss = total_z_bg_per_sample / total_bg_per_sample
 
-        self.cost_vec = cost_vec = self.args.coeff_adequacy * (1 - bigram_loss) + self.args.coeff_z * (
+        cost_vec = self.args.coeff_adequacy * (1 - bigram_loss) + self.args.coeff_z * (
                 2 * self.zsum + self.zdiff)
+
+        if self.args.self_critical:
+            critical_reward = self.get_critical_reward()
+            cost_vec = cost_vec - critical_reward
+
+        self.cost_vec = cost_vec
 
         self.logpz = logpz = T.sum(self.logpz, axis=0)
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)
 
         self.obj = T.mean(T.sum(cost_vec, axis=0))
         self.cost_g = cost_logpz * self.args.coeff_cost_scale + self.l2_cost
+
 
     def lstm_encoding(self, fw_mask, rv_mask, n_e, n_d, activation):
         layers = self.layers

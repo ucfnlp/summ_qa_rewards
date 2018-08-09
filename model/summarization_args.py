@@ -60,7 +60,7 @@ def get_args():
 
     parser.add_argument('--rl_no_qa',
                         type='bool',
-                        default=True,
+                        default=False,
                         help='RL reward for summarization with no QA')
 
     parser.add_argument('--bigram_m',
@@ -74,6 +74,11 @@ def get_args():
                         help='Entities are root words only')
 
     parser.add_argument('--bigram_toggle',
+                        type='bool',
+                        default=False,
+                        help='')
+
+    parser.add_argument('--self_critical',
                         type='bool',
                         default=False,
                         help='')

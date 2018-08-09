@@ -181,7 +181,7 @@ class Model(object):
         for x, v in zip(self.generator.params, gparams):
             x.set_value(v)
 
-    def load_model_pretrain(self, path):
+    def load_model_pretrain(self, path, inference):
         if not os.path.exists(path):
             if path.endswith(".pkl"):
                 path += ".gz"
@@ -194,7 +194,15 @@ class Model(object):
         if self.args.pretrain:
             self.args = args
             self.nclasses = nclasses
-            self.ready_pretrain(inference=True)
+            self.ready_pretrain(inference=inference)
+        elif self.args.rl_no_qa:
+            self.args = args
+            self.nclasses = nclasses
+
+            if inference:
+                self.ready_rl_no_qa_inference()
+            else:
+                self.ready_rl_no_qa()
         else:
             self.ready()
 
@@ -702,7 +710,7 @@ class Model(object):
             outputs=outputs_t,
             updates=updates_g.items() + self.generator.sample_updates
         )
-        say("Model Built\n\n")
+        say("Model Built RL\n\n")
 
         unchanged = 0
         best_dev = 1e+2
@@ -1059,11 +1067,14 @@ def main():
             model.ready_pretrain()
             model.pretrain()
         elif args.rl_no_qa:
-            model.ready_rl_no_qa()
+            if args.load_model_pretrain:
+                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=False)
+            else:
+                model.ready_rl_no_qa()
             model.rl_no_qa()
         else:
             if args.load_model_pretrain:
-                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model)
+                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=False)
             else:
                 model.ready()
 
@@ -1071,7 +1082,7 @@ def main():
 
     elif args.dev:
         if args.pretrain:
-            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model)
+            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=True)
             model.dev()
         elif args.rl_no_qa:
             model.load_model_no_qa(args.save_model + args.load_model)
