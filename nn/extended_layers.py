@@ -147,7 +147,8 @@ class Sampler(LSTM):
         self.fc_layer_final = Layer(n_in=fc_out,
                                     n_out=1,
                                     activation=get_activation_by_name('sigmoid'),
-                                    has_bias=True)
+                                    has_bias=True,
+                                    clip_inp=True)
 
     def _forward(self, x_t, x_tm1, posit_x_t, mask_t, hc_tm1):
         x_tm1 = x_tm1 * mask_t

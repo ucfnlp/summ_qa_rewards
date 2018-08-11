@@ -85,9 +85,11 @@ class Layer(object):
 
     def __init__(self, n_in, n_out, activation,
                  clip_gradients=False,
-                 has_bias=True):
+                 has_bias=True,
+                 clip_inp=False):
         self.n_in = n_in
         self.n_out = n_out
+        self.clip_inp = clip_inp
         self.activation = activation
         self.clip_gradients = clip_gradients
         self.has_bias = has_bias
@@ -126,14 +128,16 @@ class Layer(object):
         if self.has_bias: self.b = create_shared(b_vals, name="b")
 
     def forward(self, x):
+
         if self.has_bias:
-            return self.activation(
-                T.dot(x, self.W) + self.b
-            )
+            o = self.activation(T.dot(x, self.W) + self.b)
         else:
-            return self.activation(
-                T.dot(x, self.W)
-            )
+            o = self.activation(T.dot(x, self.W))
+
+        if self.clip_inp:
+            return T.clip(o, 1e-7, 1.0 - 1e-7)
+        else:
+            return o
 
     @property
     def params(self):
