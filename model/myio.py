@@ -2,7 +2,10 @@ import os
 import json
 
 import numpy as np
-from pyrouge import Rouge155
+try:
+    from pyrouge import Rouge155
+except ImportError:
+    print 'Not for eval'
 from nn.basic import EmbeddingLayer, PositionEmbeddingLayer
 from util import load_embedding_iterator
 import shutil
@@ -682,6 +685,38 @@ def bigram_vectorize(lstx, lsty, padding_id):
 
     return bin_vectors
 
+
+def create_1h(lste, n_classes, n, pad_repeat):
+    loss_mask = np.ones((len(lste), n), dtype='int32')
+    e_processed = [[] for _ in xrange(args.n)]
+    for i in xrange(len(lste)):
+        for j in xrange(len(lste[i])):
+
+            if n_classes > 0:
+                single_e_1h = np.zeros((n_classes,), dtype='int32')
+                single_e_1h[lste[i][j]] = 1
+            else:
+                single_e_1h = lste[i][j]
+
+            e_processed[j].append(single_e_1h)
+
+        # For the case of not having padded y
+        if not pad_repeat and len(lste[i]) < n:
+            for j in range(len(lste[i]), n):
+                if n_classes > 0:
+                    single_e_1h = np.zeros((n_classes,), dtype='int32')
+                    single_e_1h[0] = 1
+                else:
+                    single_e_1h = -1
+
+                e_processed[j].append(single_e_1h)
+                loss_mask[i, j] = 0
+
+    be = []
+    for i in xrange(len(e_processed)):
+        be.extend(e_processed[i])
+
+    return be, loss_mask
 
 def total_words(z):
     return np.sum(z, axis=None)

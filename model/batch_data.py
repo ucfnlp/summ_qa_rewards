@@ -122,8 +122,8 @@ def create_batches_test(args, x, y, cy, pt, sha, rx, batch_size, padding_id, pad
     print "Num Files :", num_files
 
 
-def create_batches(args, n_classes, x, y, e, sc, cy, m, sha, ch, rx, batch_size, padding_id, stopwords, sort=True, model_type=''):
-    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_lm, batches_ch_f, batches_ch_sz, batches_sc = [], [], [], [], [], [], [], [], [], []
+def create_batches(args, n_classes, x, y, e, sc, cy, sha, ch, rx, batch_size, padding_id, stopwords, sort=True, model_type=''):
+    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_ch_f, batches_ch_sz, batches_sc = [], [], [], [], [], [], [], [], []
 
     N = len(x)
     M = (N - 1) / batch_size + 1
@@ -138,22 +138,18 @@ def create_batches(args, n_classes, x, y, e, sc, cy, m, sha, ch, rx, batch_size,
         e = [e[i] for i in perm]
         cy = [cy[i] for i in perm]
         ch = [ch[i] for i in perm]
-        m = [m[i] for i in perm]
         sha = [sha[i] for i in perm]
         sc = [sc[i] for i in perm]
 
     for i in xrange(M):
         # batched: X, Y, entities, pre-training masking, loss masking (if < n queries)
-        # chunks, chunk sizes
-        bx, by, be, bm, blm, bch, bsz, bsc = create_one_batch(
+        # chunks, chunk sizes (args, lstx, lsty,lstsc, lstcy, lstch, padding_id, stopwords):
+        bx, by, bm, bch, bsz, bsc = create_one_batch(
             args,
-            n_classes,
             x[i * batch_size:(i + 1) * batch_size],
             y[i * batch_size:(i + 1) * batch_size] if e is not None else None,
-            e[i * batch_size:(i + 1) * batch_size] if e is not None else None,
             sc[i * batch_size:(i + 1) * batch_size] if sc is not None else None,
             cy[i * batch_size:(i + 1) * batch_size] if e is not None else None,
-            m[i * batch_size:(i + 1) * batch_size],
             ch[i * batch_size:(i + 1) * batch_size],
             padding_id,
             stopwords
@@ -165,9 +161,8 @@ def create_batches(args, n_classes, x, y, e, sc, cy, m, sha, ch, rx, batch_size,
 
         batches_x.append(bx)
         batches_y.append(by)
-        batches_e.append(be)
+        batches_e.append(e[i * batch_size:(i + 1) * batch_size] if e is not None else [])
         batches_bm.append(bm)
-        batches_lm.append(blm)
         batches_sha.append(bsh)
         batches_ch_f.append(bch)
         batches_ch_sz.append(bsz)
@@ -186,7 +181,6 @@ def create_batches(args, n_classes, x, y, e, sc, cy, m, sha, ch, rx, batch_size,
                     batches_y,
                     batches_e,
                     batches_bm,
-                    batches_lm,
                     batches_sha,
                     batches_ch_f,
                     batches_ch_sz,
@@ -199,7 +193,6 @@ def create_batches(args, n_classes, x, y, e, sc, cy, m, sha, ch, rx, batch_size,
                     batches_y,
                     batches_e,
                     batches_bm,
-                    batches_lm,
                     batches_sha,
                     batches_rx,
                     batches_ch_f,
@@ -222,64 +215,39 @@ def create_batches(args, n_classes, x, y, e, sc, cy, m, sha, ch, rx, batch_size,
             with open(fname + str(num_files), 'w+') as ofp:
                 np.save(ofp, data)
 
-                batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_lm, batches_ch_f, batches_ch_sz, batches_sc = [], [], [], [], [], [], [], [], [], []
+                batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_ch_f, batches_ch_sz, batches_sc = [], [], [], [], [], [], [], [], []
             num_batches = 0
             num_files += 1
 
     print "Num Files :", num_files
 
 
-def create_one_batch(args, n_classes, lstx, lsty, lste, lstsc, lstcy, lstbm, lstch, padding_id, stopwords, create_mask=False):
+def create_one_batch(args, lstx, lsty,lstsc, lstcy, lstch, padding_id, stopwords):
     max_len = args.inp_len
 
     assert min(len(x) for x in lstx) > 0
 
     # padded y
-    if lste is not None:
-        by, unigrams, be, blm = process_hl(args, lsty, lste, padding_id, n_classes, lstcy)
-        by = np.column_stack([y for y in by])
-    else:
-        unigrams = None
+    by, unigrams = process_hl(args, lsty, padding_id, lstcy)
+    by = np.column_stack([y for y in by])
 
-    bch, bsz = create_chunk_mask(lstch, max_len, args.word_level_c)
+
+    bch, bsz = create_chunk_mask(lstch, max_len)
 
     bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                  constant_values=padding_id).astype('int32') for x in lstx])
+    if unigrams is not None:
 
-    if create_mask and unigrams is not None:
         bm = create_unigram_masks(lstx, unigrams, max_len, stopwords, args)
-        bm = np.column_stack([m for m in bm])
-    else:
-        bm = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
-                                 constant_values=0).astype('int32') for x in lstbm])
+
+        if not args.word_level_c:
+            bm = create_chunk_masks(bm, bsz)
+
+    bm = np.column_stack([m for m in bm])
 
     bsc = sentence_indexing(lstsc, max_len)
 
-    if lste is not None:
-        return bx, by, be, bm, blm, bch, bsz, bsc
-    else:
-        return bx, [], [], bm, None, [], bch, bsz, bsc
-
-
-def create_one_batch_test(args, lstx_, lsty, lstcy, lstpt, padding_id, padding_id_pt, b_len, stopwords):
-    max_len = args.inp_len
-    lstx = []
-    for i in xrange(len(lstx_)):
-        lstx.append([w for sent in lstx_[i] for w in sent])
-
-    assert min(len(x) for x in lstx) > 0
-
-    unigrams = process_hl_test(args, lsty, lstcy)
-
-    bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
-                                 constant_values=padding_id).astype('int32') for x in lstx])
-
-    bm = create_unigram_masks(lstx, unigrams, max_len, stopwords, args)
-
-    bm = np.column_stack([m for m in bm])
-    bpt = stack_pt(args, lstpt, padding_id_pt)
-
-    return bx, bm, bpt
+    return bx, by, bm, bch, bsz, bsc
 
 
 def stack_pt(args, lspt, padding_id_pt):
@@ -302,13 +270,11 @@ def stack_pt(args, lspt, padding_id_pt):
     return np.column_stack([m for m in bmpt])
 
 
-def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
+def process_hl(args, lsty, padding_id, lstcy):
     max_len_y = args.hl_len
 
     y_processed = [[] for _ in xrange(args.n)]
-    e_processed = [[] for _ in xrange(args.n)]
 
-    loss_mask = np.ones((len(lsty), args.n), dtype='int32')
     unigrams = []
 
     for i in xrange(len(lsty)):
@@ -318,28 +284,12 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
             y = lsty[i][j][:max_len_y]
             single_hl = np.pad(y, (max_len_y - len(y), 0), "constant", constant_values=padding_id).astype('int32')
 
-            if n_classes > 0:
-                single_e_1h = np.zeros((n_classes,), dtype='int32')
-                single_e_1h[lste[i][j]] = 1
-            else:
-                single_e_1h = lste[i][j]
-
             y_processed[j].append(single_hl)
-            e_processed[j].append(single_e_1h)
 
         # For the case of not having padded y
         if not args.pad_repeat and len(lsty[i]) < args.n:
             for j in range(len(lsty[i]), args.n):
                 y_processed[j].append(np.full((max_len_y,), fill_value=padding_id).astype('int32'))
-
-                if n_classes > 0:
-                    single_e_1h = np.zeros((n_classes,), dtype='int32')
-                    single_e_1h[0] = 1
-                else:
-                    single_e_1h = -1
-
-                e_processed[j].append(single_e_1h)
-                loss_mask[i,j] = 0
 
         for clean_hl in lstcy[i]:
             trimmed_cy = clean_hl[:max_len_y]
@@ -350,12 +300,10 @@ def process_hl(args, lsty, lste, padding_id, n_classes, lstcy):
         unigrams.append(sample_u)
 
     by = []
-    be = []
     for i in xrange(len(y_processed)):
         by.extend(y_processed[i])
-        be.extend(e_processed[i])
 
-    return by, unigrams, be, loss_mask
+    return by, unigrams
 
 
 def pad_sentences(args, padding_id, lstx):
@@ -409,7 +357,7 @@ def stack_p_vec(max_x, sent_bounds, x, padding_id):
     return np.column_stack([j for j in position_idx_batch]).astype('int32')
 
 
-def create_chunk_mask(lstch, max_len, word_level=False):
+def create_chunk_mask(lstch, max_len):
     fw_mask_ls = []
     mask_chunk_sizes = []
 
@@ -444,8 +392,6 @@ def create_chunk_mask(lstch, max_len, word_level=False):
             fw_mask.append(1)
 
             mask_csz[-1] = mask_csz[-1] + left
-
-            print 'trunc inp', sum(article)
 
         mask_csz.extend([0]*(max_len - len(mask_csz)))
         fw_mask_ls.append(fw_mask)
@@ -517,6 +463,36 @@ def create_unigram_masks(lstx, unigrams, max_len, stopwords, args):
     return masks
 
 
+def create_chunk_masks(word_level_bm, bsz):
+    masks = []
+
+    for i in xrange(len(word_level_bm)):
+        m = []
+        chunks = bsz[:, i]
+        gs_words = word_level_bm[i]
+        end = 0
+
+        for c in chunks:
+            begin = end
+            end = begin + c
+
+            use_cur_chunk = False
+
+            for j in range(begin, end):
+                if gs_words[j] == 1:
+                    use_cur_chunk = True
+                    break
+
+            if use_cur_chunk:
+                cur_chunk = [1] * c
+            else:
+                cur_chunk = [0] * c
+            m.extend(cur_chunk)
+        masks.append(m)
+
+    return masks
+
+
 def contains_single_valid_word(w1, w2, stopwords):
     sw = stopwords[0]
     punct = stopwords[1]
@@ -582,7 +558,7 @@ def main(args):
         print '  Create batches..'
 
         create_batches(args, args.nclasses, train_x, train_y, train_e, train_sc,
-                       train_clean_y, train_bm, train_sha, train_ch, None, args.batch,
+                       train_clean_y, train_sha, train_ch, None, args.batch,
                        pad_id, stopwords, sort=True, model_type='train')
 
         print '  Purge references..'
@@ -604,7 +580,7 @@ def main(args):
         print '  Create batches..'
 
         create_batches(args, args.nclasses, dev_x, dev_y, dev_e, dev_sc, dev_clean_y,
-                       dev_bm, dev_sha, dev_ch, dev_rx, args.batch,pad_id,
+                       dev_sha, dev_ch, dev_rx, args.batch,pad_id,
                        stopwords, sort=False, model_type='dev')
 
         print '  Purge references..'
@@ -627,7 +603,7 @@ def main(args):
         print '  Create batches..'
 
         create_batches(args, -1, test_x, test_y, test_e, test_sc, test_clean_y,
-                       test_bm, test_sha, test_ch, test_rx,args.batch,
+                       test_sha, test_ch, test_rx,args.batch,
                        pad_id, stopwords, sort=False, model_type='test')
 
         print '  Purge references..'

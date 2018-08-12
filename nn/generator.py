@@ -166,7 +166,7 @@ class Generator(object):
                                            sequences=[samples.dimshuffle((1, 0)),
                                                       self.chunk_sizes.dimshuffle((1, 0))]
                                            )
-        self.z_pred = z_pred_word_level = z_pred_word_level.dimshuffle((1, 0))
+        self.non_sampled_zpred = self.z_pred = z_pred_word_level = z_pred_word_level.dimshuffle((1, 0))
         self.logpz = - T.nnet.binary_crossentropy(probs, samples) * self.pad_mask
         self.probz = probs
         self.samps = samples
@@ -222,7 +222,6 @@ class Generator(object):
 
         self.obj = T.mean(T.sum(cost_vec, axis=0))
         self.cost_g = cost_logpz * self.args.coeff_cost_scale + self.l2_cost
-
 
     def lstm_encoding(self, fw_mask, rv_mask, n_e, n_d, activation):
         layers = self.layers

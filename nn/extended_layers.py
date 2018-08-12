@@ -154,7 +154,7 @@ class Sampler(LSTM):
         x_tm1 = x_tm1 * mask_t
         hc_t = super(Sampler, self).forward(x_tm1, hc_tm1)
 
-        concat_in = T.concatenate([x_t, posit_x_t, hc_tm1], axis=1)
+        concat_in = T.concatenate([x_t, posit_x_t, hc_t], axis=1)
         a_t = self.fc_layer.forward(concat_in)
         pt = self.fc_layer_final.forward(a_t)
 
@@ -164,7 +164,7 @@ class Sampler(LSTM):
         x_tm1 = x_tm1 * mask_t
         hc_t = super(Sampler, self).forward(x_tm1, hc_tm1)
 
-        concat_in = T.concatenate([x_t, posit_x_t, hc_tm1], axis=1)
+        concat_in = T.concatenate([x_t, posit_x_t, hc_t], axis=1)
         a_t = self.fc_layer.forward(concat_in)
         pt = self.fc_layer_final.forward(a_t)
 
@@ -175,7 +175,7 @@ class Sampler(LSTM):
         x_tm1 = x_tm1 * mask_t
         hc_t = super(Sampler, self).forward(x_tm1, hc_tm1)
 
-        concat_in = T.concatenate([x_t, posit_x_t, hc_tm1], axis=1)
+        concat_in = T.concatenate([x_t, posit_x_t, hc_t], axis=1)
         a_t = self.fc_layer.forward(concat_in)
         pt = self.fc_layer_final.forward(a_t).ravel()
 

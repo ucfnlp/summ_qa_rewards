@@ -97,6 +97,7 @@ class Model(object):
 
         self.generator.ready()
         self.generator.sample(True)
+        self.generator.rl_out()
 
         self.dropout = self.generator.dropout
         self.x = self.generator.x
@@ -241,10 +242,12 @@ class Model(object):
 
     def dev(self):
         inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
+        outputs = [self.generator.non_sampled_zpred, self.generator.cost_g, self.generator.obj]
+
 
         eval_generator = theano.function(
             inputs=inputs_d,
-            outputs=[self.generator.non_sampled_zpred, self.generator.cost_g, self.generator.obj],
+            outputs=outputs,
             on_unused_input='ignore'
         )
 
