@@ -490,7 +490,7 @@ def create_chunk_masks(word_level_bm, bsz):
             m.extend(cur_chunk)
         masks.append(m)
 
-    return masks
+    return np.asarray(masks, dtype='int32')
 
 
 def contains_single_valid_word(w1, w2, stopwords):

@@ -71,7 +71,7 @@ class Generator(object):
                                         sequences=[embs_p.dimshuffle((1, 0, 2)), self.fw_mask.dimshuffle((1, 0))])
         reduced_p_embs = reduced_p_embs.dimshuffle((1, 0, 2))
 
-        if self.args.bigram_m:
+        if self.args.word_level_c:
             padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
             bm_shift = T.concatenate([padded, bm[:-1]], axis=0)
 
