@@ -196,7 +196,7 @@ class Generator(object):
         z_pred_word_level = self.z_pred
         bm = self.bm
 
-        if self.args.bigram_m:
+        if self.args.word_level_c:
             z_shift = z_pred_word_level[1:]
             z_new = z_pred_word_level[:-1]
 
