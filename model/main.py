@@ -576,8 +576,7 @@ class Model(object):
                 N = args.online_batch_size * num_files
 
                 for i in xrange(num_files):
-                    train_batches_x, _, _, train_batches_bm, _, _, train_batches_fw, train_batches_cz, train_batches_bpi = myio.load_batches(
-                        args.batch_dir + args.source + 'train', i)
+                    train_batches_x, _, _, train_batches_bm, _, train_batches_fw, train_batches_cz, train_batches_bpi = myio.load_batches(args.batch_dir + args.source + 'train', i)
 
                     random.seed(datetime.now())
                     perm2 = range(len(train_batches_x))
@@ -696,7 +695,7 @@ class Model(object):
         )[:3]
 
         outputs_d = [self.z, self.generator.cost_g, self.generator.obj]
-        outputs_t = [self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g, self.generator.probz, self.generator.samps, self.generator.cost_vec]
+        outputs_t = [self.generator.obj, self.z, self.generator.zsum, self.generator.zdiff,  self.generator.cost_g]
 
         inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
         inputs_t = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
@@ -757,7 +756,8 @@ class Model(object):
                 N = args.online_batch_size * num_files
 
                 for i in xrange(num_files):
-                    train_batches_x, _, _, train_batches_bm, _, _, train_batches_fw, train_batches_cz, train_batches_bpi = myio.load_batches(
+
+                    train_batches_x, _, _, train_batches_bm, _,train_batches_fw, train_batches_cz, train_batches_bpi = myio.load_batches(
                         args.batch_dir + args.source + 'train', i)
 
                     random.seed(datetime.now())
@@ -783,7 +783,7 @@ class Model(object):
 
                         mask = bx != padding_id
 
-                        obj, z, zsum, zdiff,cost_g, _, _, _ = train_generator(bx, bpi, bm, bfw, bcz)
+                        obj, z, zsum, zdiff, cost_g = train_generator(bx, bpi, bm, bfw, bcz)
 
                         zsum_all.append(np.mean(zsum))
                         z_diff_all.append(np.mean(zdiff))
@@ -875,7 +875,7 @@ class Model(object):
 
         for i in xrange(num_files):
 
-            batches_x, _, _, batches_bm, _, batches_sha, batches_rx, batches_fw, batches_cs, batches_bpi = myio.load_batches(
+            batches_x, _, _, batches_bm, batches_sha, batches_rx, batches_fw, batches_cs, batches_bpi = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
@@ -904,7 +904,7 @@ class Model(object):
         num_files = self.args.num_files_dev
 
         for i in xrange(num_files):
-            batches_x, _, _, batches_bm, _, batches_sha, batches_rx, batches_fw, batches_cs, batches_bpi = myio.load_batches(
+            batches_x, _, _, batches_bm, batches_sha, batches_rx, batches_fw, batches_cs, batches_bpi = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
