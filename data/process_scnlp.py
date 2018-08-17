@@ -233,8 +233,8 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
         highlights = inp[sample]
         num_sentences = len(highlights)
         for h in xrange(num_sentences):
-
-            single_sent_hl_entity_ls = []
+            single_sent_hl_entity_ls = [[],[],[]]
+            used_idx = set()
 
             # 1.) find sentence root
             working_anno_hl = highlights[h]
@@ -249,7 +249,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             root_token = tokens_ls[root_idx - 1]
             root_lemma = root_token['lemma'].lower()
             root_org = root_token['originalText']
-            root_first_word = root_org
+            root_first_word = root_org.lower()
 
             start_r = end_r = root_idx - 1
 
@@ -275,18 +275,20 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
             if start_r == end_r:
                 hl_vec = clean_hl_vec[:]
                 hl_vec[root_idx - 1] = placeholder
+                used_idx.add(root_idx - 1)
             else:
                 hl_vec = clean_hl_vec[:start_r] + [placeholder] + clean_hl_vec[end_r + 1:]
 
             single_inp_hl.append(hl_vec)
-            single_sent_hl_entity_ls.append(entity_set[root_lemma.lower()][0])
+            single_sent_hl_entity_ls[0].append(entity_set[root_lemma.lower()][0])
 
             # 2.) find all xobj, xsubj
-            usable_question_dependencies = find_dependencies(False, basic_dep, tokens_ls)
+            usable_question_dependencies = find_dependencies(basic_dep, tokens_ls)
 
             for (tok, type_, t_idx) in usable_question_dependencies:
                 tok_lemma = tok['lemma'].lower()
                 tok_org = tok['originalText']
+                first_word = tok_org.lower()
 
                 if tok_lemma not in entity_set:  # previously not found @entity
                     entity_info = [entity_counter, type_]
@@ -296,25 +298,28 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
                 if tok_org not in raw_entity_mapping:
                     raw_entity_mapping[tok_org] = tok_lemma
 
-                if tok_org not in first_word_map:
-                    first_word_map[tok_org] = [tok_org]
+                if first_word not in first_word_map:
+                    first_word_map[first_word] = [tok_org]
                 else:
-                    originals = first_word_map[tok_org]
+                    originals = first_word_map[first_word]
 
                     if tok_org not in originals:
-                        first_word_map[tok_org].append(tok_org)
+                        first_word_map[first_word].append(tok_org)
 
                 hl_vec = clean_hl_vec[:]
                 hl_vec[t_idx] = placeholder
+                used_idx.add(t_idx)
 
                 single_inp_hl.append(hl_vec)
-                single_sent_hl_entity_ls.append(entity_set[tok_lemma.lower()][0])
+                single_sent_hl_entity_ls[1].append(entity_set[tok_lemma.lower()][0])
 
             # 3.) find all instances of tags
             # named entities in the form : (entity name, start, end, type, raw name, first word)
             entities = find_ner_tokens(args, tokens_ls, tag_ls)
 
             for entity_name, start, end, e_type, raw_name, first_word in entities:
+                if start in used_idx:
+                    continue
                 if entity_name not in entity_set:
                     entity_info = [entity_counter, e_type]
                     entity_set[entity_name] = entity_info
@@ -323,7 +328,7 @@ def seqs_hl(args, inp, vocab, entity_set, entity_counter, raw_entity_mapping, fi
                 hl_vec_complete = clean_hl_vec[:start] + [placeholder] + clean_hl_vec[end + 1:]
 
                 single_inp_hl.append(hl_vec_complete)
-                single_sent_hl_entity_ls.append(entity_set[entity_name][0])
+                single_sent_hl_entity_ls[2].append(entity_set[entity_name][0])
 
                 if raw_name not in raw_entity_mapping:
                     raw_entity_mapping[raw_name] = entity_name
@@ -707,19 +712,18 @@ def sort_entries(first_word_map):
     return new_first_word_map
 
 
-def find_dependencies(enh, basic_dep, tokens):
+def find_dependencies(basic_dep, tokens):
     found_ls = []
-    if not enh:
-        return found_ls
 
-    for item in basic_dep:
-        dep = item['dep']
+    for item_idx in xrange(len(basic_dep)):
+
+        dep = basic_dep[item_idx]['dep']
 
         if 'obj' in dep or 'subj' in dep:
-            index = int(item['dependent']) -1
-            token = tokens[index]
+            token_idx = basic_dep[item_idx]['dependent'] - 1
+            token = tokens[token_idx]
 
-            found_ls.append((token, dep, index))
+            found_ls.append((token, dep, token_idx))
 
     return found_ls
 

@@ -33,6 +33,7 @@ class Model(object):
         self.encoder = Encoder(args, nclasses, self.generator)
 
         self.generator.ready()
+        self.generator.sample(inference=False)
         self.encoder.ready()
 
         self.dropout = self.generator.dropout
@@ -41,7 +42,7 @@ class Model(object):
         self.chunk_sizes = self.generator.chunk_sizes
 
         self.y = self.encoder.y
-        self.bm = self.encoder.bm
+        self.bm = self.generator.bm
         self.gold_standard_entities = self.encoder.gold_standard_entities
 
         self.z = self.generator.z_pred
@@ -305,8 +306,7 @@ class Model(object):
         outputs_d = [self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped]
         outputs_t = [self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
                      self.encoder.bigram_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz,
-                     self.encoder.cost_vec, self.generator.masks, self.encoder.bigram_loss, self.encoder.preds_clipped,
-                     self.encoder.alpha, self.encoder.o]
+                     self.encoder.cost_vec, self.encoder.preds_clipped]
 
         inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
         inputs_t = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
@@ -376,7 +376,7 @@ class Model(object):
 
                 for i in xrange(num_files):
 
-                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm, train_batches_blm, _, train_batches_fw, train_batches_csz, train_batches_bpi = myio.load_batches(
+                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm, _, train_batches_fw, train_batches_csz, train_batches_bpi = myio.load_batches(
                         args.batch_dir + args.source + 'train', i)
 
                     cur_len = len(train_batches_x)
@@ -393,9 +393,6 @@ class Model(object):
                     train_batches_csz = [train_batches_csz[k] for k in perm2]
                     train_batches_bpi = [train_batches_bpi[k] for k in perm2]
 
-                    if not args.pad_repeat:
-                        train_batches_blm = [train_batches_blm[k] for k in perm2]
-
                     for j in xrange(cur_len):
                         if args.full_test:
                             if (i* args.online_batch_size + j + 1) % 10 == 0:
@@ -403,10 +400,11 @@ class Model(object):
                         elif (i* args.online_batch_size + j + 1) % 10 == 0:
                                 say("\r{}/{} {:.2f}       ".format(i* args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
-                        bx, by, be, bm, blm, bfw, bcsz, bpi = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
-                                                  train_batches_bm[j], train_batches_blm[j], train_batches_fw[j], train_batches_csz[j], train_batches_bpi[j]
+                        bx, by, be, bm, bfw, bcsz, bpi = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
+                                                  train_batches_bm[j], train_batches_fw[j], train_batches_csz[j], train_batches_bpi[j]
+                        be, blm = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
 
-                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, masks, bigram_loss, preds_tr, alpha, o = train_generator(
+                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, preds_tr = train_generator(
                                 bx, bpi, by, bm, be, bfw, bcsz, blm)
 
                         mask = bx != padding_id

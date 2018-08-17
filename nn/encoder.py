@@ -29,7 +29,7 @@ class Encoder(object):
         # (batch * n) x n_classes
         gold_standard_entities = self.gold_standard_entities = T.imatrix('gs')
         # inp_len x batch
-        bm = self.bm = T.imatrix('bm')
+        bm = self.bm = generator.bm
 
         # mask for loss
         if not args.pad_repeat:
@@ -101,7 +101,7 @@ class Encoder(object):
         # (batch * n) x inp_len
         self.alpha = alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], x.shape[0])))
 
-        # (batch * n) * n_d * 2
+        # (batch * n) x n_d * 2
         o = T.batched_dot(alpha, gen_h_final)
 
         size *= 4
@@ -110,14 +110,14 @@ class Encoder(object):
 
         fc7 = Layer(
             n_in=size,
-            n_out=128,
+            n_out=512,
             activation=get_activation_by_name('relu'),
             has_bias=True
         )
         fc7_out = fc7.forward(o)
 
         output_layer = Layer(
-            n_in=size,
+            n_in=512,
             n_out=self.nclasses,
             activation=softmax,
             has_bias=True

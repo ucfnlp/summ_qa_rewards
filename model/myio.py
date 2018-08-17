@@ -688,7 +688,7 @@ def bigram_vectorize(lstx, lsty, padding_id):
 
 def create_1h(lste, n_classes, n, pad_repeat):
     loss_mask = np.ones((len(lste), n), dtype='int32')
-    e_processed = [[] for _ in xrange(args.n)]
+    e_processed = [[] for _ in xrange(n)]
     for i in xrange(len(lste)):
         for j in xrange(len(lste[i])):
 

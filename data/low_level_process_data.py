@@ -128,25 +128,29 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, entity_map, used_e):
             if total_entries >= args.n:
                 break
 
-            num_perms = len(highlight)
+            num_perms = get_perms(highlight)
 
-            if args.use_root or num_perms == 1:
+            if args.use_root:
                 updated_y_ls.append(y[i][y_idx])
-                updated_e_ls.append(highlight[0])
+                updated_e_ls.append(highlight[0][0])
 
-                used_e.add(highlight[0])
+                used_e.add(highlight[0][0])
 
                 total_entries += 1
             else:
-                if num_perms == 2:
-                    rand_e_idx = 1
-                else:
-                    rand_e_idx = np.random.randint(1, num_perms - 1)
+                # if num_perms == 2:
+                #     rand_e_idx = 1
+                # else:
+                #     rand_e_idx = np.random.randint(1, num_perms - 1)
 
-                updated_y_ls.append(y[i][y_idx + rand_e_idx])
-                updated_e_ls.append(highlight[rand_e_idx])
+                flat_hl = [item for group in highlight for item in group]
 
-                used_e.add(highlight[rand_e_idx])
+                for j in xrange(len(flat_hl)):
+
+                    updated_y_ls.append(y[i][y_idx + j])
+                    updated_e_ls.append(flat_hl[j])
+
+                    used_e.add(flat_hl[j])
 
                 total_entries += 1
 
@@ -316,6 +320,15 @@ def is_root(perm, entities):
     corresponding_e = entities[perm]
 
     return corresponding_e[1] == 'ROOT'
+
+
+def get_perms(highlight):
+    t = 0
+    for item in highlight:
+        for _ in item:
+            t += 1
+
+    return t
 
 
 if __name__ == '__main__':

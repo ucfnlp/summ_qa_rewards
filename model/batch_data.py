@@ -231,7 +231,6 @@ def create_one_batch(args, lstx, lsty,lstsc, lstcy, lstch, padding_id, stopwords
     by, unigrams = process_hl(args, lsty, padding_id, lstcy)
     by = np.column_stack([y for y in by])
 
-
     bch, bsz = create_chunk_mask(lstch, max_len)
 
     bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
@@ -281,6 +280,8 @@ def process_hl(args, lsty, padding_id, lstcy):
         sample_u = set()
 
         for j in xrange(len(lsty[i])):
+            if j == args.n:
+                break
             y = lsty[i][j][:max_len_y]
             single_hl = np.pad(y, (max_len_y - len(y), 0), "constant", constant_values=padding_id).astype('int32')
 
@@ -469,7 +470,7 @@ def create_chunk_masks(word_level_bm, bsz):
     for i in xrange(len(word_level_bm)):
         m = []
         chunks = bsz[:, i]
-        gs_words = word_level_bm[i]
+        gs_words = np.pad(word_level_bm[i][:-1], mode='constant', pad_width=(1, 0), constant_values=0) + word_level_bm[i]
         end = 0
 
         for c in chunks:
@@ -479,7 +480,7 @@ def create_chunk_masks(word_level_bm, bsz):
             use_cur_chunk = False
 
             for j in range(begin, end):
-                if gs_words[j] == 1:
+                if gs_words[j] > 0:
                     use_cur_chunk = True
                     break
 
