@@ -483,10 +483,8 @@ class Model(object):
                             self.save_model(filename, args)
                             json_train['BEST_DEV_EPOCH'] = epoch
 
-                            if args.sent_level_c:
-                                myio.save_dev_results_s(self.args, None, dev_z, dev_x, dev_sha)
-                            else:
-                                myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
+
+                            myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
 
             if more_count > 5:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
@@ -937,26 +935,20 @@ class Model(object):
         num_files = self.args.num_files_dev
 
         for i in xrange(num_files):
-            if args.pad_repeat:
-                batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_fw, batches_csz, batches_bpi = myio.load_batches(
-                    self.args.batch_dir + self.args.source + 'dev', i)
-            else:
-                batches_x, batches_y, batches_e, batches_bm, batches_lm,  batches_sha, batches_rx, batches_fw, batches_csz, batches_bpi = myio.load_batches(
+
+            batches_x, batches_y, batches_e, batches_bm,  batches_sha, batches_rx, batches_fw, batches_csz, batches_bpi = myio.load_batches(
                     self.args.batch_dir + self.args.source + 'dev', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                if args.pad_repeat:
-                    bx, by, be, bm, sha, rx, fw, csz, bpi = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], \
-                                                       batches_sha[j], batches_rx[j], batches_fw[j], batches_csz[j], batches_bpi[j]
-                    bz, o, e, preds = eval_func(bx, by, bm, be, fw, csz)
-                else:
-                    bx, by, be, bm, sha, rx, ble, fw, csz, bpi = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], \
-                                                            batches_sha[j], batches_rx[j], batches_lm[j], batches_fw[j], \
-                                                            batches_csz[j], batches_bpi[j]
-                    print bx.shape, fw.shape
-                    bz, o, e, preds = eval_func(bx, bpi, by, bm, be, fw, csz, ble)
+
+                bx, by, be, bm, sha, rx, fw, csz, bpi = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], \
+                                                        batches_sha[j], batches_rx[j], batches_fw[j], \
+                                                        batches_csz[j], batches_bpi[j]
+                print bx.shape, fw.shape
+                be, ble = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
+                bz, o, e, preds = eval_func(bx, bpi, by, bm, be, fw, csz, ble)
 
                 tot_obj += o
 

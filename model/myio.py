@@ -691,7 +691,8 @@ def create_1h(lste, n_classes, n, pad_repeat):
     e_processed = [[] for _ in xrange(n)]
     for i in xrange(len(lste)):
         for j in xrange(len(lste[i])):
-
+            if j == n:
+                break
             if n_classes > 0:
                 single_e_1h = np.zeros((n_classes,), dtype='int32')
                 single_e_1h[lste[i][j]] = 1
