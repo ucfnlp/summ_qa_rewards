@@ -162,6 +162,8 @@ def recombine_scnlp_data(args):
             if sha not in article_info:
                 continue
 
+            if counter % 1000 == 0:
+                print 'at', counter
             hl_idx_end += int(article_info[sha])
 
             ifp_article = open(args.parsed_output_loc + 'scnlp/' + sha + '.txt.json', 'rb')
@@ -184,9 +186,6 @@ def recombine_scnlp_data(args):
 
             counter += 1
 
-            if counter == limit:
-                break
-
 
 def tree2dict(tree):
     return {tree.label(): [tree2dict(t) if isinstance(t, ParentedTree) else t.lower() for t in tree]}
@@ -195,19 +194,19 @@ def tree2dict(tree):
 def get_order():
     train_ls, dev_ls, test_ls = [], [], []
 
-    ifp = open('all_cnn_sha_train.out', 'rb')
+    ifp = open('all_dm_sha_train.out', 'rb')
 
     for line in ifp:
         train_ls.append(line.rstrip())
 
     ifp.close()
-    ifp = open('all_cnn_sha_dev.out', 'rb')
+    ifp = open('all_dm_sha_dev.out', 'rb')
 
     for line in ifp:
         dev_ls.append(line.rstrip())
 
     ifp.close()
-    ifp = open('all_cnn_sha_test.out', 'rb')
+    ifp = open('all_dm_sha_test.out', 'rb')
 
     for line in ifp:
         test_ls.append(line.rstrip())
@@ -226,23 +225,23 @@ def process_pos(cur_hl, document, stopwords):
         tokens = sentence['tokens']
         num_tok = len(tokens)
 
-        tree = ParentedTree.fromstring(sentence['parse'])
+        # tree = ParentedTree.fromstring(sentence['parse'])
 
         paths = []
         leaves = []
-        mask = [0]*num_tok
-
-        dfs_nltk_tree(tree, paths, leaves, i + 1)
-        leaves = leaves[::-1]
-
-        create_subtree_mask(leaves, mask, hl_token_set)
-
-        assert num_tok == len(paths)
-        paths = paths[::-1]
+        # mask = [0]*num_tok
+        #
+        # dfs_nltk_tree(tree, paths, leaves, i + 1)
+        # leaves = leaves[::-1]
+        #
+        # create_subtree_mask(leaves, mask, hl_token_set)
+        #
+        # assert num_tok == len(paths)
+        # paths = paths[::-1]
 
         for j in xrange(num_tok):
-            tokens[j]['trace'] = paths[j]
-            tokens[j]['pretrain'] = mask[j]
+            tokens[j]['trace'] = paths
+            tokens[j]['pretrain'] = 0
 
 
 def dfs_nltk_tree(tree, paths, leaves, s_idx):

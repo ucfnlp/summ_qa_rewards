@@ -63,23 +63,31 @@ class Encoder(object):
 
         embs_x = generator.word_embs
 
-        flipped_embs_x = embs_x[::-1]
-        flipped_mask_x = mask_x[::-1]
-
         flipped_embs_y = embs_y[::-1]
         flipped_mask_y = mask_y[::-1]
 
         h_f_y = rnn_fw.forward_all(embs_y, mask_y)
         h_r_y = rnn_rv.forward_all(flipped_embs_y, flipped_mask_y)
 
-        h_f_x = rnn_fw.forward_all_x(embs_x, mask_x)
-        h_r_x = rnn_rv.forward_all_x(flipped_embs_x, flipped_mask_x)
+        if args.use_generator_h:
+            h_concat_x = self.generator.h_final * self.generator.chunk_samples.dimshuffle((0, 1, 'x'))
+            n_d = self.generator.size/2
+
+            layers.extend(self.generator.layers[:2])
+        else:
+            flipped_embs_x = embs_x[::-1]
+            flipped_mask_x = mask_x[::-1]
+
+            h_f_x = rnn_fw.forward_all_x(embs_x, mask_x)
+            h_r_x = rnn_rv.forward_all_x(flipped_embs_x, flipped_mask_x)
+
+            h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
 
         # 1 x (batch * n) x n_d -> (batch * n) x (2 * n_d) x 1
         h_concat_y = T.concatenate([h_f_y, h_r_y], axis=2).dimshuffle((1, 2, 0))
 
         # inp_len x batch x n_d -> inp_len x batch x (2 * n_d)
-        h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
+
 
         # (batch * n) x inp_len x (2 * n_d)
         gen_h_final = T.tile(h_concat_x, (args.n, 1)).dimshuffle((1, 0, 2))

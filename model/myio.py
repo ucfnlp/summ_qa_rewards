@@ -450,7 +450,7 @@ def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
 
     for i in xrange(len(z)):
 
-        start_hl_idx = 0
+        start_hl_idx = 1
         end_hl_idx = len(y[i][0])
         hl_step = end_hl_idx / args.n
 
@@ -483,6 +483,7 @@ def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
             raw_and_mask['m'] = z[i][:, j].tolist()
 
             raw_and_mask['r'] = x[i][j][:]
+            # raw_and_mask['y'] = []
             raw_and_mask['y'] = create_eval_questions(args, y[i], e[i], index_to_e_map, embedding_layer, start_hl_idx,
                                                       end_hl_idx, hl_step)
 
@@ -593,8 +594,9 @@ def create_eval_questions(args, y, e, index_to_e_map, embedding_layer, start_hl_
     for i in range(start_hl_idx, end_hl_idx, step):
         single_y = dict()
         hl_str = ''
+        entity = np.argmax(e[i])
 
-        if e[i] < 0:
+        if entity < 0:
             continue
 
         for j in xrange(len(y)):
@@ -608,7 +610,7 @@ def create_eval_questions(args, y, e, index_to_e_map, embedding_layer, start_hl_
             hl_str += ' '
 
         single_y['hl'] = hl_str.rstrip()
-        single_y['e'] = index_to_e_map[e[i]]
+        single_y['e'] = index_to_e_map[entity]
 
         questions.append(single_y)
 
@@ -617,6 +619,7 @@ def create_eval_questions(args, y, e, index_to_e_map, embedding_layer, start_hl_
 
 def get_entities(args):
     i_to_e = dict()
+    print args.source
 
     filename_entities = 'entities_model.json' if args.full_test else "small_entities_model.json"
     filename_entities = args.source + '_' + str(args.vocab_size) + '_' + filename_entities

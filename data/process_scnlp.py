@@ -63,6 +63,11 @@ def split_data(args):
 
                 # Here current_article is a list containing tuples (sentence, mask, chunk_ls)
                 current_article = extract_tokens(args, inp_json['document'], inp_json['highlights'], unique_words)
+
+                if current_article is None:
+                    print sha
+                    continue
+
                 for c in current_article:
                     sentence_lengths.append(len(c[0]))
                 current_highlights = inp_json['highlights']
@@ -159,18 +164,19 @@ def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, u
             for w in xrange(len(sent)):
 
                 # 1.) check if word in vocab or not
-                word = sent[w].lower()
+                word = sent[w]
+                word_l = word.lower()
 
-                index = vocab[word] if word in vocab else unk
+                index = vocab[word_l] if word_l in vocab else unk
                 single_inp_sent.append(index)
 
                 if return_r:
                     single_inp_sent_raw.append(word)
 
                 # 2.) check if word starts NER
-                if word in first_word_map:
+                if word_l in first_word_map:
 
-                    originals = first_word_map[word]
+                    originals = first_word_map[word_l]
 
                     for raw_text_entity in originals:
 
@@ -463,20 +469,22 @@ def extract_tokens(args, document, hl, unique_words):
         s, mask, chunk_ls = [], [], []
 
         for token in tokens:
-            text = token['originalText'].lower()
+            text = token['originalText']
+            text_l = text.lower()
             pretrain = token['pretrain']
 
             s.append(text)
             mask.append(pretrain)
 
-            if text in unique_words:
-                unique_words[text] += 1
+            if text_l in unique_words:
+                unique_words[text_l] += 1
             else:
-                unique_words[text] = 1
+                unique_words[text_l] = 1
 
         chunk_ls, num_l = dfs_nltk_tree(args, tree, args.chunk_threshold)
 
-        assert num_l == len(s)
+        if num_l != len(s):
+            return None
 
         if top_sent:
 

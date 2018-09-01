@@ -157,6 +157,7 @@ class Generator(object):
         else:
             probs, updates, samples = output_rnn.pt_forward_all_sample(self.h_final, reduced_p_embs)
             self.sample_updates = updates
+            self.chunk_samples = samples
 
         if self.args.self_critical:
             arg_max = T.cast(T.round(probs, mode='half_away_from_zero'), theano.config.floatX)
@@ -225,6 +226,7 @@ class Generator(object):
 
     def lstm_encoding(self, fw_mask, rv_mask, n_e, n_d, activation):
         layers = self.layers
+
         for i in xrange(2):
             l = LSTM(
                 n_in=n_e,

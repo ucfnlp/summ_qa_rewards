@@ -36,7 +36,7 @@ def get_args():
 
     parser.add_argument('--parsed_output_loc',
                         type=str,
-                        default='parse/cnn/',
+                        default='parse/dm/',
                         help='File path for parsed data')
 
     parser.add_argument('--cp',
@@ -81,7 +81,7 @@ def get_args():
 
     parser.add_argument('--source',
                         type=str,
-                        default='cnn',
+                        default='dm',
                         help='Data source')
 
     return parser.parse_args()

@@ -167,6 +167,10 @@ def get_args():
                         default="../data/results/summaries/model/",
                         help="gold standard summaries"
                         )
+    parser.add_argument('--use_generator_h',
+                        type='bool',
+                        default=False,
+                        help='take hidden states from Generator')
 
     parser.add_argument('--pad_repeat',
                         type='bool',

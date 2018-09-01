@@ -54,12 +54,13 @@ class Model(object):
         self.generator = Generator(args, embedding_layer, embedding_layer_posit)
 
         self.generator.ready()
-        self.dropout = self.generator.dropout
+        self.generator.sample(True)
+        self.generator.rl_out()
 
+        self.dropout = self.generator.dropout
         self.x = self.generator.x
+        self.bm = self.generator.bm
         self.fw_mask = self.generator.fw_mask
-        self.chunk_sizes = self.generator.chunk_sizes
-        self.z = self.generator.non_sampled_zpred
 
     def ready_pretrain(self, inference=False):
         args, embedding_layer, embedding_layer_posit = self.args, self.embedding_layer, self.embedding_layer_posit
@@ -167,11 +168,22 @@ class Model(object):
                 path += ".pkl.gz"
 
         with gzip.open(path, "rb") as fin:
-            eparams, gparams, nclasses, args = pickle.load(fin)
+            loaded = pickle.load(fin)
+
+            if test:
+                gparams = loaded[0]
+                self.nclasses = self.args.nclasses
+                # args = loaded[2]
+
+            else:
+                eparams = loaded[0]
+                gparams = loaded[1]
+                nclasses = loaded[2]
+                args = loaded[3]
 
         # construct model/network using saved configuration
-        self.args = args
-        self.nclasses = nclasses
+                self.args = args
+                self.nclasses = nclasses
 
         if test:
             self.ready_test()
@@ -194,8 +206,8 @@ class Model(object):
             gparams, nclasses, args = pickle.load(fin)
 
         if self.args.pretrain:
+            self.nclasses = self.args.nclasses
             self.args = args
-            self.nclasses = nclasses
             self.ready_pretrain(inference=inference)
         elif self.args.rl_no_qa:
             self.nclasses = nclasses
@@ -229,11 +241,12 @@ class Model(object):
 
     def test(self):
         args = self.args
+        inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
 
         test_generator = theano.function(
-            inputs=[self.x, self.generator.posit_x, self.fw_mask, self.chunk_sizes],
-            outputs=self.z,
-            updates=self.generator.sample_updates
+            inputs=inputs_d,
+            outputs=self.generator.non_sampled_zpred,
+            on_unused_input='ignore'
         )
 
         self.dropout.set_value(0.0)
@@ -258,10 +271,8 @@ class Model(object):
         myio.get_rouge(self.args)
 
     def dev_full(self):
+        inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask,self.chunk_sizes, self.encoder.loss_mask]
 
-        inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes]
-        if not args.pad_repeat:
-            inputs_d.append(self.encoder.loss_mask)
 
         eval_generator = theano.function(
             inputs=inputs_d,
@@ -273,11 +284,8 @@ class Model(object):
         self.dropout.set_value(0.0)
 
         dev_obj, dev_z, dev_x, dev_sha, dev_acc = self.evaluate_data(eval_generator)
-        # myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
-        if self.args.sent_level_c:
-            myio.save_dev_results_s(self.args, None, dev_z, dev_x, dev_sha)
-        else:
-            myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
+
+        myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
         myio.get_rouge(self.args)
 
     def train(self):
@@ -973,21 +981,22 @@ class Model(object):
         num_files = self.args.num_files_test
 
         for i in xrange(num_files):
-            batches_x, batches_y, batches_e, _, batches_sha, batches_rx, batches_fw, batches_csz, batches_bpi = myio.load_batches(
+            batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_fw, batches_cs, batches_bpi = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'test', i)
 
             cur_len = len(batches_x)
 
             for j in xrange(cur_len):
-                bx, rx, bsha, by, be, fw, csz, bpi = batches_x[j], batches_rx[j], batches_sha[j], batches_y[j], batches_e[j], batches_fw[j], batches_csz[j], batches_bpi[j]
-                bz = eval_func(bx,bpi, fw, csz)
+                bx, bm, sha, rx, bfw, bpi, bsc, by, be = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], batches_bpi[j], batches_cs[j],batches_y[j],batches_e[j]
+                be, _ = myio.create_1h(be, self.nclasses, 10, self.args.pad_repeat)
+                bz = eval_func(bx, bpi, bm, bfw, bsc)
 
                 x.append(rx)
                 y.append(by)
                 e.append(be)
 
                 test_z.append(bz)
-                sha_ls.append(bsha)
+                sha_ls.append(sha)
 
             N += len(batches_x)
 
@@ -1084,8 +1093,12 @@ def main():
             model.dev_full()
 
     elif args.test:
-        model.load_model(args.save_model + args.load_model, True)
-        model.test()
+        if args.pretrain:
+            model.load_model_pretrain(args.save_model + args.load_model, inference=True)
+            model.test()
+        else:
+            model.load_model(args.save_model + args.load_model, True)
+            model.test()
 
 
 if __name__ == "__main__":
