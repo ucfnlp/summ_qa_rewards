@@ -184,12 +184,8 @@ class Sampler(LSTM):
         mask_next = mask_next.reshape((-1,1))
         return mask_next, hc_t
 
-    def pt_forward_all(self, x, posit_x, mask, h0=None):
-        if h0 is None:
-            if x.ndim > 1:
-                h0 = T.zeros((x.shape[1], self.n_out*2), dtype=theano.config.floatX)
-            else:
-                h0 = T.zeros((self.n_out *2,), dtype=theano.config.floatX)
+    def pt_forward_all(self, x, posit_x, mask):
+        h0 = T.zeros((x.shape[1], self.n_out*2), dtype=theano.config.floatX)
 
         padded = T.shape_padaxis(T.zeros_like(x[0]), axis=1).dimshuffle((1, 0, 2))
         x_shifted = T.concatenate([padded, x[:-1]], axis=0)
@@ -206,12 +202,11 @@ class Sampler(LSTM):
         new_probs = o[1].reshape((x.shape[0], x.shape[1]))
         return new_probs
 
-    def pt_forward_all_inference(self, x, posit_x, h0=None):
-        if h0 is None:
-            if x.ndim > 1:
-                h0 = T.zeros((x.shape[1], self.n_out * 2), dtype=theano.config.floatX)
-            else:
-                h0 = T.zeros((self.n_out * 2,), dtype=theano.config.floatX)
+    def s_forward_all(self, x, posit_x, inference=False):
+        h0 = T.zeros((x.shape[1], self.n_out * 2), dtype=theano.config.floatX)
+
+        if not inference:
+            return self._forward_all_sample(x, posit_x, h0)
 
         padded = T.shape_padaxis(T.zeros_like(x[0]), axis=1).dimshuffle((1, 0, 2))
         x_shifted = T.concatenate([padded, x[:-1]], axis=0)
@@ -226,13 +221,7 @@ class Sampler(LSTM):
         new_probs = o[2].reshape((x.shape[0], x.shape[1]))
         return new_probs
 
-    def pt_forward_all_sample(self, x, posit_x, h0=None):
-        if h0 is None:
-            if x.ndim > 1:
-                h0 = T.zeros((x.shape[1], self.n_out * 2), dtype=theano.config.floatX)
-            else:
-                h0 = T.zeros((self.n_out * 2,), dtype=theano.config.floatX)
-
+    def _forward_all_sample(self, x, posit_x, h0):
         padded = T.shape_padaxis(T.zeros_like(x[0]), axis=1).dimshuffle((1, 0, 2))
         x_shifted = T.concatenate([padded, x[:-1]], axis=0)
         mask = T.zeros(shape=(x.shape[1],)).dimshuffle((0, 'x'))
