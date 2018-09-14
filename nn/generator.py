@@ -64,8 +64,7 @@ class Generator(object):
         posit_x = self.posit_x = T.imatrix('pos')
 
         embs_p = embedding_layer_posit.forward(posit_x.ravel())
-        embs_p = embs_p.reshape((bm.shape[0], bm.shape[1], embedding_layer_posit.n_d))
-        self.embs_p = embs_p = apply_dropout(embs_p, self.dropout)
+        self.embs_p = embs_p = embs_p.reshape((bm.shape[0], bm.shape[1], embedding_layer_posit.n_d))
 
         reduced_p_embs, _ = theano.scan(fn=self.c_reduce,
                                         sequences=[embs_p.dimshuffle((1, 0, 2)), self.fw_mask.dimshuffle((1, 0))])
@@ -91,7 +90,7 @@ class Generator(object):
                              sample=False)
 
         if inference:
-            new_probs = output_rnn.pt_forward_all_inference(self.h_final, reduced_p_embs)
+            new_probs = output_rnn.s_forward_all(self.h_final, reduced_p_embs, inference)
         else:
             new_probs = output_rnn.pt_forward_all(self.h_final, reduced_p_embs, new_bm)
 
@@ -114,16 +113,14 @@ class Generator(object):
         self.layers.append(output_rnn.fc_layer_final)
 
         params = self.params = []
-        for l in self.layers + [self.embedding_layer]:
+        for l in self.layers + [self.embedding_layer] + [self.embedding_layer_posit]:
             for p in l.params:
                 params.append(p)
 
         l2_cost = None
         for p in params:
-            if l2_cost is None:
-                l2_cost = T.sum(p ** 2)
-            else:
-                l2_cost = l2_cost + T.sum(p ** 2)
+            l2_cost = l2_cost + T.sum(p ** 2)
+
         l2_cost = l2_cost * self.args.l2_reg
 
         self.l2_cost = l2_cost
@@ -137,8 +134,7 @@ class Generator(object):
         posit_x = self.posit_x = T.imatrix('pos')
 
         embs_p = embedding_layer_posit.forward(posit_x.ravel())
-        embs_p = embs_p.reshape((bm.shape[0], bm.shape[1], embedding_layer_posit.n_d))
-        self.embs_p = embs_p = apply_dropout(embs_p, self.dropout)
+        self.embs_p = embs_p = embs_p.reshape((bm.shape[0], bm.shape[1], embedding_layer_posit.n_d))
 
         reduced_p_embs, _ = theano.scan(fn=self.c_reduce,
                                         sequences=[embs_p.dimshuffle((1, 0, 2)), self.fw_mask.dimshuffle((1, 0))])
@@ -152,16 +148,13 @@ class Generator(object):
                              fc_out=128,
                              sample=True)
         if inference:
-            probs = output_rnn.pt_forward_all_inference(self.h_final, reduced_p_embs)
+            probs = output_rnn.s_forward_all(self.h_final, reduced_p_embs, inference)
             samples = T.cast(T.round(probs, mode='half_away_from_zero'), theano.config.floatX)
         else:
-            probs, updates, samples = output_rnn.pt_forward_all_sample(self.h_final, reduced_p_embs)
+            probs, updates, samples = output_rnn.s_forward_all(self.h_final, reduced_p_embs, inference)
             self.sample_updates = updates
-            self.chunk_samples = samples
 
-        if self.args.self_critical:
-            arg_max = T.cast(T.round(probs, mode='half_away_from_zero'), theano.config.floatX)
-            self.arg_max = theano.gradient.disconnected_grad(arg_max)
+        self.chunk_samples = samples
 
         z_pred_word_level, _ = theano.scan(fn=self.c_project,
                                            sequences=[samples.dimshuffle((1, 0)),
@@ -180,16 +173,13 @@ class Generator(object):
         self.layers.append(output_rnn.fc_layer_final)
 
         params = self.params = []
-        for l in self.layers + [self.embedding_layer]:
+        for l in self.layers + [self.embedding_layer] + [self.embedding_layer_posit]:
             for p in l.params:
                 params.append(p)
 
         l2_cost = None
         for p in params:
-            if l2_cost is None:
-                l2_cost = T.sum(p ** 2)
-            else:
-                l2_cost = l2_cost + T.sum(p ** 2)
+            l2_cost = l2_cost + T.sum(p ** 2)
 
         self.l2_cost = l2_cost * self.args.l2_reg
 
@@ -258,9 +248,9 @@ class Generator(object):
 
         return h_final, size
 
-    def cnn_encoding(self, chunk_sizes, rv_mask, n_e, n_d=64):
+    def cnn_encoding(self, chunk_sizes, rv_mask, n_e, n_d=128):
         window_sizes = [1, 3, 5, 7]
-        pool_sizes = [2,3,4,5]
+        pool_sizes = [2, 3, 4, 5]
 
         cnn_ls = []
         layers = self.layers
@@ -284,12 +274,12 @@ class Generator(object):
             layers.append(conv_layer)
 
         cnn_concat = T.concatenate(cnn_ls, axis=2)
+        cnn_concat = T.nnet.relu(cnn_concat)
 
         pool_out = []
 
         for p in xrange(len(pool_sizes)):
             pooled = pool_2d(cnn_concat, ws=(pool_sizes[p], 1), stride=(1, 1), ignore_border=True)
-            pooled = T.nnet.relu(pooled)
 
             z_shape = (pooled.shape[0], cnn_concat.shape[1] - pooled.shape[1], pooled.shape[2])
             zeros = T.zeros(shape=z_shape)
