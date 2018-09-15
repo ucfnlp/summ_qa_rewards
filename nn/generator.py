@@ -184,14 +184,7 @@ class Generator(object):
         z_pred_word_level = self.z_pred
         bm = self.bm
 
-        if self.args.word_level_c:
-            z_shift = z_pred_word_level[1:]
-            z_new = z_pred_word_level[:-1]
-
-            valid_bg = z_new * z_shift
-            bigram_ol = valid_bg * bm[:-1]
-        else:
-            bigram_ol = z_pred_word_level * bm
+        bigram_ol = z_pred_word_level * bm
 
         total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
         total_bg_per_sample = T.sum(bm, axis=0) + self.args.bigram_smoothing
@@ -296,7 +289,6 @@ class Generator(object):
 
         for m in xrange(len(all_chunks)):
             c_mask = T.cast(T.eq(c_rep, m + 1), 'int32')
-            c_mask_r = c_mask.reshape((1, c_mask.shape[0]))
             c_mask_tiled = T.tile(c_mask, (cnn_concat.shape[2], 1)).dimshuffle((1, 0))
 
             pooled_features = all_chunks[m].reshape(
