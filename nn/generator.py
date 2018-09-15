@@ -4,7 +4,7 @@ import theano.tensor as T
 from theano.tensor.signal.pool import pool_2d
 
 from nn.basic import LSTM, apply_dropout, Layer
-from nn.extended_layers import ZLayer, Sampler
+from nn.extended_layers import Sampler
 from nn.initialization import get_activation_by_name
 from nn.advanced import Conv1d
 
@@ -70,17 +70,14 @@ class Generator(object):
                                         sequences=[embs_p.dimshuffle((1, 0, 2)), self.fw_mask.dimshuffle((1, 0))])
         reduced_p_embs = reduced_p_embs.dimshuffle((1, 0, 2))
 
-        if self.args.word_level_c:
-            padded = T.shape_padaxis(T.zeros_like(bm[0]), axis=1).dimshuffle((1, 0))
-            bm_shift = T.concatenate([padded, bm[:-1]], axis=0)
-
-            new_bm = T.cast(T.or_(bm, bm_shift), theano.config.floatX)
-        else:
+        if not self.args.word_level_c:
             new_bm = T.cast(bm, theano.config.floatX)
 
             new_bm, _ = theano.scan(fn=self.bm_reduce,
                                     sequences=[new_bm.dimshuffle((1, 0)), self.fw_mask.dimshuffle((1, 0))])
             new_bm = new_bm.dimshuffle((1, 0))
+        else:
+            new_bm = T.cast(bm, theano.config.floatX)
 
         final_concat_d = self.size + embedding_layer_posit.n_d + 128 * 2
         output_rnn = Sampler(n_in=self.size,

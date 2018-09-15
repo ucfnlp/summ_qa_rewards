@@ -457,7 +457,7 @@ def create_unigram_masks(lstx, unigrams, max_len, stopwords, args):
 
             if w1 in unigrams[i] and w2 in unigrams[i]:
                 if contains_single_valid_word(w1, w2, stopwords):
-                    m[j] = 1
+                    m[j] = m[j+1] = 1
 
         masks.append(m)
 
@@ -470,7 +470,7 @@ def create_chunk_masks(word_level_bm, bsz):
     for i in xrange(len(word_level_bm)):
         m = []
         chunks = bsz[:, i]
-        gs_words = np.pad(word_level_bm[i][:-1], mode='constant', pad_width=(1, 0), constant_values=0) + word_level_bm[i]
+        gs_words = word_level_bm[i]
         end = 0
 
         for c in chunks:

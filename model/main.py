@@ -26,14 +26,14 @@ class Model(object):
         self.embedding_layer_posit = embedding_layer_posit
         self.nclasses = nclasses
 
-    def ready(self):
+    def ready(self, inference=False):
         args, embedding_layer, embedding_layer_posit, nclasses = self.args, self.embedding_layer, self.embedding_layer_posit, self.nclasses
 
         self.generator = Generator(args, embedding_layer, embedding_layer_posit)
         self.encoder = Encoder(args, nclasses, self.generator)
 
         self.generator.ready()
-        self.generator.sample(inference=False)
+        self.generator.sample(inference)
         self.encoder.ready()
 
         self.dropout = self.generator.dropout
@@ -170,25 +170,26 @@ class Model(object):
         with gzip.open(path, "rb") as fin:
             loaded = pickle.load(fin)
 
-            if test:
-                gparams = loaded[0]
-                self.nclasses = self.args.nclasses
-                # args = loaded[2]
-
-            else:
-                eparams = loaded[0]
-                gparams = loaded[1]
-                nclasses = loaded[2]
-                args = loaded[3]
+            # if test:
+            #     gparams = loaded[0]
+            #     self.nclasses = self.args.nclasses
+            #     # args = loaded[2]
+            #
+            # else:
+            eparams = loaded[0]
+            gparams = loaded[1]
+            nclasses = loaded[2]
+            args = loaded[3]
 
         # construct model/network using saved configuration
-                self.args = args
-                self.nclasses = nclasses
+            self.args = args
+            self.nclasses = nclasses
 
         if test:
             self.ready_test()
         else:
-            self.ready()
+            print 'here'
+            self.ready(inference=True)
             for x, v in zip(self.encoder.params, eparams):
                 x.set_value(v)
 
@@ -277,7 +278,6 @@ class Model(object):
         eval_generator = theano.function(
             inputs=inputs_d,
             outputs=[self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped],
-            updates=self.generator.sample_updates,
             on_unused_input='ignore'
         )
 
@@ -988,7 +988,7 @@ class Model(object):
 
             for j in xrange(cur_len):
                 bx, bm, sha, rx, bfw, bpi, bsc, by, be = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], batches_bpi[j], batches_cs[j],batches_y[j],batches_e[j]
-                be, _ = myio.create_1h(be, self.nclasses, 10, self.args.pad_repeat)
+                be, _ = myio.create_1h(be, self.nclasses, args.n, self.args.pad_repeat)
                 bz = eval_func(bx, bpi, bm, bfw, bsc)
 
                 x.append(rx)

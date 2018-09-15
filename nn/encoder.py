@@ -39,7 +39,7 @@ class Encoder(object):
         x = generator.x
         z = generator.z_pred
 
-        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0,1,'x'))
+        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0, 1, 'x'))
         tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
         mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
 
@@ -87,8 +87,6 @@ class Encoder(object):
         h_concat_y = T.concatenate([h_f_y, h_r_y], axis=2).dimshuffle((1, 2, 0))
 
         # inp_len x batch x n_d -> inp_len x batch x (2 * n_d)
-
-
         # (batch * n) x inp_len x (2 * n_d)
         gen_h_final = T.tile(h_concat_x, (args.n, 1)).dimshuffle((1, 0, 2))
 
@@ -145,14 +143,7 @@ class Encoder(object):
         if not args.pad_repeat:
             loss_mat = loss_mat * loss_mask
 
-        z_shift = z[1:]
-        z_new = z[:-1]
-
-        if self.args.bigram_m:
-            valid_bg = z_new * z_shift
-            bigram_ol = valid_bg * bm[:-1]
-        else:
-            bigram_ol = z * bm
+        bigram_ol = z * bm
 
         total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
         total_bg_per_sample = T.sum(bm, axis=0) + args.bigram_smoothing
@@ -184,10 +175,8 @@ class Encoder(object):
 
         l2_cost = None
         for p in params:
-            if l2_cost is None:
-                l2_cost = T.sum(p**2)
-            else:
-                l2_cost = l2_cost + T.sum(p**2)
+            l2_cost = l2_cost + T.sum(p**2)
+
         l2_cost = l2_cost * args.l2_reg
         self.l2_cost = l2_cost
 
