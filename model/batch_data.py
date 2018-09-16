@@ -6,19 +6,21 @@ import random
 import summarization_args
 
 
-def read_docs(args, type):
-    filename = type + '_model.json' if args.full_test else "small_" + type + '_model.json'
+def read_docs(args, type_):
+    filename = type_ + '_model.json' if args.full_test else "small_" + type_ + '_model.json'
     filename = '../data/'+ args.source + '_' + str(args.vocab_size) + '_' + filename
 
     with open(filename, 'rb') as data_file:
         data = json.load(data_file)
 
-    if type == 'test':
-        return data['x'], data['y'], data['e'], data['sha'], data['clean_y'], data['raw_x'], data['mask'], data['chunk'], data['scut']
-    elif type == 'dev':
-        return data['x'], data['y'], data['e'], data['clean_y'], data['raw_x'], data['sha'], data['mask'], data['chunk'], data['scut']
+    ret_data = [data['x'], data['y'], data['e'], data['clean_y'], data['sha'], data['mask'], data['chunk'], data['scut']]
+
+    if type_ != 'train':
+        ret_data.append(data['raw_x'])
     else:
-        return data['x'], data['y'], data['e'], data['clean_y'], data['sha'], data['mask'], data['chunk'], data['scut']
+        ret_data.append(None)
+
+    return ret_data
 
 
 def create_vocab(args):
@@ -65,65 +67,12 @@ def create_stopwords(args, vocab_map, lst_words):
     return stopwords, punctuation
 
 
-def create_batches_test(args, x, y, cy, pt, sha, rx, batch_size, padding_id, padding_id_pt, stopwords):
-    batches_x, batches_bm, batches_sha, batches_rx, batches_pt = [], [], [], [], []
-    N = len(x)
-    M = (N - 1) / batch_size + 1
-    num_batches = 0
-    num_files = 0
+def create_batches(args, x, y, entities, sentence_sizes, clean_indexed_y, sha, chunk_sizes, raw_x, padding_id,
+                   stopwords, sort=True, model_type=''):
 
-    for i in xrange(M):
-        bx, bm, bpt = create_one_batch_test(
-            args,
-            x[i * batch_size:(i + 1) * batch_size],
-            y[i * batch_size:(i + 1) * batch_size],
-            cy[i * batch_size:(i + 1) * batch_size],
-            pt[i * batch_size:(i + 1) * batch_size],
-            padding_id,
-            padding_id_pt,
-            batch_size,
-            stopwords
-        )
-        bsh = sha[i * batch_size:(i + 1) * batch_size]
-
-        brx_ = rx[i * batch_size:(i + 1) * batch_size]
-        brx = []
-
-        for j in xrange(len(brx_)):
-            brx.append([w for sent in brx_[j] for w in sent])
-
-        batches_rx.append(brx)
-        batches_x.append(bx)
-        batches_bm.append(bm)
-        batches_pt.append(bpt)
-        batches_sha.append(bsh)
-
-        num_batches += 1
-
-        if num_batches >= args.online_batch_size or i == M - 1:
-
-            fname = args.batch_dir + args.source + 'test'
-            print 'Creating file #', str(num_files + 1)
-
-            data = [
-                batches_x,
-                batches_bm,
-                batches_pt,
-                batches_sha,
-                batches_rx
-            ]
-            with open(fname + str(num_files), 'w+') as ofp:
-                np.save(ofp, data)
-
-            batches_x, batches_bm, batches_sha, batches_rx, batches_pt = [], [], [], [], []
-            num_batches = 0
-            num_files += 1
-
-    print "Num Files :", num_files
-
-
-def create_batches(args, n_classes, x, y, e, sc, cy, sha, ch, rx, batch_size, padding_id, stopwords, sort=True, model_type=''):
-    batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_ch_f, batches_ch_sz, batches_sc = [], [], [], [], [], [], [], [], []
+    batch_size = args.batch
+    batches_x, batches_y, batches_entities, batches_overlap_mask, batches_sha = [], [], [], [], []
+    batches_raw_x, batches_fw_m, batches_chunk_sizes, batches_sentence_idx = [], [], [], []
 
     N = len(x)
     M = (N - 1) / batch_size + 1
@@ -135,118 +84,88 @@ def create_batches(args, n_classes, x, y, e, sc, cy, sha, ch, rx, batch_size, pa
         perm = sorted(perm, key=lambda i: len(x[i]))
         x = [x[i] for i in perm]
         y = [y[i] for i in perm]
-        e = [e[i] for i in perm]
-        cy = [cy[i] for i in perm]
-        ch = [ch[i] for i in perm]
+        entities = [entities[i] for i in perm]
+        sentence_sizes = [sentence_sizes[i] for i in perm]
+        clean_indexed_y = [clean_indexed_y[i] for i in perm]
+        chunk_sizes = [chunk_sizes[i] for i in perm]
         sha = [sha[i] for i in perm]
-        sc = [sc[i] for i in perm]
 
     for i in xrange(M):
-        # batched: X, Y, entities, pre-training masking, loss masking (if < n queries)
-        # chunks, chunk sizes (args, lstx, lsty,lstsc, lstcy, lstch, padding_id, stopwords):
-        bx, by, bm, bch, bsz, bsc = create_one_batch(
+        single_batch_x, single_batch_y, single_batch_overlap_mask, single_batch_fw_m, single_batch_chunk_sizes, single_batch_sentence_idx = create_one_batch(
             args,
             x[i * batch_size:(i + 1) * batch_size],
-            y[i * batch_size:(i + 1) * batch_size] if e is not None else None,
-            sc[i * batch_size:(i + 1) * batch_size] if sc is not None else None,
-            cy[i * batch_size:(i + 1) * batch_size] if e is not None else None,
-            ch[i * batch_size:(i + 1) * batch_size],
+            y[i * batch_size:(i + 1) * batch_size],
+            sentence_sizes[i * batch_size:(i + 1) * batch_size],
+            clean_indexed_y[i * batch_size:(i + 1) * batch_size],
+            chunk_sizes[i * batch_size:(i + 1) * batch_size],
             padding_id,
             stopwords
         )
-        bsh = sha[i * batch_size:(i + 1) * batch_size]
-        if rx is not None:
-            brx = rx[i * batch_size:(i + 1) * batch_size]
-            batches_rx.append(brx)
+        single_batch_sha = sha[i * batch_size:(i + 1) * batch_size]
+        single_batch_entities = entities[i * batch_size:(i + 1) * batch_size]
 
-        batches_x.append(bx)
-        batches_y.append(by)
-        batches_e.append(e[i * batch_size:(i + 1) * batch_size] if e is not None else [])
-        batches_bm.append(bm)
-        batches_sha.append(bsh)
-        batches_ch_f.append(bch)
-        batches_ch_sz.append(bsz)
-        batches_sc.append(bsc)
+        batches_x.append(single_batch_x)
+        batches_y.append(single_batch_y)
+        batches_entities.append(single_batch_entities)
+        batches_overlap_mask.append(single_batch_overlap_mask)
+        batches_sha.append(single_batch_sha)
+        batches_fw_m.append(single_batch_fw_m)
+        batches_chunk_sizes.append(single_batch_chunk_sizes)
+        batches_sentence_idx.append(single_batch_sentence_idx)
+
+        if raw_x is not None:
+            single_batch_raw_x = raw_x[i * batch_size:(i + 1) * batch_size]
+            batches_raw_x.append(single_batch_raw_x)
 
         num_batches += 1
 
         if num_batches >= args.online_batch_size or i == M - 1:
-
             fname = args.batch_dir + args.source + model_type
             print 'Creating file #', str(num_files + 1)
 
-            if model_type == 'train':
-                data = [
-                    batches_x,
-                    batches_y,
-                    batches_e,
-                    batches_bm,
-                    batches_sha,
-                    batches_ch_f,
-                    batches_ch_sz,
-                    batches_sc
-                ]
-            elif model_type == 'dev':
+            data = [batches_x, batches_y, batches_entities, batches_overlap_mask, batches_sha]
 
-                data = [
-                    batches_x,
-                    batches_y,
-                    batches_e,
-                    batches_bm,
-                    batches_sha,
-                    batches_rx,
-                    batches_ch_f,
-                    batches_ch_sz,
-                    batches_sc
+            if raw_x is not None:
+                data.append(batches_raw_x)
 
-                ]
-            else:
-                data = [
-                    batches_x,
-                    batches_y,
-                    batches_e,
-                    batches_bm,
-                    batches_sha,
-                    batches_rx,
-                    batches_ch_f,
-                    batches_ch_sz,
-                    batches_sc
-                ]
+            data.extend([batches_fw_m, batches_chunk_sizes, batches_sentence_idx])
+
             with open(fname + str(num_files), 'w+') as ofp:
                 np.save(ofp, data)
 
-                batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_ch_f, batches_ch_sz, batches_sc = [], [], [], [], [], [], [], [], []
+            batches_x, batches_y, batches_entities, batches_overlap_mask, batches_sha = [], [], [], [], []
+            batches_raw_x, batches_fw_m, batches_chunk_sizes, batches_sentence_idx = [], [], [], []
+
             num_batches = 0
             num_files += 1
 
     print "Num Files :", num_files
 
 
-def create_one_batch(args, lstx, lsty,lstsc, lstcy, lstch, padding_id, stopwords):
+def create_one_batch(args, lst_x, lst_y, lst_sentence_sizes, lst_clean_y, lst_chunk_sizes, padding_id, stopwords):
     max_len = args.inp_len
 
-    assert min(len(x) for x in lstx) > 0
+    assert min(len(x) for x in lst_x) > 0
 
-    # padded y
-    by, unigrams = process_hl(args, lsty, padding_id, lstcy)
-    by = np.column_stack([y for y in by])
+    single_batch_y, unigrams = process_hl(args, lst_y, padding_id, lst_clean_y)
+    single_batch_y = np.column_stack([y for y in single_batch_y])
 
-    bch, bsz = create_chunk_mask(lstch, max_len)
+    single_batch_fw_m, single_batch_chunk_sizes = create_chunk_mask(lst_chunk_sizes, max_len)
 
-    bx = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
-                                 constant_values=padding_id).astype('int32') for x in lstx])
-    if unigrams is not None:
+    single_batch_x = np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
+                                             constant_values=padding_id).astype('int32') for x in lst_x])
+    assert unigrams is not None
 
-        bm = create_unigram_masks(lstx, unigrams, max_len, stopwords, args)
+    single_batch_overlap_mask = create_unigram_masks(lst_x, unigrams, max_len, stopwords, args)
 
-        if not args.word_level_c:
-            bm = create_chunk_masks(bm, bsz)
+    if not args.word_level_c:
+        single_batch_overlap_mask = create_chunk_masks(single_batch_overlap_mask, single_batch_chunk_sizes)
 
-    bm = np.column_stack([m for m in bm])
+    single_batch_overlap_mask = np.column_stack([m for m in single_batch_overlap_mask])
 
-    bsc = sentence_indexing(lstsc, max_len)
+    single_batch_sentence_idx = sentence_indexing(lst_sentence_sizes, max_len)
 
-    return bx, by, bm, bch, bsz, bsc
+    return single_batch_x, single_batch_y, single_batch_overlap_mask, single_batch_fw_m, single_batch_chunk_sizes, single_batch_sentence_idx
 
 
 def stack_pt(args, lspt, padding_id_pt):
@@ -283,14 +202,12 @@ def process_hl(args, lsty, padding_id, lstcy):
             if j == args.n:
                 break
             y = lsty[i][j][:max_len_y]
-            single_hl = np.pad(y, (max_len_y - len(y), 0), "constant", constant_values=padding_id).astype('int32')
+            single_hl = np.pad(y, (0, max_len_y - len(y)), "constant", constant_values=padding_id).astype('int32')
 
             y_processed[j].append(single_hl)
 
-        # For the case of not having padded y
-        if not args.pad_repeat and len(lsty[i]) < args.n:
-            for j in range(len(lsty[i]), args.n):
-                y_processed[j].append(np.full((max_len_y,), fill_value=padding_id).astype('int32'))
+        for j in range(len(lsty[i]), args.n):
+            y_processed[j].append(np.full((max_len_y,), fill_value=padding_id).astype('int32'))
 
         for clean_hl in lstcy[i]:
             trimmed_cy = clean_hl[:max_len_y]
@@ -550,73 +467,30 @@ def main(args):
     del vocab_map
     del lst_words
 
-    if args.train:
-        print 'TRAIN data'
+    type_ls = ['train', 'dev', 'test']
+
+    for type_ in type_ls:
+        print type_, ':'
         print '  Read JSON..'
-        # data['x'], data['y'], data['e'], data['clean_y'], data['sha'], data['mask'], data['chunk']
-        train_x, train_y, train_e, train_clean_y, train_sha, train_bm, train_ch, train_sc = read_docs(args, 'train')
+        cur_data = read_docs(args, type_)
 
-        print '  Create batches..'
-
-        create_batches(args, args.nclasses, train_x, train_y, train_e, train_sc,
-                       train_clean_y, train_sha, train_ch, None, args.batch,
-                       pad_id, stopwords, sort=True, model_type='train')
+        create_batches(args=args,
+                       x=cur_data[0],
+                       y=cur_data[1],
+                       entities=cur_data[2],
+                       sentence_sizes=cur_data[7],
+                       clean_indexed_y=cur_data[3],
+                       sha=cur_data[4],
+                       chunk_sizes=cur_data[6],
+                       raw_x=cur_data[8],
+                       padding_id=pad_id,
+                       stopwords=stopwords,
+                       sort=(type_ == 'train'),
+                       model_type=type_)
 
         print '  Purge references..'
-
-        del train_x
-        del train_y
-        del train_e
-        del train_clean_y
-        del train_sha
-
-        print '  Finished Train Proc.'
-
-    if args.dev:
-        print 'DEV data'
-        print '  Read JSON..'
-
-        dev_x, dev_y, dev_e, dev_clean_y, dev_rx, dev_sha, dev_bm, dev_ch, dev_sc = read_docs(args, 'dev')
-
-        print '  Create batches..'
-
-        create_batches(args, args.nclasses, dev_x, dev_y, dev_e, dev_sc, dev_clean_y,
-                       dev_sha, dev_ch, dev_rx, args.batch,pad_id,
-                       stopwords, sort=False, model_type='dev')
-
-        print '  Purge references..'
-
-        del dev_x
-        del dev_y
-        del dev_e
-        del dev_clean_y
-        del dev_rx
-        del dev_sha
-
-        print '  Finished Dev Proc.'
-
-    if args.test:
-        print 'TEST data'
-        print '  Read JSON..'
-
-        test_x, test_y, test_e, test_sha, test_clean_y, test_rx, test_bm, test_ch, test_sc = read_docs(args, 'test')
-
-        print '  Create batches..'
-
-        create_batches(args, -1, test_x, test_y, test_e, test_sc, test_clean_y,
-                       test_sha, test_ch, test_rx,args.batch,
-                       pad_id, stopwords, sort=False, model_type='test')
-
-        print '  Purge references..'
-
-        del test_x
-        del test_y
-        del test_e
-        del test_clean_y
-        del test_rx
-        del test_sha
-
-        print '  Finished Dev Proc.'
+        del cur_data
+        print '  Finished', type_
 
 
 if __name__ == "__main__":
