@@ -305,11 +305,11 @@ def create_chunk_mask(lstch, max_len):
                     break
 
         if len(fw_mask) < max_len:
-            left = max_len - len(fw_mask)
+            # left = max_len - len(fw_mask)
             fw_mask.extend([0] * (max_len - (len(fw_mask) + 1)))
             fw_mask.append(1)
 
-            mask_csz.append(left)
+            # mask_csz.append(left)
 
         mask_csz.extend([0]*(max_len - len(mask_csz)))
         fw_mask_ls.append(fw_mask)

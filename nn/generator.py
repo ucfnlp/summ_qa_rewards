@@ -3,7 +3,7 @@ import theano
 import theano.tensor as T
 from theano.tensor.signal.pool import pool_2d
 
-from nn.basic import LSTM, apply_dropout, Layer
+from nn.basic import LSTM, apply_dropout
 from nn.extended_layers import Sampler
 from nn.initialization import get_activation_by_name
 from nn.advanced import Conv1d
@@ -283,11 +283,14 @@ class Generator(object):
             padded_pooled = T.concatenate([pooled, zeros], axis=1)
             pool_out.append(padded_pooled)
 
-        c_flat = chunk_sizes.dimshuffle((1, 0)).ravel()
+        c_flat = chunk_sizes.dimshuffle((1, 0))
         m_flat = rv_mask.dimshuffle((1, 0)).ravel()
 
-        c_rep = T.repeat(c_flat, c_flat)
-        c_rep = c_rep * m_flat
+        c_rep, _ = theano.scan(fn=self.c_project,
+                               sequences=[c_flat,
+                                          c_flat])
+
+        c_rep = c_rep.ravel() * m_flat
 
         all_chunks = [cnn_concat] + pool_out
         pooled_chunks = []
@@ -323,4 +326,7 @@ class Generator(object):
         return T.concatenate([a, ze], axis=0)
 
     def c_project(self, h, m):
-        return T.repeat(h, m)
+        valid_projection_truncated = T.repeat(h, m)
+        zs = T.zeros(shape=(h.shape[0] - valid_projection_truncated.shape[0],))
+
+        return T.concatenate([valid_projection_truncated, zs], axis=0)
