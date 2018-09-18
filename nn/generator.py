@@ -116,7 +116,10 @@ class Generator(object):
 
         l2_cost = None
         for p in params:
-            l2_cost = l2_cost + T.sum(p ** 2)
+            if l2_cost is None:
+                l2_cost = T.sum(p ** 2)
+            else:
+                l2_cost = l2_cost + T.sum(p ** 2)
 
         l2_cost = l2_cost * self.args.l2_reg
 
@@ -176,7 +179,10 @@ class Generator(object):
 
         l2_cost = None
         for p in params:
-            l2_cost = l2_cost + T.sum(p ** 2)
+            if l2_cost is None:
+                l2_cost = T.sum(p ** 2)
+            else:
+                l2_cost = l2_cost + T.sum(p ** 2)
 
         self.l2_cost = l2_cost * self.args.l2_reg
 

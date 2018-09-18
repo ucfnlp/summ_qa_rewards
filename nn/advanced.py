@@ -253,7 +253,7 @@ class AttentionLayer(Layer):
 '''
 
 
-class Bilinear(object):
+class Bilinear(Layer):
     def __init__(self, n_d, batch_size, n):
         self.batch_size, self.n, self.n_d = batch_size, n, n_d
         self.create_parameters()

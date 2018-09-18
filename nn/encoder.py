@@ -31,20 +31,13 @@ class Encoder(object):
         # inp_len x batch
         bm = self.bm = generator.bm
 
-        # mask for loss
-        if not args.pad_repeat:
-            loss_mask = self.loss_mask = T.imatrix('loss_mask')
+        loss_mask = self.loss_mask = T.imatrix('loss_mask')
 
         # inp_len x batch
         x = generator.x
         z = generator.z_pred
 
-        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0, 1, 'x'))
-        tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
         mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
-
-        softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
-        softmax_mask = softmax_mask * (tiled_x_mask - 1)
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -70,11 +63,19 @@ class Encoder(object):
         h_r_y = rnn_rv.forward_all(flipped_embs_y, flipped_mask_y)
 
         if args.use_generator_h:
-            h_concat_x = self.generator.h_final * self.generator.chunk_samples.dimshuffle((0, 1, 'x'))
-            n_d = self.generator.size/2
+            mask_x = self.generator.chunk_samples.dimshuffle((0, 1, 'x'))
+            tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
 
-            layers.extend(self.generator.layers[:2])
+            h_concat_x = self.generator.h_final
+
+            if args.generator_encoding == 'cnn':
+                layers.extend(self.generator.layers[:4])
+            else:
+                layers.extend(self.generator.layers[:2])
         else:
+            mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0, 1, 'x'))
+            tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
+
             flipped_embs_x = embs_x[::-1]
             flipped_mask_x = mask_x[::-1]
 
@@ -82,6 +83,9 @@ class Encoder(object):
             h_r_x = rnn_rv.forward_all_x(flipped_embs_x, flipped_mask_x)
 
             h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
+
+        softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
+        softmax_mask = softmax_mask * (tiled_x_mask - 1)
 
         # 1 x (batch * n) x n_d -> (batch * n) x (2 * n_d) x 1
         h_concat_y = T.concatenate([h_f_y, h_r_y], axis=2).dimshuffle((1, 2, 0))
@@ -94,7 +98,7 @@ class Encoder(object):
             bilinear_l = Bilinear(n_d, x.shape[1], args.n)
             inp_dot_hl = bilinear_l.forward(gen_h_final, h_concat_y)
 
-            params.append(bilinear_l.params[0])
+            layers.append(bilinear_l)
         else:
             # (batch * n) x inp_len x 1
             inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
@@ -140,29 +144,26 @@ class Encoder(object):
         cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
         loss_mat = cross_entropy.reshape((x.shape[1], args.n))
 
-        if not args.pad_repeat:
-            loss_mat = loss_mat * loss_mask
+        loss_mat = loss_mat * loss_mask
 
-        bigram_ol = z * bm
+        word_ol = z * bm
 
-        total_z_bg_per_sample = T.sum(bigram_ol, axis=0)
-        total_bg_per_sample = T.sum(bm, axis=0) + args.bigram_smoothing
+        total_z_word_overlap_per_sample = T.sum(word_ol, axis=0)
+        total_overlap_per_sample = T.sum(bm, axis=0) + args.bigram_smoothing
 
-        self.bigram_loss = bigram_loss = total_z_bg_per_sample / total_bg_per_sample
+        self.word_overlap_loss = word_overlap_loss = total_z_word_overlap_per_sample / total_overlap_per_sample
 
         self.loss_vec = loss_vec = T.mean(loss_mat, axis=1)
 
-        self.zsum = zsum = generator.zsum
-        self.zdiff = zdiff = generator.zdiff
         logpz = generator.logpz
 
         loss = self.loss = T.mean(loss_vec)
 
         z_totals = T.sum(T.neq(x, padding_id), axis=0, dtype=theano.config.floatX)
-        self.zsum = zsum = T.abs_(zsum / z_totals - args.z_perc)
-        self.zdiff = zdiff = zdiff / z_totals
+        self.zsum = zsum = T.abs_(generator.zsum / z_totals - args.z_perc)
+        self.zdiff = zdiff = generator.zdiff / z_totals
 
-        self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (1 - bigram_loss) + args.coeff_z * (
+        self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (1 - word_overlap_loss) + args.coeff_z * (
                     2 * zsum + zdiff)
 
         self.logpz = logpz = T.sum(logpz, axis=0)
@@ -175,10 +176,13 @@ class Encoder(object):
 
         l2_cost = None
         for p in params:
-            l2_cost = l2_cost + T.sum(p**2)
+            if l2_cost is None:
+                l2_cost = T.sum(p ** 2)
+            else:
+                l2_cost = l2_cost + T.sum(p ** 2)
 
         l2_cost = l2_cost * args.l2_reg
         self.l2_cost = l2_cost
 
         self.cost_g = cost_logpz * args.coeff_cost_scale + generator.l2_cost
-        self.cost_e = loss  + l2_cost
+        self.cost_e = loss + l2_cost

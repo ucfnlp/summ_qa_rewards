@@ -159,7 +159,7 @@ def create_one_batch(args, lst_x, lst_y, lst_sentence_sizes, lst_clean_y, lst_ch
     single_batch_overlap_mask = create_unigram_masks(lst_x, unigrams, max_len, stopwords, args)
 
     if not args.word_level_c:
-        single_batch_overlap_mask = create_chunk_masks(single_batch_overlap_mask, single_batch_chunk_sizes)
+        single_batch_overlap_mask = create_chunk_masks(single_batch_overlap_mask, single_batch_chunk_sizes, max_len)
 
     single_batch_overlap_mask = np.column_stack([m for m in single_batch_overlap_mask])
 
@@ -309,7 +309,7 @@ def create_chunk_mask(lstch, max_len):
             fw_mask.extend([0] * (max_len - (len(fw_mask) + 1)))
             fw_mask.append(1)
 
-            mask_csz[-1] = mask_csz[-1] + left
+            mask_csz.append(left)
 
         mask_csz.extend([0]*(max_len - len(mask_csz)))
         fw_mask_ls.append(fw_mask)
@@ -335,7 +335,7 @@ def sentence_indexing(lstsc, max_len):
             if total_w >= max_len:
                 break
 
-        indexed_x.append(single_doc[:max_len])
+        indexed_x.append(single_doc)
 
     return np.column_stack([np.pad(x[:max_len], (0, max_len - len(x) if len(x) <= max_len else 0), "constant",
                                    constant_values=0).astype('int32') for x in indexed_x])
@@ -374,14 +374,18 @@ def create_unigram_masks(lstx, unigrams, max_len, stopwords, args):
 
             if w1 in unigrams[i] and w2 in unigrams[i]:
                 if contains_single_valid_word(w1, w2, stopwords):
-                    m[j] = m[j+1] = 1
+                    try:
+                        m[j] = 1
+                        m[j+1] = 1
+                    except IndexError:
+                        continue
 
         masks.append(m)
 
     return masks
 
 
-def create_chunk_masks(word_level_bm, bsz):
+def create_chunk_masks(word_level_bm, bsz, max_len):
     masks = []
 
     for i in xrange(len(word_level_bm)):
@@ -406,6 +410,10 @@ def create_chunk_masks(word_level_bm, bsz):
             else:
                 cur_chunk = [0] * c
             m.extend(cur_chunk)
+
+        if len(m) < max_len:
+            m.extend([0]*(max_len - len(m)))
+
         masks.append(m)
 
     return np.asarray(masks, dtype='int32')
