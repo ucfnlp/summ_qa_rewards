@@ -46,6 +46,7 @@ class Encoder(object):
             n_in=n_e,
             n_out=n_d
         )
+
         rnn_rv = HLLSTM(
             n_in=n_e,
             n_out=n_d
@@ -120,14 +121,14 @@ class Encoder(object):
 
         fc7 = Layer(
             n_in=size,
-            n_out=512,
+            n_out=size,
             activation=get_activation_by_name('relu'),
             has_bias=True
         )
         fc7_out = fc7.forward(o)
 
         output_layer = Layer(
-            n_in=512,
+            n_in=size,
             n_out=self.nclasses,
             activation=softmax,
             has_bias=True
@@ -138,7 +139,7 @@ class Encoder(object):
         layers.append(fc7)
         layers.append(output_layer)
 
-        preds = output_layer.forward(fc7_out)
+        preds = output_layer.forward(fc7_out + o)
         self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
 
         cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
