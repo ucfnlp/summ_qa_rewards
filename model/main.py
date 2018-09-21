@@ -597,7 +597,7 @@ class Model(object):
                     for j in xrange(cur_len):
                         if args.full_test:
                             if (i * args.online_batch_size + j + 1) % 10 == 0:
-                                say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
+                                say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1))
                         elif (i * args.online_batch_size + j + 1) % 10 == 0:
                             say("\r{}/{} {:.2f}       ".format(i * args.online_batch_size + j + 1, N, p1 / (i * args.online_batch_size + j + 1)))
 
@@ -614,7 +614,7 @@ class Model(object):
 
                         train_cost += obj
 
-                        p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
+                        p1 = np.sum(z * mask) / (np.sum(mask) + 1e-8)
 
                 cur_train_avg_cost = train_cost / N
 
