@@ -1,7 +1,7 @@
 import theano
 import theano.tensor as T
 
-from nn.basic import Layer
+from nn.basic import Layer, apply_dropout
 from nn.extended_layers import HLLSTM
 from nn.initialization import softmax, get_activation_by_name
 from nn.advanced import Bilinear
@@ -55,7 +55,7 @@ class Encoder(object):
         embs_y = embedding_layer.forward(y.ravel())
         embs_y = embs_y.reshape((y.shape[0], y.shape[1], n_e))
 
-        embs_x = generator.word_embs
+        embs_x = apply_dropout(generator.word_embs, generator.dropout)
 
         flipped_embs_y = embs_y[::-1]
         flipped_mask_y = mask_y[::-1]
@@ -90,6 +90,7 @@ class Encoder(object):
 
         # 1 x (batch * n) x n_d -> (batch * n) x (2 * n_d) x 1
         h_concat_y = T.concatenate([h_f_y, h_r_y], axis=2).dimshuffle((1, 2, 0))
+        h_concat_y = apply_dropout(h_concat_y, generator.dropout)
 
         # inp_len x batch x n_d -> inp_len x batch x (2 * n_d)
         # (batch * n) x inp_len x (2 * n_d)

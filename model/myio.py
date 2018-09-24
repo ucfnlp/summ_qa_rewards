@@ -529,10 +529,62 @@ def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
     ofp.write(r.convert_and_evaluate())
     ofp.close()
 
+    # create_readable_file_html(args=args, system_json=ofp_m)
+
     tmp_dir = r._config_dir
     print 'Cleaning up..', tmp_dir
 
     shutil.rmtree(tmp_dir)
+
+
+def create_readable_file_html(args, system_json):
+    batched_file = args.batch_dir + args.source + 'test0'
+
+    ifp_model = open(batched_file, 'rb')
+    data_model = np.load(ifp_model)
+    ifp_model.close()
+
+    html_file = '../data/results/html/' + create_fname_identifier(args=args) + '.html'
+    ofp = open(html_file, 'w+')
+    ofp.write('<html><body>')
+
+    dev_sha_np = data_model[4][1]
+    dev_bm_np = data_model[3][1].T
+    dev_cz_np = data_model[7][1].T
+
+    for i in xrange(len(dev_sha_np)):
+        cur_sha = dev_sha_np[i]
+        cur_bm = dev_bm_np[i]
+        cur_chunks = np.repeat(dev_cz_np[i], dev_cz_np[i])
+
+        cur_r = system_json[cur_sha]['r']
+        cur_samples = system_json[cur_sha]['m']
+
+        assert len(cur_bm) == len(cur_samples), ('oh' + str(len(cur_bm)) + ' ' + str(len(cur_samples)))
+        ofp.write('<p>')
+        ofp.write(cur_sha)
+        ofp.write(' :</br>')
+
+        for w in xrange(len(cur_bm)):
+            style_st = ''
+            if len(cur_r) <= w:
+                break
+            if cur_samples[w] > 0 and cur_bm[w] > 0:  # sampled AND BM : green
+                style_st += 'text-decoration: underline; font-weight: bold;'
+            elif cur_samples[w] > 0:  # sampled not part of abstract : Red
+                style_st += 'font-weight: bold;'
+            elif cur_bm[w] > 0:  # not sample, part of abstract
+                style_st += 'text-decoration: underline;'
+            ofp.write('<span style="' + style_st + '">')
+            print cur_r[w]
+            print cur_chunks[w]
+            ofp.write(cur_r[w].encode('utf-8') + '(' + str(cur_chunks[w]) + ') ')
+            ofp.write('</span>')
+
+        ofp.write('</p>')
+
+    ofp.write('<html><body>')
+    ofp.close()
 
 
 def save_dev_results_r(args, probs, x, embedding):

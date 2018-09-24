@@ -23,9 +23,7 @@ class Generator(object):
         args = self.args
         self.padding_id = embedding_layer.vocab_map["<padding>"]
 
-        dropout = self.dropout = theano.shared(
-                np.float64(args.dropout).astype(theano.config.floatX)
-            )
+        dropout = self.dropout = theano.shared(np.float64(args.dropout).astype(theano.config.floatX))
 
         # inp_len x batch
         x = self.x = T.imatrix('x')
