@@ -123,22 +123,24 @@ def create_fname_identifier(args):
     else:
         chunk_typ = 'chnk'
 
-    return 'source_' + str(args.source) + \
-           '_pretrain_' + str(args.pretrain) + \
+    return 'src_' + str(args.source) + \
+           '_pretr_' + str(args.pretrain) + \
            '_load_pre_' + str(args.load_model_pretrain) + \
-           '_train_data_edim_' + str(args.embedding_dim) + \
+           '_edim_' + str(args.embedding_dim) + \
            '_batch_' + str(args.batch) + \
            '_inplen_' + str(args.inp_len) + \
            '_epochs_' + str(args.max_epochs) + \
            '_layer_' + str(args.layer) + \
            '_gen_type_' + str(args.generator_encoding) + \
+           '_gen_h_' + str(args.use_generator_h) + \
            '_bilin_' + str(args.bilinear) + \
+           '_drop_' + str(args.dropout) + \
            '_ext_ck_' + str(args.extended_c_k) + \
            '_rl_noqa_' + str(args.rl_no_qa) + \
            '_ncl_' + str(args.nclasses) + \
            '_q' + str(args.n) + \
            '_root_' + str(args.is_root) + \
-           '_chunk_type_' + chunk_typ + \
+           '_ch_type_' + chunk_typ + \
            '_cf_z_' + str(args.coeff_z) + \
            '_cf_adq_' + str(args.coeff_adequacy) + \
            '_cf_cst_scl_' + str(args.coeff_cost_scale)
