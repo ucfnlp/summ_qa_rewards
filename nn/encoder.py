@@ -64,7 +64,8 @@ class Encoder(object):
         h_r_y = rnn_rv.forward_all(flipped_embs_y, flipped_mask_y)
 
         if args.use_generator_h:
-            mask_x = self.generator.chunk_samples.dimshuffle((0, 1, 'x'))
+            mask_x = self.generator.chunk_samples * self.generator.chunk_mask
+            mask_x = mask_x.dimshuffle((0, 1, 'x'))
             tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
 
             h_concat_x = self.generator.h_final
