@@ -1,5 +1,6 @@
 import os
 import json
+import tempfile
 
 import numpy as np
 try:
@@ -615,6 +616,7 @@ def save_dev_results_r(args, probs, x, embedding):
 
 
 def get_rouge(args):
+    tempfile.tempdir = '/scratch/'
 
     model_specific_dir = create_fname_identifier(args).replace('.', '_') + '/'
     rouge_fname = args.system_summ_path + model_specific_dir
