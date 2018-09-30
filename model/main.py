@@ -122,7 +122,6 @@ class Model(object):
             if pretrain:
                 pickle.dump(
                     ([x.get_value() for x in self.generator.params],  # generator
-                     self.nclasses,
                      args  # training configuration
                      ),
                     fout,
@@ -132,33 +131,11 @@ class Model(object):
                 pickle.dump(
                     ([x.get_value() for x in self.encoder.params],  # encoder
                      [x.get_value() for x in self.generator.params],  # generator
-                     self.nclasses,
                      args  # training configuration
                      ),
                     fout,
                     protocol=pickle.HIGHEST_PROTOCOL
                 )
-        if args.trained_emb:
-            fname = args.trained_emb + ('pretrain/' if pretrain else '') + myio.create_fname_identifier(args) + '.txt'
-            ofp = open(fname, 'w+')
-            vectors = self.embedding_layer.params[0].get_value()
-            emb_len = args.embedding_dim
-
-            for i in xrange(len(self.embedding_layer.lst_words)):
-                word = self.embedding_layer.lst_words[i]
-                emb = vectors[i]
-
-                ofp.write(word + ' ')
-
-                for v in xrange(emb_len):
-                    ofp.write(str(emb[v]))
-
-                    if v == emb_len - 1:
-                        ofp.write('\n')
-                    else:
-                        ofp.write(' ')
-
-            ofp.close()
 
     def load_model(self, path, test=False):
         if not os.path.exists(path):
@@ -170,25 +147,15 @@ class Model(object):
         with gzip.open(path, "rb") as fin:
             loaded = pickle.load(fin)
 
-            # if test:
-            #     gparams = loaded[0]
-            #     self.nclasses = self.args.nclasses
-            #     # args = loaded[2]
-            #
-            # else:
             eparams = loaded[0]
             gparams = loaded[1]
-            nclasses = loaded[2]
             args = loaded[3]
 
-        # construct model/network using saved configuration
             self.args = args
-            self.nclasses = nclasses
 
         if test:
             self.ready_test()
         else:
-            print 'here'
             self.ready(inference=True)
             for x, v in zip(self.encoder.params, eparams):
                 x.set_value(v)
