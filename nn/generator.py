@@ -227,6 +227,8 @@ class Generator(object):
         h1 = layers[0].forward_all(embs)
         h2 = layers[1].forward_all(flipped_embs)[::-1]
 
+        self.word_level_h = apply_dropout(T.concatenate([h1, h2], axis=2), self.dropout)
+
         h1_red, _ = theano.scan(fn=self.c_reduce,
                                 sequences=[h1.dimshuffle((1, 0, 2)), fw_mask.dimshuffle((1, 0))]
                                 )

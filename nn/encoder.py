@@ -1,7 +1,7 @@
 import theano
 import theano.tensor as T
 
-from nn.basic import Layer, apply_dropout
+from nn.basic import Layer
 from nn.extended_layers import HLLSTM
 from nn.initialization import softmax, get_activation_by_name
 from nn.advanced import Bilinear
@@ -63,21 +63,17 @@ class Encoder(object):
         h_f_y = rnn_fw.forward_all(embs_y, mask_y)
         h_r_y = rnn_rv.forward_all(flipped_embs_y, flipped_mask_y)
 
-        if args.use_generator_h:
-            mask_x = self.generator.chunk_samples * self.generator.chunk_mask
-            mask_x = mask_x.dimshuffle((0, 1, 'x'))
-            tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
+        mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0, 1, 'x'))
+        tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
 
-            h_concat_x = self.generator.h_final
+        if args.use_generator_h:
+            h_concat_x = self.generator.word_level_h
 
             if args.generator_encoding == 'cnn':
                 layers.extend(self.generator.layers[:4])
             else:
                 layers.extend(self.generator.layers[:2])
         else:
-            mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0, 1, 'x'))
-            tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
-
             flipped_embs_x = embs_x[::-1]
             flipped_mask_x = mask_x[::-1]
 
@@ -105,7 +101,7 @@ class Encoder(object):
             # (batch * n) x inp_len x 1
             inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
 
-        size = n_d * 2
+        h_size = n_d * 2
 
         inp_dot_hl = inp_dot_hl - softmax_mask
         inp_dot_hl = inp_dot_hl.ravel()
@@ -116,20 +112,20 @@ class Encoder(object):
         # (batch * n) x n_d * 2
         o = T.batched_dot(alpha, gen_h_final)
 
-        size *= 4
+        output_size =  h_size * 4
         h_concat_y = h_concat_y.reshape((o.shape[0], o.shape[1]))
         self.o = o = T.concatenate([o, h_concat_y, T.abs_(o - h_concat_y), o * h_concat_y], axis=1)
 
         fc7 = Layer(
-            n_in=size,
-            n_out=size,
+            n_in=output_size,
+            n_out=512,
             activation=get_activation_by_name('relu'),
             has_bias=True
         )
         fc7_out = fc7.forward(o)
 
         output_layer = Layer(
-            n_in=size,
+            n_in=512,
             n_out=self.nclasses,
             activation=softmax,
             has_bias=True
@@ -140,7 +136,7 @@ class Encoder(object):
         layers.append(fc7)
         layers.append(output_layer)
 
-        preds = output_layer.forward(fc7_out + o)
+        preds = output_layer.forward(fc7_out)
         self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
 
         cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
