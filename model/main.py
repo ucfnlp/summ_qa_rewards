@@ -171,14 +171,13 @@ class Model(object):
                 path += ".pkl.gz"
 
         with gzip.open(path, "rb") as fin:
-            gparams, nclasses, args = pickle.load(fin)
+            gparams, args = pickle.load(fin)
 
         if self.args.pretrain:
             self.nclasses = self.args.nclasses
             self.args = args
             self.ready_pretrain(inference=inference)
         elif self.args.rl_no_qa:
-            self.nclasses = nclasses
 
             if inference:
                 self.ready_rl_no_qa_inference()
