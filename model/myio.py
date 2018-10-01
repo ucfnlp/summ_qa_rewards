@@ -129,22 +129,23 @@ def create_fname_identifier(args):
            '_load_pre_' + str(args.load_model_pretrain) + \
            '_edim_' + str(args.embedding_dim) + \
            '_batch_' + str(args.batch) + \
-           '_inplen_' + str(args.inp_len) + \
+           '_inp_' + str(args.inp_len) + \
            '_epochs_' + str(args.max_epochs) + \
            '_layer_' + str(args.layer) + \
-           '_gen_type_' + str(args.generator_encoding) + \
+           '_gen_t_' + str(args.generator_encoding) + \
            '_gen_h_' + str(args.use_generator_h) + \
            '_bilin_' + str(args.bilinear) + \
-           '_drop_' + str(args.dropout) + \
+           '_dp_' + str(args.dropout) + \
            '_ext_ck_' + str(args.extended_c_k) + \
-           '_rl_noqa_' + str(args.rl_no_qa) + \
+           '_rl_nqa_' + str(args.rl_no_qa) + \
            '_ncl_' + str(args.nclasses) + \
            '_q' + str(args.n) + \
            '_root_' + str(args.is_root) + \
-           '_ch_type_' + chunk_typ + \
+           '_ch_t_' + chunk_typ + \
            '_cf_z_' + str(args.coeff_z) + \
            '_cf_adq_' + str(args.coeff_adequacy) + \
-           '_cf_cst_scl_' + str(args.coeff_cost_scale)
+           '_cf_c_scl_' + str(args.coeff_cost_scale) + \
+           '_zp_' + str(args.z_perc)
 
 
 def create_json_filename(args):
@@ -778,6 +779,7 @@ def create_1h(lste, n_classes, n, pad_repeat):
         be.extend(e_processed[i])
 
     return be, loss_mask
+
 
 def total_words(z):
     return np.sum(z, axis=None)
