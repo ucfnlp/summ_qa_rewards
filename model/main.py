@@ -149,7 +149,7 @@ class Model(object):
 
             eparams = loaded[0]
             gparams = loaded[1]
-            args = loaded[3]
+            args = loaded[2]
 
             self.args = args
 
@@ -438,7 +438,7 @@ class Model(object):
                 say("\n")
                 say(("Generator Epoch {:.2f}  costg={:.4f}  lossg={:.4f}  " +
                      "\t[{:.2f}m / {:.2f}m]\n").format(
-                    epoch,
+                    epoch + 1,
                     train_cost / N,
                     train_loss / N,
                     (time.time() - start_time) / 60.0,
@@ -618,7 +618,7 @@ class Model(object):
                 say("\n")
                 say(("Generator Epoch {:.2f}  costg={:.4f}  lossg={:.4f}  " +
                      "\t[{:.2f}m / {:.2f}m]\n").format(
-                    epoch,
+                    epoch + 1,
                     train_cost / N,
                     train_loss / N,
                     (time.time() - start_time) / 60.0,
@@ -800,7 +800,7 @@ class Model(object):
                 say("\n")
                 say(("Generator Epoch {:.2f}  costg={:.4f}  lossg={:.4f}  " +
                      "\t[{:.2f}m / {:.2f}m]\n").format(
-                    epoch,
+                    epoch + 1,
                     train_cost / N,
                     train_loss / N,
                     (time.time() - start_time) / 60.0,
@@ -966,8 +966,7 @@ class Model(object):
 
         return test_z, x, y, e, sha_ls
 
-    def eval_acc(self,e, preds):
-        gs = np.argmax(e, axis=1)
+    def eval_acc(self,gs, preds):
         system = np.argmax(preds, axis=1)
 
         return sk.accuracy_score(gs, system)

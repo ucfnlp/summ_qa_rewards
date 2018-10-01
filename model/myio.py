@@ -429,6 +429,7 @@ def eval_baseline(args, bm, rx, type_):
 
 
 def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
+    tempfile.tempdir = '/scratch/'
     s_num = 0
     epoch = None
 
@@ -752,24 +753,24 @@ def create_1h(lste, n_classes, n, pad_repeat):
         for j in xrange(len(lste[i])):
             if j == n:
                 break
-            if n_classes > 0:
-                single_e_1h = np.zeros((n_classes,), dtype='int32')
-                single_e_1h[lste[i][j]] = 1
-            else:
-                single_e_1h = lste[i][j]
+            # if n_classes > 0:
+            #     single_e_1h = np.zeros((n_classes,), dtype='int32')
+            #     single_e_1h[] = 1
+            # else:
+            #     single_e_1h = lste[i][j]
 
-            e_processed[j].append(single_e_1h)
+            e_processed[j].append(lste[i][j])
 
         # For the case of not having padded y
         if not pad_repeat and len(lste[i]) < n:
             for j in range(len(lste[i]), n):
-                if n_classes > 0:
-                    single_e_1h = np.zeros((n_classes,), dtype='int32')
-                    single_e_1h[0] = 1
-                else:
-                    single_e_1h = -1
+                # if n_classes > 0:
+                #     single_e_1h = np.zeros((n_classes,), dtype='int32')
+                #     single_e_1h[0] = 1
+                # else:
+                #     single_e_1h = -1
 
-                e_processed[j].append(single_e_1h)
+                e_processed[j].append(0)
                 loss_mask[i, j] = 0
 
     be = []

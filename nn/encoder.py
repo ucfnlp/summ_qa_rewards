@@ -27,7 +27,7 @@ class Encoder(object):
         # hl_inp_len x (batch * n)
         y = self.y = T.imatrix('y')
         # (batch * n) x n_classes
-        gold_standard_entities = self.gold_standard_entities = T.imatrix('gs')
+        gold_standard_entities = self.gold_standard_entities = T.ivector('gs')
         # inp_len x batch
         bm = self.bm = generator.bm
 
