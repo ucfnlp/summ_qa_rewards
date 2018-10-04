@@ -7,7 +7,7 @@ from nn.initialization import get_activation_by_name
 
 
 class MaskedLSTM(LSTM):
-    def forward(self, x_t, mask_t, hc_tm1):
+    def forward_m(self, x_t, mask_t, hc_tm1):
         hc_t = super(MaskedLSTM, self).forward(x_t, hc_tm1)
         hc_t = mask_t * hc_t + (1 - mask_t) * hc_tm1
 
@@ -18,9 +18,9 @@ class MaskedLSTM(LSTM):
             if x.ndim > 1:
                 h0 = T.zeros((x.shape[1], self.n_out*2), dtype=theano.config.floatX)
             else:
-                h0 = T.zeros((self.n_out *2,), dtype=theano.config.floatX)
+                h0 = T.zeros((self.n_out * 2,), dtype=theano.config.floatX)
         h, _ = theano.scan(
-            fn=self.forward,
+            fn=self.forward_m,
             sequences=[x, mask],
             outputs_info=[h0]
         )
@@ -39,7 +39,7 @@ class MaskedLSTM(LSTM):
             else:
                 h0 = T.zeros((self.n_out * 2,), dtype=theano.config.floatX)
         h, _ = theano.scan(
-            fn=self.forward,
+            fn=self.forward_m,
             sequences=[x, mask],
             outputs_info=[h0]
         )

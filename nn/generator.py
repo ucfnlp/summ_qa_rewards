@@ -214,11 +214,8 @@ class Generator(object):
         for i in xrange(2):
             l = MaskedLSTM(
                 n_in=n_e,
-                n_out=n_d,
-                activation=activation,
-                last_only=(i == 2)
+                n_out=n_d
             )
-            l.forward_all_hl()
             layers.append(l)
 
         embs = self.embs

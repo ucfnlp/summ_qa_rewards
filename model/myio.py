@@ -133,7 +133,8 @@ def create_fname_identifier(args):
            '_epochs_' + str(args.max_epochs) + \
            '_layer_' + str(args.layer) + \
            '_gen_t_' + str(args.generator_encoding) + \
-           '_gen_h_' + str(args.use_generator_h) + \
+           '_gen_x_' + str(args.use_generator_h) + \
+           '_y_' + str(args.use_generator_hl_enc) + \
            '_bilin_' + str(args.bilinear) + \
            '_dp_' + str(args.dropout) + \
            '_ext_ck_' + str(args.extended_c_k) + \
