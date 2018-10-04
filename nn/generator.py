@@ -4,7 +4,7 @@ import theano.tensor as T
 from theano.tensor.signal.pool import pool_2d
 
 from nn.basic import LSTM, apply_dropout
-from nn.extended_layers import Sampler
+from nn.extended_layers import Sampler, MaskedLSTM
 from nn.initialization import get_activation_by_name
 from nn.advanced import Conv1d
 
@@ -212,12 +212,13 @@ class Generator(object):
         layers = self.layers
 
         for i in xrange(2):
-            l = LSTM(
+            l = MaskedLSTM(
                 n_in=n_e,
                 n_out=n_d,
                 activation=activation,
                 last_only=(i == 2)
             )
+            l.forward_all_hl()
             layers.append(l)
 
         embs = self.embs

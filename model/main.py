@@ -278,7 +278,7 @@ class Model(object):
         outputs_d = [self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped]
         outputs_t = [self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
                      self.encoder.word_overlap_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz,
-                     self.encoder.cost_vec, self.encoder.preds_clipped]
+                     self.encoder.cost_vec, self.encoder.preds_clipped, self.encoder.cost_g]
 
         inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
         inputs_t = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
@@ -376,7 +376,7 @@ class Model(object):
                                                   train_batches_bm[j], train_batches_fw[j], train_batches_csz[j], train_batches_bpi[j]
                         be, blm = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
 
-                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, preds_tr = train_generator(
+                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, preds_tr, cost_g = train_generator(
                                 bx, bpi, by, bm, be, bfw, bcsz, blm)
 
                         mask = bx != padding_id

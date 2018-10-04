@@ -2,7 +2,7 @@ import theano
 import theano.tensor as T
 
 from nn.basic import Layer
-from nn.extended_layers import HLLSTM
+from nn.extended_layers import MaskedLSTM
 from nn.initialization import softmax, get_activation_by_name
 from nn.advanced import Bilinear
 
@@ -42,26 +42,35 @@ class Encoder(object):
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
 
-        rnn_fw = HLLSTM(
-            n_in=n_e,
-            n_out=n_d
-        )
-
-        rnn_rv = HLLSTM(
-            n_in=n_e,
-            n_out=n_d
-        )
-
         embs_y = embedding_layer.forward(y.ravel())
         embs_y = embs_y.reshape((y.shape[0], y.shape[1], n_e))
-
-        embs_x = generator.word_embs
 
         flipped_embs_y = embs_y[::-1]
         flipped_mask_y = mask_y[::-1]
 
-        h_f_y = rnn_fw.forward_all(embs_y, mask_y)
-        h_r_y = rnn_rv.forward_all(flipped_embs_y, flipped_mask_y)
+        # Only use if generator encoding is LSTM
+        if args.use_generator_hl_enc:
+            assert args.generator_encoding == 'lstm'
+
+            h_f_y = self.generator.layers[0].forward_all_hl(embs_y, mask_y)
+            h_r_y = self.generator.layers[0].forward_all_hl(flipped_embs_y, flipped_mask_y)
+
+        else:
+            rnn_fw = MaskedLSTM(
+                n_in=n_e,
+                n_out=n_d
+            )
+
+            rnn_rv = MaskedLSTM(
+                n_in=n_e,
+                n_out=n_d
+            )
+
+            h_f_y = rnn_fw.forward_all_hl(embs_y, mask_y)
+            h_r_y = rnn_rv.forward_all_hl(flipped_embs_y, flipped_mask_y)
+
+            layers.append(rnn_fw)
+            layers.append(rnn_rv)
 
         mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0, 1, 'x'))
         tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
@@ -71,16 +80,20 @@ class Encoder(object):
 
             if args.generator_encoding == 'cnn':
                 layers.extend(self.generator.layers[:4])
-            else:
-                layers.extend(self.generator.layers[:2])
+
         else:
+            embs_x = generator.word_embs
+
             flipped_embs_x = embs_x[::-1]
             flipped_mask_x = mask_x[::-1]
 
-            h_f_x = rnn_fw.forward_all_x(embs_x, mask_x)
-            h_r_x = rnn_rv.forward_all_x(flipped_embs_x, flipped_mask_x)
+            h_f_x = rnn_fw.forward_all_doc(embs_x, mask_x)
+            h_r_x = rnn_rv.forward_all_doc(flipped_embs_x, flipped_mask_x)
 
             h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
+
+        if args.use_generator_h or args.use_generator_hl_enc:
+            layers.extend(self.generator.layers[:2])
 
         softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
         softmax_mask = softmax_mask * (tiled_x_mask - 1)
@@ -131,8 +144,6 @@ class Encoder(object):
             has_bias=True
         )
 
-        layers.append(rnn_fw)
-        layers.append(rnn_rv)
         layers.append(fc7)
         layers.append(output_layer)
 

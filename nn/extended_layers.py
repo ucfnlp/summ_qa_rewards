@@ -6,14 +6,14 @@ from nn.basic import LSTM, Layer
 from nn.initialization import get_activation_by_name
 
 
-class HLLSTM(LSTM):
+class MaskedLSTM(LSTM):
     def forward(self, x_t, mask_t, hc_tm1):
-        hc_t = super(HLLSTM, self).forward(x_t, hc_tm1)
+        hc_t = super(MaskedLSTM, self).forward(x_t, hc_tm1)
         hc_t = mask_t * hc_t + (1 - mask_t) * hc_tm1
 
         return hc_t
 
-    def forward_all(self, x, mask, h0=None, return_c=False):
+    def forward_all_hl(self, x, mask, h0=None, return_c=False):
         if h0 is None:
             if x.ndim > 1:
                 h0 = T.zeros((x.shape[1], self.n_out*2), dtype=theano.config.floatX)
@@ -32,12 +32,12 @@ class HLLSTM(LSTM):
         else:
             return h[-1 :, self.n_out:]
 
-    def forward_all_x(self, x, mask, h0=None, return_c=False):
+    def forward_all_doc(self, x, mask, h0=None, return_c=False):
         if h0 is None:
             if x.ndim > 1:
                 h0 = T.zeros((x.shape[1], self.n_out*2), dtype=theano.config.floatX)
             else:
-                h0 = T.zeros((self.n_out *2,), dtype=theano.config.floatX)
+                h0 = T.zeros((self.n_out * 2,), dtype=theano.config.floatX)
         h, _ = theano.scan(
             fn=self.forward,
             sequences=[x, mask],
