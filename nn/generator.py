@@ -3,7 +3,7 @@ import theano
 import theano.tensor as T
 from theano.tensor.signal.pool import pool_2d
 
-from nn.basic import LSTM, apply_dropout
+from nn.basic import apply_dropout
 from nn.extended_layers import Sampler, MaskedLSTM
 from nn.initialization import get_activation_by_name
 from nn.advanced import Conv1d

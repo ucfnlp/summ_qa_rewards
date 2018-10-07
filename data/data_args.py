@@ -24,6 +24,11 @@ def get_args():
                         default=True,
                         help='Process full selection of CNN data')
 
+    parser.add_argument('--skip_root',
+                        type='bool',
+                        default=False,
+                        help='Use all entities except root')
+
     parser.add_argument('--enhanced_root',
                         type='bool',
                         default=True,
@@ -78,6 +83,11 @@ def get_args():
 
     # MODEL INPUT INFO
 
+    parser.add_argument('--single_doc_sample',
+                        type='bool',
+                        default=False,
+                        help='Use all k QA pairs, but only a single document')
+
     parser.add_argument('--word_model',
                         type=str,
                         default='cnn_w2v_tmp.bin',
@@ -92,6 +102,11 @@ def get_args():
                         type=int,
                         default=400,
                         help='length of single sample')
+
+    parser.add_argument('--ent_cutoff',
+                        type=int,
+                        default=10,
+                        help='')
 
     parser.add_argument('--inp_len_hl',
                         type=int,

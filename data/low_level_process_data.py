@@ -1,5 +1,6 @@
 import json
 import numpy as np
+import matplotlib.pyplot as plt
 
 import data_args
 
@@ -17,14 +18,19 @@ def prune_hl(args):
     entity_map = get_entities(args)
     used_e = set()
 
-    updated_train_y, updated_train_e, updated_train_x, updated_train_ve, updated_train_cly, updated_train_sha, updated_train_ma, updated_train_ch, sent_cut_train = prune_type(
-        args, train_x, train_y, train_e, train_ve, train_cly, None, train_m, train_sha, train_ch, entity_map, used_e)
-    updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_sha, updated_dev_ma, updated_dev_ch, sent_cut_dev = prune_type(
-        args, dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_m, dev_sha, dev_ch, entity_map, used_e)
-    updated_test_y, updated_test_e, updated_test_x, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_ma, updated_test_ch, sent_cut_test = prune_type(
-        args, test_x, test_y, test_e, None, test_cy, test_rx, test_m, test_sha, test_ch, None, used_e)
+    usable_e = determine_usable_entities(args, train_e, dev_e, test_e, train_y, dev_y, test_y, entity_map, args.ent_cutoff)
+    chunk_freq = [0]*5
 
-    print 'used/total entities = ', len(used_e)/ float(len(entity_map))
+    updated_train_y, updated_train_e, updated_train_x, updated_train_ve, updated_train_cly, updated_train_sha, updated_train_ma, updated_train_ch, sent_cut_train = prune_type(
+        args, train_x, train_y, train_e, train_ve, train_cly, None, train_m, train_sha, train_ch, chunk_freq, used_e, usable_e)
+    updated_dev_y, updated_dev_e, updated_dev_x, updated_dev_ve, updated_dev_cly, updated_dev_rx, updated_dev_sha, updated_dev_ma, updated_dev_ch, sent_cut_dev = prune_type(
+        args, dev_x, dev_y, dev_e, dev_ve, dev_cly, dev_rx, dev_m, dev_sha, dev_ch, chunk_freq, used_e, usable_e)
+    updated_test_y, updated_test_e, updated_test_x, updated_test_cly, updated_test_rx, updated_test_sha, updated_test_ma, updated_test_ch, sent_cut_test = prune_type(
+        args, test_x, test_y, test_e, None, test_cy, test_rx, test_m, test_sha, test_ch, chunk_freq, used_e, usable_e)
+
+    print 'used/total entities = ', len(used_e) / float(len(entity_map))
+
+    print_chunk_info(chunk_freq)
 
     print 'pruning entities'
     e_map_new = re_map(used_e)
@@ -100,7 +106,7 @@ def write_model_ready(args, train, dev, test):
     ofp_test.close()
 
 
-def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, entity_map, used_e):
+def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, chunk_freq, used_e, usable_e):
     length = len(y)
     updated_y = []
     updated_cy = []
@@ -130,7 +136,8 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, entity_map, used_e):
 
             num_perms = get_perms(highlight)
 
-            if args.use_root:
+            if args.use_root and highlight[0][0] in usable_e:
+
                 updated_y_ls.append(y[i][y_idx])
                 updated_e_ls.append(highlight[0][0])
 
@@ -138,14 +145,15 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, entity_map, used_e):
 
                 total_entries += 1
             else:
-                # if num_perms == 2:
-                #     rand_e_idx = 1
-                # else:
-                #     rand_e_idx = np.random.randint(1, num_perms - 1)
-
-                flat_hl = [item for group in highlight for item in group]
+                if args.skip_root:
+                    flat_hl = [item for group in highlight[1:] for item in group]
+                else:
+                    flat_hl = [item for group in highlight for item in group]
 
                 for j in xrange(len(flat_hl)):
+
+                    if flat_hl[j] not in usable_e:
+                        continue
 
                     updated_y_ls.append(y[i][y_idx + j])
                     updated_e_ls.append(flat_hl[j])
@@ -185,7 +193,14 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, entity_map, used_e):
         if args.word_level_c:
             updated_ch.append([1 for sent in ch[i] for _ in sent])
         else:
-            updated_ch.append([w for sent in ch[i] for w in sent])
+            updated_chunks = []
+
+            for sent in ch[i]:
+                for w in sent:
+                    updated_chunks.append(w)
+                    chunk_freq[w - 1] += 1
+
+            updated_ch.append(updated_chunks)
 
         if ve is not None:
             updated_ve.append(ve[i])
@@ -206,6 +221,80 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, entity_map, used_e):
     else:
         return updated_y, updated_e, updated_x, updated_ve, updated_cy, \
                updated_raw_x, updated_sha, updated_ma, updated_ch, sentence_cutoffs
+
+
+def determine_usable_entities(args, train_e, dev_e, test_e, train_y, dev_y, test_y, entity_map, cutoff=5):
+    e = train_e + dev_e + test_e
+    y = train_y + dev_y + test_y
+
+    length = len(y)
+    used_e = dict()
+    new_map = dict()
+
+    empty_articles = 0
+
+    for i in xrange(length):
+
+        y_idx = 0
+        total_entries = 0
+
+        empty_article = True
+
+        for highlight in e[i]:
+
+            if total_entries >= args.n:
+                break
+
+            num_perms = get_perms(highlight)
+
+            if args.use_root:
+                if highlight[0][0] in used_e:
+                    used_e[highlight[0][0]] = used_e[highlight[0][0]] + 1
+                else:
+                    used_e[highlight[0][0]] = 1
+
+                total_entries += 1
+            else:
+                if args.skip_root:
+                    flat_hl = [item for group in highlight[1:] for item in group]
+                else:
+                    flat_hl = [item for group in highlight for item in group]
+
+                if len(flat_hl) > 0:
+                    empty_article = False
+
+                for j in xrange(len(flat_hl)):
+
+                    if flat_hl[j] in used_e:
+                        used_e[flat_hl[j]] = used_e[flat_hl[j]] + 1
+                    else:
+                        used_e[flat_hl[j]] = 1
+
+                total_entries += 1
+
+            y_idx += num_perms
+        if empty_article:
+            empty_articles += 1
+        if total_entries == 0:
+            continue
+
+    print 'Empty articles :', empty_articles
+    print 'Original Total Entities :', len(used_e)
+
+    for k, v in used_e.iteritems():
+        if v >= cutoff:
+            new_map[k] = v
+
+    print 'New Total Entites :', len(new_map)
+    print 'Top 10 frequencies :'
+    i = 0
+    for key, value in sorted(used_e.iteritems(), key=lambda (k, v): (v, k), reverse=True):
+        if i == 10:
+            break
+        print "  %s : %s" % (entity_map[key][0], value)
+        i += 1
+
+    return new_map
 
 
 def re_map_entities(e, new_map):
@@ -329,6 +418,15 @@ def get_perms(highlight):
             t += 1
 
     return t
+
+
+def print_chunk_info(chunk_freq):
+    print 'Chunk frequency :'
+
+    total_ch = float(np.sum(chunk_freq))
+
+    for i in xrange(len(chunk_freq)):
+        print '  total : ' + str(chunk_freq[i]) + ', size ' + str(i+1) + ': ' + str(chunk_freq[i] / total_ch)
 
 
 if __name__ == '__main__':
