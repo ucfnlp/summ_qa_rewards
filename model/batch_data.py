@@ -2,6 +2,8 @@ import json
 from nltk.tokenize import RegexpTokenizer
 import numpy as np
 import random
+from datetime import datetime
+import copy
 
 import summarization_args
 
@@ -79,9 +81,19 @@ def create_batches(args, x, y, entities, sentence_sizes, clean_indexed_y, sha, c
     num_batches = 0
     num_files = 0
 
-    if sort:
-        perm = range(N)
-        perm = sorted(perm, key=lambda i: len(x[i]))
+    if sort is not None:
+        if sort == 'sort':
+            perm = range(N)
+            perm = sorted(perm, key=lambda i: len(x[i]))
+        elif sort == 'shuffle':
+            random.seed(datetime.now())
+
+            perm = range(N)
+            random.shuffle(perm)
+
+        else:
+            raise NotImplementedError
+
         x = [x[i] for i in perm]
         y = [y[i] for i in perm]
         entities = [entities[i] for i in perm]
@@ -89,6 +101,9 @@ def create_batches(args, x, y, entities, sentence_sizes, clean_indexed_y, sha, c
         clean_indexed_y = [clean_indexed_y[i] for i in perm]
         chunk_sizes = [chunk_sizes[i] for i in perm]
         sha = [sha[i] for i in perm]
+
+        if raw_x is not None:
+            raw_x = [raw_x[i] for i in perm]
 
     for i in xrange(M):
         single_batch_x, single_batch_y, single_batch_overlap_mask, single_batch_fw_m, single_batch_chunk_sizes, single_batch_sentence_idx = create_one_batch(
@@ -341,24 +356,6 @@ def sentence_indexing(lstsc, max_len):
                                    constant_values=0).astype('int32') for x in indexed_x])
 
 
-def process_hl_test(args, lsty, lstcy):
-    max_len_y = args.hl_len
-    unigrams = []
-
-    for i in xrange(len(lsty)):
-        sample_u = set()
-
-        for clean_hl in lstcy[i]:
-            trimmed_cy = clean_hl[:max_len_y]
-
-            for token in trimmed_cy:
-                sample_u.add(token)
-
-        unigrams.append(sample_u)
-
-    return unigrams
-
-
 def create_unigram_masks(lstx, unigrams, max_len, stopwords, args):
     masks = []
 
@@ -466,6 +463,40 @@ def record_stopwords(stopwords, punctuation, lst_words):
     ofp.close()
 
 
+def flatten_data(args, cur_data):
+    y_counts = []
+    items = len(cur_data)
+    new_data = [[] for _ in xrange(items)]
+
+    if cur_data[-1] is None:
+        items = items - 1
+        new_data[-1] = None
+
+    for i in xrange(len(cur_data[1])):
+        used_y = min(args.n, len(cur_data[1][i]))
+        y_counts.append(used_y)
+
+        for j in xrange(used_y):
+
+            for k in range(1, 3):
+                new_data[k].append([cur_data[k][i][j]])
+
+            num_clean_y = len(cur_data[3][i])
+            cy_copy = []
+            for cy in xrange(num_clean_y):
+                cy_copy.append(cur_data[3][i][cy][:])
+
+            new_data[3].append(cy_copy)
+
+            for k in [0] + range(4, items):
+                if isinstance(cur_data[k][i], list):
+                    new_data[k].append(cur_data[k][i][:])
+                else:
+                    new_data[k].append(cur_data[k][i])
+
+    return new_data
+
+
 def main(args):
     vocab_map, lst_words = create_vocab(args)
     stopwords = create_stopwords(args, vocab_map, lst_words)
@@ -476,11 +507,19 @@ def main(args):
     del lst_words
 
     type_ls = ['train', 'dev', 'test']
-
-    for type_ in type_ls:
+    sort_ls = [args.sort, None, None]
+    # old_args_n = args.n
+    for type_, sort in zip(type_ls, sort_ls):
         print type_, ':'
         print '  Read JSON..'
         cur_data = read_docs(args, type_)
+
+        # if type_ == 'train' and args.single_n_repeat_doc:
+        #     cur_data = flatten_data(args, cur_data)
+        #     args.n = 1
+        # else:
+        #     args.batch = 128
+        #     args.n = old_args_n
 
         create_batches(args=args,
                        x=cur_data[0],
@@ -493,7 +532,7 @@ def main(args):
                        raw_x=cur_data[8],
                        padding_id=pad_id,
                        stopwords=stopwords,
-                       sort=(type_ == 'train'),
+                       sort=sort,
                        model_type=type_)
 
         print '  Purge references..'
