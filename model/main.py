@@ -307,6 +307,7 @@ class Model(object):
         filename = myio.create_json_filename(args)
         ofp_train = open(filename, 'w+')
         json_train = dict()
+        random.seed(datetime.now())
 
         for epoch in xrange(args.max_epochs):
             unchanged += 1
@@ -353,7 +354,6 @@ class Model(object):
 
                     cur_len = len(train_batches_x)
 
-                    random.seed(datetime.now())
                     perm2 = range(cur_len)
                     random.shuffle(perm2)
 

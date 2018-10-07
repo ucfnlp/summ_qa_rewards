@@ -38,6 +38,11 @@ def get_args():
                         default='cnn',
                         help='Data source cnn/dm')
 
+    parser.add_argument('--sort',
+                        type=str,
+                        default='sort',
+                        help='Train data shuffling')
+
     parser.add_argument('--pretrain',
                         type='bool',
                         default=False,
@@ -109,6 +114,12 @@ def get_args():
                         help="Test overfitting on a single/few samples"
                         )
 
+    parser.add_argument("--single_n_repeat_doc",
+                        type='bool',
+                        default=False,
+                        help=""
+                        )
+
     parser.add_argument('--embedding_dim',
                         type=int,
                         default=100,
@@ -141,7 +152,7 @@ def get_args():
 
     parser.add_argument('--nclasses',
                         type=int,
-                        default=2481,
+                        default=-1,
                         help='Number of unique entities')
 
     parser.add_argument("--train_output_readable",
