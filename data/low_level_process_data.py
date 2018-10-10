@@ -275,23 +275,26 @@ def determine_usable_entities(args, train_e, dev_e, test_e, train_y, dev_y, test
             y_idx += num_perms
         if empty_article:
             empty_articles += 1
-        if total_entries == 0:
-            continue
 
-    print 'Empty articles :', empty_articles
+    if not args.use_root:
+        print 'Empty articles :', empty_articles
+
     print 'Original Total Entities :', len(used_e)
 
+    total_count = 0
+
     for k, v in used_e.iteritems():
+        total_count += v
         if v >= cutoff:
             new_map[k] = v
 
     print 'New Total Entites :', len(new_map)
-    print 'Top 10 frequencies :'
+    print 'Top 20 frequencies :'
     i = 0
     for key, value in sorted(used_e.iteritems(), key=lambda (k, v): (v, k), reverse=True):
-        if i == 10:
+        if i == 20:
             break
-        print "  %s : %s" % (entity_map[key][0], value)
+        print "  %s : %s (%s perc)" % (entity_map[key][0], value, value / float(total_count) * 100.0)
         i += 1
 
     return new_map
