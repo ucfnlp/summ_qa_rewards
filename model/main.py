@@ -247,7 +247,7 @@ class Model(object):
 
         self.dropout.set_value(0.0)
 
-        dev_obj, dev_z, dev_x, dev_sha, dev_acc = self.evaluate_data(eval_generator)
+        dev_obj, dev_z, dev_x, dev_sha, dev_acc, _ = self.evaluate_data(eval_generator)
 
         myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
         myio.get_rouge(self.args)
@@ -278,7 +278,7 @@ class Model(object):
         outputs_d = [self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped]
         outputs_t = [self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
                      self.encoder.word_overlap_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz,
-                     self.encoder.cost_vec, self.encoder.preds_clipped, self.encoder.cost_g]
+                     self.encoder.cost_vec, self.encoder.preds_clipped, self.encoder.cost_g, self.encoder.l2_cost, self.generator.l2_cost]
 
         inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
         inputs_t = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
@@ -343,6 +343,9 @@ class Model(object):
                 z_pred_all = []
                 cost_vec_all = []
                 train_acc = []
+                train_f1 = []
+                l2_generator = []
+                l2_encoder = []
 
                 num_files = args.num_files_train
                 N = args.online_batch_size * num_files
@@ -376,12 +379,14 @@ class Model(object):
                                                   train_batches_bm[j], train_batches_fw[j], train_batches_csz[j], train_batches_bpi[j]
                         be, blm = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
 
-                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, preds_tr, cost_g = train_generator(
+                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, preds_tr, cost_g, l2_enc, l2_gen = train_generator(
                                 bx, bpi, by, bm, be, bfw, bcsz, blm)
 
                         mask = bx != padding_id
+                        acc, f1 = self.eval_qa(be, preds_tr, blm)
 
-                        train_acc.append(self.eval_acc(be, preds_tr))
+                        train_acc.append(acc)
+                        train_f1.append(f1)
                         obj_all.append(cost)
                         loss_all.append(loss)
                         zsum_all.append(np.mean(zsum))
@@ -392,6 +397,8 @@ class Model(object):
                         z_pred_all.append(np.mean(np.sum(z, axis=0)))
                         cost_vec_all.append(np.mean(cost_vec))
                         bigram_loss_all.append(np.mean(bigram_loss))
+                        l2_encoder.append(l2_enc)
+                        l2_generator.append(l2_gen)
 
                         train_cost += cost
                         train_loss += loss
@@ -402,7 +409,7 @@ class Model(object):
 
                 if args.dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_z, dev_x, dev_sha, dev_acc = self.evaluate_data(eval_generator)
+                    dev_obj, dev_z, dev_x, dev_sha, dev_acc, dev_f1 = self.evaluate_data(eval_generator)
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
@@ -431,7 +438,9 @@ class Model(object):
                     continue
 
                 myio.record_observations_verbose(json_train, epoch + 1, loss_all, obj_all, zsum_all, loss_vec_all,
-                                             z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all, bigram_loss_all, dev_acc, np.mean(train_acc))
+                                                 z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all,
+                                                 bigram_loss_all, dev_acc, dev_f1, np.mean(train_acc), np.mean(train_f1),
+                                                 np.mean(l2_encoder), np.mean(l2_generator))
 
                 last_train_avg_cost = cur_train_avg_cost
 
@@ -903,6 +912,7 @@ class Model(object):
         x = []
         sha_ls = []
         dev_acc = []
+        dev_f1 = []
 
         num_files = self.args.num_files_dev
 
@@ -927,11 +937,14 @@ class Model(object):
                 x.append(rx)
                 dev_z.append(bz)
                 sha_ls.append(sha)
-                dev_acc.append(self.eval_acc(be, preds))
+
+                acc, f1 = self.eval_qa(be, preds, ble)
+                dev_acc.append(acc)
+                dev_f1.append(f1)
 
             N += cur_len
 
-        return tot_obj / float(N), dev_z, x, sha_ls, np.mean(dev_acc)
+        return tot_obj / float(N), dev_z, x, sha_ls, np.mean(dev_acc), np.mean(dev_f1)
 
     def evaluate_test_data(self, eval_func):
         N = 0
@@ -966,10 +979,21 @@ class Model(object):
 
         return test_z, x, y, e, sha_ls
 
-    def eval_acc(self,gs, preds):
+    def eval_qa(self, gs, preds, valid_mask):
         system = np.argmax(preds, axis=1)
+        valid_mask = np.ndarray.flatten(valid_mask)
 
-        return sk.accuracy_score(gs, system)
+        valid_gs = []
+        valid_sy = []
+
+        for system_pred, gold_standard_val, mask in zip(system, gs, valid_mask):
+            if mask > 0:
+                valid_gs.append(gold_standard_val)
+                valid_sy.append(system_pred)
+
+        accuracy_score = sk.accuracy_score(valid_gs, valid_sy)
+        f1_score = sk.f1_score(valid_gs, valid_sy, average='micro')
+        return accuracy_score, f1_score
 
 
 def main():
