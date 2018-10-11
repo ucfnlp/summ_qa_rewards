@@ -48,29 +48,21 @@ class Encoder(object):
         flipped_embs_y = embs_y[::-1]
         flipped_mask_y = mask_y[::-1]
 
-        # Only use if generator encoding is LSTM
-        if args.use_generator_hl_enc:
-            assert args.generator_encoding == 'lstm'
+        rnn_fw = MaskedLSTM(
+            n_in=n_e,
+            n_out=n_d
+        )
 
-            h_f_y = self.generator.layers[0].forward_all_hl(embs_y, mask_y)
-            h_r_y = self.generator.layers[0].forward_all_hl(flipped_embs_y, flipped_mask_y)
+        rnn_rv = MaskedLSTM(
+            n_in=n_e,
+            n_out=n_d
+        )
 
-        else:
-            rnn_fw = MaskedLSTM(
-                n_in=n_e,
-                n_out=n_d
-            )
+        h_f_y = rnn_fw.forward_all_hl(embs_y, mask_y)
+        h_r_y = rnn_rv.forward_all_hl(flipped_embs_y, flipped_mask_y)
 
-            rnn_rv = MaskedLSTM(
-                n_in=n_e,
-                n_out=n_d
-            )
-
-            h_f_y = rnn_fw.forward_all_hl(embs_y, mask_y)
-            h_r_y = rnn_rv.forward_all_hl(flipped_embs_y, flipped_mask_y)
-
-            layers.append(rnn_fw)
-            layers.append(rnn_rv)
+        layers.append(rnn_fw)
+        layers.append(rnn_rv)
 
         mask_x = T.cast(T.neq(x, padding_id) * z, theano.config.floatX).dimshuffle((0, 1, 'x'))
         tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
@@ -80,6 +72,8 @@ class Encoder(object):
 
             if args.generator_encoding == 'cnn':
                 layers.extend(self.generator.layers[:4])
+            else:
+                layers.extend(self.generator.layers[:2])
 
         else:
             embs_x = generator.word_embs
@@ -91,9 +85,6 @@ class Encoder(object):
             h_r_x = rnn_rv.forward_all_doc(flipped_embs_x, flipped_mask_x)
 
             h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
-
-        if args.use_generator_h or args.use_generator_hl_enc:
-            layers.extend(self.generator.layers[:2])
 
         softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
         softmax_mask = softmax_mask * (tiled_x_mask - 1)

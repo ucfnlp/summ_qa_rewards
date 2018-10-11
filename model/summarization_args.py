@@ -183,11 +183,6 @@ def get_args():
                         default=False,
                         help='take hidden states from Generator')
 
-    parser.add_argument('--use_generator_hl_enc',
-                        type='bool',
-                        default=False,
-                        help='Use generator LSTM to encode highlights')
-
     parser.add_argument('--pad_repeat',
                         type='bool',
                         default=False,

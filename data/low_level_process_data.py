@@ -145,8 +145,11 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, chunk_freq, used_e, usabl
 
                 total_entries += 1
             else:
+                index_offset = 0
+
                 if args.skip_root:
                     flat_hl = [item for group in highlight[1:] for item in group]
+                    index_offset = 1
                 else:
                     flat_hl = [item for group in highlight for item in group]
 
@@ -155,7 +158,7 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, chunk_freq, used_e, usabl
                     if flat_hl[j] not in usable_e:
                         continue
 
-                    updated_y_ls.append(y[i][y_idx + j])
+                    updated_y_ls.append(y[i][y_idx + j + index_offset])
                     updated_e_ls.append(flat_hl[j])
 
                     used_e.add(flat_hl[j])
@@ -167,18 +170,6 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, chunk_freq, used_e, usabl
         if total_entries == 0:
             invalid_articles += 1
             continue
-
-        if total_entries < args.n and total_entries != 0 and args.pad_repeat:
-
-            original_y = updated_y_ls[:]
-            original_e = updated_e_ls[:]
-
-            added_entries = len(original_y)
-
-            while total_entries < args.n:
-                updated_e_ls.extend(original_e[:])
-                updated_y_ls.extend(original_y[:])
-                total_entries += added_entries
 
         updated_e.append(updated_e_ls[:args.n])
         updated_y.append(updated_y_ls[:args.n])
@@ -241,9 +232,6 @@ def determine_usable_entities(args, train_e, dev_e, test_e, train_y, dev_y, test
         empty_article = True
 
         for highlight in e[i]:
-
-            if total_entries >= args.n:
-                break
 
             num_perms = get_perms(highlight)
 
