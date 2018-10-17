@@ -197,10 +197,9 @@ class Model(object):
                 path += ".pkl.gz"
 
         with gzip.open(path, "rb") as fin:
-            gparams, nclasses, args = pickle.load(fin)
+            gparams, args = pickle.load(fin)
 
         self.args = args
-        self.nclasses = nclasses
         self.ready_rl_no_qa_inference()
 
         for x, v in zip(self.generator.params, gparams):
@@ -237,7 +236,8 @@ class Model(object):
         myio.get_rouge(self.args)
 
     def dev_full(self):
-        inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask,self.chunk_sizes, self.encoder.loss_mask]
+        inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask,
+                    self.chunk_sizes, self.encoder.loss_mask]
 
         eval_generator = theano.function(
             inputs=inputs_d,
@@ -277,7 +277,8 @@ class Model(object):
 
         outputs_d = [self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped]
         outputs_t = [self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
-                     self.encoder.word_overlap_loss, self.encoder.loss_vec, self.encoder.cost_logpz, self.encoder.logpz,
+                     self.encoder.word_overlap_loss, self.encoder.loss_vec, self.encoder.cost_logpz,
+                     self.encoder.logpz,
                      self.encoder.cost_vec, self.encoder.preds_clipped, self.encoder.cost_g, self.encoder.l2_cost, self.generator.l2_cost]
 
         inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
