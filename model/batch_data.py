@@ -508,18 +508,11 @@ def main(args):
 
     type_ls = ['train', 'dev', 'test']
     sort_ls = [args.sort, None, None]
-    # old_args_n = args.n
+
     for type_, sort in zip(type_ls, sort_ls):
         print type_, ':'
         print '  Read JSON..'
         cur_data = read_docs(args, type_)
-
-        # if type_ == 'train' and args.single_n_repeat_doc:
-        #     cur_data = flatten_data(args, cur_data)
-        #     args.n = 1
-        # else:
-        #     args.batch = 128
-        #     args.n = old_args_n
 
         create_batches(args=args,
                        x=cur_data[0],

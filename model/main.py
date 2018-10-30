@@ -278,8 +278,8 @@ class Model(object):
         outputs_d = [self.generator.non_sampled_zpred, self.encoder.obj, self.encoder.loss, self.encoder.preds_clipped]
         outputs_t = [self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
                      self.encoder.word_overlap_loss, self.encoder.loss_vec, self.encoder.cost_logpz,
-                     self.encoder.logpz,
-                     self.encoder.cost_vec, self.encoder.preds_clipped, self.encoder.cost_g, self.encoder.l2_cost, self.generator.l2_cost]
+                     self.encoder.logpz, self.encoder.cost_vec, self.encoder.preds_clipped, self.encoder.cost_g,
+                     self.encoder.l2_cost, self.generator.l2_cost]
 
         inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
         inputs_t = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
@@ -297,6 +297,8 @@ class Model(object):
             updates=updates_e.items() + updates_g.items() + self.generator.sample_updates,
             on_unused_input='ignore'
         )
+
+        say("Model Built Full\n\n")
 
         unchanged = 0
         best_dev = 1e+2
@@ -340,6 +342,7 @@ class Model(object):
                 loss_vec_all = []
                 z_diff_all = []
                 cost_logpz_all = []
+                cost_generator_ls = []
                 logpz_all = []
                 z_pred_all = []
                 cost_vec_all = []
@@ -400,6 +403,7 @@ class Model(object):
                         bigram_loss_all.append(np.mean(bigram_loss))
                         l2_encoder.append(l2_enc)
                         l2_generator.append(l2_gen)
+                        cost_generator_ls.append(cost_g)
 
                         train_cost += cost
                         train_loss += loss
@@ -441,7 +445,7 @@ class Model(object):
                 myio.record_observations_verbose(json_train, epoch + 1, loss_all, obj_all, zsum_all, loss_vec_all,
                                                  z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all,
                                                  bigram_loss_all, dev_acc, dev_f1, np.mean(train_acc), np.mean(train_f1),
-                                                 np.mean(l2_encoder), np.mean(l2_generator))
+                                                 np.mean(l2_encoder), np.mean(l2_generator), np.mean(cost_generator_ls))
 
                 last_train_avg_cost = cur_train_avg_cost
 
@@ -509,7 +513,7 @@ class Model(object):
             outputs=outputs_t,
             updates=updates_g.items()
         )
-        say("Model Built\n\n")
+        say("Model Built Pre\n\n")
 
         unchanged = 0
         best_dev = 1e+2
@@ -773,7 +777,7 @@ class Model(object):
                         p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
 
                 cur_train_avg_cost = train_cost / N
-                print args.dev
+
                 if args.dev:
                     self.dropout.set_value(0.0)
                     dev_obj, dev_z, x, sha_ls = self.evaluate_pretrain_data(eval_generator)
@@ -929,7 +933,6 @@ class Model(object):
                 bx, by, be, bm, sha, rx, fw, csz, bpi = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], \
                                                         batches_sha[j], batches_rx[j], batches_fw[j], \
                                                         batches_csz[j], batches_bpi[j]
-                print bx.shape, fw.shape
                 be, ble = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
                 bz, o, e, preds = eval_func(bx, bpi, by, bm, be, fw, csz, ble)
 

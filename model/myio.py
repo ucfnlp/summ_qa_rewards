@@ -142,9 +142,10 @@ def create_fname_identifier(args):
            '_q' + str(args.n) + \
            '_root_' + str(args.is_root) + \
            '_ch_t_' + chunk_typ + \
-           '_cf_z_' + str(args.coeff_z) + \
-           '_cf_adq_' + str(args.coeff_adequacy) + \
-           '_cf_c_scl_' + str(args.coeff_cost_scale) + \
+           '_zs_' + str(args.coeff_zs) + \
+           '_zd_' + str(args.coeff_zd) + \
+           '_adq_' + str(args.coeff_adequacy) + \
+           '_c_scl_' + str(args.coeff_cost_scale) + \
            '_zp_' + str(args.z_perc)
 
 
@@ -194,7 +195,7 @@ def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
 
 def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff, cost_logpz,
                                 logpz, z_pred, cost_vec, bigram_loss, dev_acc, dev_f1, train_acc,
-                                train_f1, l2_enc, l2_gen):
+                                train_f1, l2_enc, l2_gen, cost_g):
     epoch_data = dict()
 
     epoch_data['loss'] = float(np.mean(loss))
@@ -212,6 +213,7 @@ def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_di
     epoch_data['logpz'] = float(np.mean(logpz))
     epoch_data['z_pred'] = float(np.mean(z_pred))
     epoch_data['cost_vec'] = float(np.mean(cost_vec))
+    epoch_data['cost_g'] = float(cost_g)
 
     epoch_data['l2_gen'] = float(l2_gen)
     epoch_data['l2_enc'] = float(l2_enc)
@@ -636,9 +638,10 @@ def get_rouge(args):
         r = Rouge155()
 
     r.system_dir = rouge_fname
-    r.model_dir = args.model_summ_path + 'dev/'
+    r.model_dir = args.model_summ_path + ('dev/' if args.source == 'cnn' else 'dm_dev/')
+    # r.model_dir = args.model_summ_path + 'dev/'
     r.system_filename_pattern = 'sum.(\d+).txt'
-    r.model_filename_pattern = 'dev_cnn_#ID#.txt'
+    r.model_filename_pattern = 'dev_'+args.source+'_#ID#.txt'
 
     fname = args.rouge_dir + create_fname_identifier(args) + '_rouge.out'
     ofp = open(fname, 'w+')
