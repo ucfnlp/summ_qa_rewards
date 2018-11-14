@@ -284,6 +284,12 @@ def get_args():
                         help="Get baseline ROUGE for test set, based on BG."
                         )
 
+    parser.add_argument("--test_leaks",
+                        type='bool',
+                        default=False,
+                        help=""
+                        )
+
     parser.add_argument("--test",
                         type=str,
                         default="../data/test_model.json",

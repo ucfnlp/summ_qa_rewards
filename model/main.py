@@ -254,7 +254,7 @@ class Model(object):
 
     def train(self):
         args = self.args
-        dropout = self.dropout
+
         padding_id = self.embedding_layer.vocab_map["<padding>"]
 
         updates_e, lr_e, gnorm_e = create_optimization_updates(
@@ -279,7 +279,7 @@ class Model(object):
         outputs_t = [self.encoder.obj, self.encoder.loss, self.z, self.encoder.zsum, self.encoder.zdiff,
                      self.encoder.word_overlap_loss, self.encoder.loss_vec, self.encoder.cost_logpz,
                      self.encoder.logpz, self.encoder.cost_vec, self.encoder.preds_clipped, self.encoder.cost_g,
-                     self.encoder.l2_cost, self.generator.l2_cost]
+                     self.encoder.l2_cost, self.generator.l2_cost, self.encoder.softmax_mask]
 
         inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
         inputs_t = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask, self.chunk_sizes, self.encoder.loss_mask]
@@ -309,7 +309,11 @@ class Model(object):
 
         filename = myio.create_json_filename(args)
         ofp_train = open(filename, 'w+')
+        ofp_train_leaks = open(filename.replace('.json', '_leaks.json'), 'w+')
+
         json_train = dict()
+        json_train_leaks = dict()
+
         random.seed(datetime.now())
 
         for epoch in xrange(args.max_epochs):
@@ -351,6 +355,10 @@ class Model(object):
                 l2_generator = []
                 l2_encoder = []
 
+                soft_mask_ls = []
+                z_pred_ls = []
+                mask_pred_ls = []
+
                 num_files = args.num_files_train
                 N = args.online_batch_size * num_files
 
@@ -383,11 +391,16 @@ class Model(object):
                                                   train_batches_bm[j], train_batches_fw[j], train_batches_csz[j], train_batches_bpi[j]
                         be, blm = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
 
-                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, preds_tr, cost_g, l2_enc, l2_gen = train_generator(
+                        cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, preds_tr, cost_g, l2_enc, l2_gen, soft_mask = train_generator(
                                 bx, bpi, by, bm, be, bfw, bcsz, blm)
 
                         mask = bx != padding_id
                         acc, f1 = self.eval_qa(be, preds_tr, blm)
+
+                        if j == 3:
+                            soft_mask_ls.append(np.ndarray.tolist(soft_mask))
+                            z_pred_ls.append(np.ndarray.tolist(z))
+                            mask_pred_ls.append(np.ndarray.tolist(mask))
 
                         train_acc.append(acc)
                         train_f1.append(f1)
@@ -411,6 +424,9 @@ class Model(object):
                         p1 += np.sum(z * mask) / (np.sum(mask) + 1e-8)
 
                 cur_train_avg_cost = train_cost / N
+
+                if args.test_leaks:
+                    myio.record_observations_leaks(json_train_leaks, epoch, soft_mask_ls, z_pred_ls, mask_pred_ls)
 
                 if args.dev:
                     self.dropout.set_value(0.0)
@@ -469,7 +485,6 @@ class Model(object):
                             self.save_model(filename, args)
                             json_train['BEST_DEV_EPOCH'] = epoch
 
-
                             myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
 
             if more_count > 5:
@@ -482,7 +497,10 @@ class Model(object):
             json_train['UNCHANGED'] = unchanged
 
         json.dump(json_train, ofp_train)
+        json.dump(json_train_leaks, ofp_train_leaks)
+        ofp_train_leaks.close()
         ofp_train.close()
+
 
     def pretrain(self):
         args = self.args
@@ -997,6 +1015,7 @@ class Model(object):
 
         accuracy_score = sk.accuracy_score(valid_gs, valid_sy)
         f1_score = sk.f1_score(valid_gs, valid_sy, average='micro')
+
         return accuracy_score, f1_score
 
 

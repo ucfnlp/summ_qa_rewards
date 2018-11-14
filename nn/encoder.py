@@ -87,7 +87,7 @@ class Encoder(object):
             h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
 
         softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
-        softmax_mask = softmax_mask * (tiled_x_mask - 1)
+        self.softmax_mask = softmax_mask = softmax_mask * (tiled_x_mask - 1)
 
         # 1 x (batch * n) x n_d -> (batch * n) x (2 * n_d) x 1
         h_concat_y = T.concatenate([h_f_y, h_r_y], axis=2).dimshuffle((1, 2, 0))

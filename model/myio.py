@@ -182,6 +182,16 @@ def record_observations(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff):
     ofp_json['e' + str(epoch)] = epoch_data
 
 
+def record_observations_leaks(ofp_json, epoch, soft_mask_ls, z_pred_ls, mask_ls):
+    epoch_data = dict()
+
+    epoch_data['soft_mask'] = soft_mask_ls
+    epoch_data['z_pred'] = z_pred_ls
+    epoch_data['mask'] = mask_ls
+
+    ofp_json['e' + str(epoch)] = epoch_data
+
+
 def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
     epoch_data = dict()
 
@@ -764,22 +774,11 @@ def create_1h(lste, n_classes, n, pad_repeat):
         for j in xrange(len(lste[i])):
             if j == n:
                 break
-            # if n_classes > 0:
-            #     single_e_1h = np.zeros((n_classes,), dtype='int32')
-            #     single_e_1h[] = 1
-            # else:
-            #     single_e_1h = lste[i][j]
-
             e_processed[j].append(lste[i][j])
 
         # For the case of not having padded y
         if not pad_repeat and len(lste[i]) < n:
             for j in range(len(lste[i]), n):
-                # if n_classes > 0:
-                #     single_e_1h = np.zeros((n_classes,), dtype='int32')
-                #     single_e_1h[0] = 1
-                # else:
-                #     single_e_1h = -1
 
                 e_processed[j].append(0)
                 loss_mask[i, j] = 0
