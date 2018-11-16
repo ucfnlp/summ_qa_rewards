@@ -43,6 +43,17 @@ def get_args():
                         default='sort',
                         help='Train data shuffling')
 
+    parser.add_argument('--use_overlap',
+                        type='bool',
+                        default=False,
+                        help='Create x, using overlapped content only form highlights')
+
+    parser.add_argument("--x_sample_percentage",
+                        type=float,
+                        default=1.0,
+                        help="learning rate"
+                        )
+
     parser.add_argument('--pretrain',
                         type='bool',
                         default=False,

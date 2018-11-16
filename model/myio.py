@@ -97,7 +97,9 @@ def load_batches(name, iteration):
     data = np.load(ifp)
     ifp.close()
 
-    if len(data) == 8:
+    if len(data) == 4:
+        return data[0], data[1], data[2], data[3]
+    elif len(data) == 8:
         return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]
     elif len(data) == 9:
         return data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]
@@ -149,9 +151,35 @@ def create_fname_identifier(args):
            '_zp_' + str(args.z_perc)
 
 
+def create_fname_identifier_qa(args):
+
+    return 'src_' + str(args.source) + \
+           '_edim_' + str(args.embedding_dim) + \
+           '_batch_' + str(args.batch) + \
+           '_inp_' + str(args.inp_len) + \
+           '_epochs_' + str(args.max_epochs) + \
+           '_layer_' + str(args.layer) + \
+           '_bilin_' + str(args.bilinear) + \
+           '_dp_' + str(args.dropout) + \
+           '_ext_ck_' + str(args.extended_c_k) + \
+           '_ncl_' + str(args.nclasses) + \
+           '_q' + str(args.n) + \
+           '_root_' + str(args.is_root) + \
+           '_c_scl_' + str(args.coeff_cost_scale) + \
+           '_prune_ov_' + str(args.use_overlap) + \
+           '_prune_perc_' + str(args.x_sample_percentage)
+
+
 def create_json_filename(args):
     path = '../data/results/'
     filename = ('pretrain_' if args.pretrain else '') + create_fname_identifier(args) + '.json'
+
+    return path + filename
+
+
+def create_json_filename_qa(args):
+    path = '../data/results/'
+    filename = ('pretrain_' if args.pretrain else '') + create_fname_identifier_qa(args) + '.json'
 
     return path + filename
 
@@ -227,6 +255,20 @@ def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_di
 
     epoch_data['l2_gen'] = float(l2_gen)
     epoch_data['l2_enc'] = float(l2_enc)
+
+    ofp_json['e' + str(epoch)] = epoch_data
+
+
+def record_observations_verbose_qa(ofp_json, epoch, loss, loss_vec, dev_acc,
+                                dev_f1, train_acc, train_f1):
+    epoch_data = dict()
+
+    epoch_data['loss'] = float(np.mean(loss))
+    epoch_data['dev_acc'] = dev_acc
+    epoch_data['dev_f1'] = dev_f1
+    epoch_data['train_acc'] = train_acc
+    epoch_data['train_f1'] = train_f1
+    epoch_data['loss_vec'] = float(np.mean(loss_vec))
 
     ofp_json['e' + str(epoch)] = epoch_data
 

@@ -2,9 +2,12 @@ import theano
 import theano.tensor as T
 
 from nn.basic import Layer
+from nn.basic import apply_dropout
 from nn.extended_layers import MaskedLSTM
 from nn.initialization import softmax, get_activation_by_name
 from nn.advanced import Bilinear
+
+import numpy as np
 
 
 class Encoder(object):
@@ -185,4 +188,154 @@ class Encoder(object):
         self.l2_cost = l2_cost
 
         self.cost_g = cost_logpz * args.coeff_cost_scale + generator.l2_cost
+        self.cost_e = loss + l2_cost
+
+
+class QAEncoder(object):
+
+    def __init__(self, args, nclasses, embedding_layer):
+        self.args = args
+        self.embedding_layer = embedding_layer
+        self.nclasses = nclasses
+
+    def ready(self):
+        embedding_layer = self.embedding_layer
+        args = self.args
+        padding_id = embedding_layer.vocab_map["<padding>"]
+
+        layers = []
+        params = self.params = []
+
+        # hl_inp_len x (batch * n)
+        y = self.y = T.imatrix('y')
+        # (batch * n) x n_classes
+        gold_standard_entities = self.gold_standard_entities = T.ivector('gs')
+        loss_mask = self.loss_mask = T.imatrix('loss_mask')
+
+        # inp_len x batch
+        self.x = x = T.imatrix('x')
+
+        dropout = self.dropout = theano.shared(np.float64(args.dropout).astype(theano.config.floatX))
+
+        mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
+
+        n_d = args.hidden_dimension
+        n_e = embedding_layer.n_d
+
+        embs_y = embedding_layer.forward(y.ravel())
+        embs_y = embs_y.reshape((y.shape[0], y.shape[1], n_e))
+
+        flipped_embs_y = embs_y[::-1]
+        flipped_mask_y = mask_y[::-1]
+
+        rnn_fw = MaskedLSTM(
+            n_in=n_e,
+            n_out=n_d
+        )
+
+        rnn_rv = MaskedLSTM(
+            n_in=n_e,
+            n_out=n_d
+        )
+
+        h_f_y = rnn_fw.forward_all_hl(embs_y, mask_y)
+        h_r_y = rnn_rv.forward_all_hl(flipped_embs_y, flipped_mask_y)
+
+        layers.append(rnn_fw)
+        layers.append(rnn_rv)
+
+        mask_x = T.cast(T.neq(x, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
+        tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
+
+        embs = embedding_layer.forward(x.ravel())
+
+        embs = embs.reshape((x.shape[0], x.shape[1], n_e))
+        self.embs = embs = apply_dropout(embs, dropout)
+
+        flipped_embs_x = embs[::-1]
+        flipped_mask_x = mask_x[::-1]
+
+        h_f_x = rnn_fw.forward_all_doc(embs, mask_x)
+        h_r_x = rnn_rv.forward_all_doc(flipped_embs_x, flipped_mask_x)
+
+        h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
+
+        softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
+        self.softmax_mask = softmax_mask = softmax_mask * (tiled_x_mask - 1)
+
+        # 1 x (batch * n) x n_d -> (batch * n) x (2 * n_d) x 1
+        h_concat_y = T.concatenate([h_f_y, h_r_y], axis=2).dimshuffle((1, 2, 0))
+
+        # inp_len x batch x n_d -> inp_len x batch x (2 * n_d)
+        # (batch * n) x inp_len x (2 * n_d)
+        gen_h_final = T.tile(h_concat_x, (args.n, 1)).dimshuffle((1, 0, 2))
+
+        if args.bilinear:
+            bilinear_l = Bilinear(n_d, x.shape[1], args.n)
+            inp_dot_hl = bilinear_l.forward(gen_h_final, h_concat_y)
+
+            layers.append(bilinear_l)
+        else:
+            # (batch * n) x inp_len x 1
+            inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
+
+        h_size = n_d * 2
+
+        inp_dot_hl = inp_dot_hl - softmax_mask
+        inp_dot_hl = inp_dot_hl.ravel()
+
+        # (batch * n) x inp_len
+        self.alpha = alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], x.shape[0])))
+
+        # (batch * n) x n_d * 2
+        o = T.batched_dot(alpha, gen_h_final)
+
+        output_size = h_size * 4
+        h_concat_y = h_concat_y.reshape((o.shape[0], o.shape[1]))
+        self.o = o = T.concatenate([o, h_concat_y, T.abs_(o - h_concat_y), o * h_concat_y], axis=1)
+
+        fc7 = Layer(
+            n_in=output_size,
+            n_out=512,
+            activation=get_activation_by_name('relu'),
+            has_bias=True
+        )
+        fc7_out = fc7.forward(o)
+
+        output_layer = Layer(
+            n_in=512,
+            n_out=self.nclasses,
+            activation=softmax,
+            has_bias=True
+        )
+
+        layers.append(fc7)
+        layers.append(output_layer)
+
+        preds = output_layer.forward(fc7_out)
+        self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
+
+        cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
+        loss_mat = cross_entropy.reshape((x.shape[1], args.n))
+
+        loss_mat = loss_mat * loss_mask
+
+        self.loss_vec = loss_vec = T.mean(loss_mat, axis=1)
+
+        loss = self.loss = T.mean(loss_vec)
+
+        for l in layers + [embedding_layer]:
+            for p in l.params:
+                params.append(p)
+
+        l2_cost = None
+        for p in params:
+            if l2_cost is None:
+                l2_cost = T.sum(p ** 2)
+            else:
+                l2_cost = l2_cost + T.sum(p ** 2)
+
+        l2_cost = l2_cost * args.l2_reg
+        self.l2_cost = l2_cost
+
         self.cost_e = loss + l2_cost
