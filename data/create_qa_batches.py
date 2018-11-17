@@ -265,20 +265,27 @@ def prune_x(args, lst_x, unigrams, stopwords, max_len):
         updated_single_doc = []
 
         if args.use_overlap:
-            for j in xrange(len_x - 1):
+            m = np.zeros((max_len,), dtype='int32')
 
+            for j in xrange(len_x - 1):
                 if j >= max_len:
                     break
                 w1 = lst_x[i][j]
-                w2 = lst_x[i][j+1]
+                w2 = lst_x[i][j + 1]
 
                 if w1 in unigrams[i] and w2 in unigrams[i]:
                     if contains_single_valid_word(w1, w2, stopwords):
                         try:
-                            updated_single_doc.append(w1)
-                            updated_single_doc.append(w2)
+                            m[j] = 1
+                            m[j + 1] = 1
                         except IndexError:
                             continue
+
+            for j in xrange(len(m)):
+                if j >= len(lst_x[i]):
+                    break
+                if m[j] > 0:
+                    updated_single_doc.append(lst_x[i][j])
         else:
             for j in xrange(len_x):
                 draw = random.uniform(0, 1)
@@ -388,7 +395,7 @@ def main(args):
         print type_, ':'
         print '  (QA) Read JSON..'
         cur_data = read_docs(args, type_)
-
+        print len(cur_data[0])
         create_batches(args=args,
                        x=cur_data[0],
                        y=cur_data[1],
