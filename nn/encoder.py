@@ -293,6 +293,7 @@ class QAEncoder(object):
             h_concat_y = h_concat_y.reshape((o.shape[0], o.shape[1]))
             self.o = o = T.concatenate([o, h_concat_y, T.abs_(o - h_concat_y), o * h_concat_y], axis=1)
         else:
+            h_concat_y = h_concat_y.reshape((args.n * loss_mask.shape[0], n_d * 2))
             self.o = o = h_concat_y
             output_size = n_d * 2
 
