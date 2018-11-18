@@ -166,6 +166,7 @@ def create_fname_identifier_qa(args):
            '_q' + str(args.n) + \
            '_root_' + str(args.is_root) + \
            '_c_scl_' + str(args.coeff_cost_scale) + \
+           '_hl_only_' + str(args.qa_hl_only) + \
            '_prune_ov_' + str(args.use_overlap) + \
            '_prune_perc_' + str(args.x_sample_percentage)
 
