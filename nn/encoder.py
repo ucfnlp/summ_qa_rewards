@@ -212,9 +212,6 @@ class QAEncoder(object):
         gold_standard_entities = self.gold_standard_entities = T.ivector('gs')
         loss_mask = self.loss_mask = T.imatrix('loss_mask')
 
-        # inp_len x batch
-        self.x = x = T.imatrix('x')
-
         dropout = self.dropout = theano.shared(np.float64(args.dropout).astype(theano.config.floatX))
 
         mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
@@ -241,58 +238,63 @@ class QAEncoder(object):
         h_f_y = rnn_fw.forward_all_hl(embs_y, mask_y)
         h_r_y = rnn_rv.forward_all_hl(flipped_embs_y, flipped_mask_y)
 
-        layers.append(rnn_fw)
-        layers.append(rnn_rv)
-
-        mask_x = T.cast(T.neq(x, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
-        tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
-
-        embs = embedding_layer.forward(x.ravel())
-
-        embs = embs.reshape((x.shape[0], x.shape[1], n_e))
-        self.embs = embs = apply_dropout(embs, dropout)
-
-        flipped_embs_x = embs[::-1]
-        flipped_mask_x = mask_x[::-1]
-
-        h_f_x = rnn_fw.forward_all_doc(embs, mask_x)
-        h_r_x = rnn_rv.forward_all_doc(flipped_embs_x, flipped_mask_x)
-
-        h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
-
-        softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
-        self.softmax_mask = softmax_mask = softmax_mask * (tiled_x_mask - 1)
-
         # 1 x (batch * n) x n_d -> (batch * n) x (2 * n_d) x 1
         h_concat_y = T.concatenate([h_f_y, h_r_y], axis=2).dimshuffle((1, 2, 0))
 
-        # inp_len x batch x n_d -> inp_len x batch x (2 * n_d)
-        # (batch * n) x inp_len x (2 * n_d)
-        gen_h_final = T.tile(h_concat_x, (args.n, 1)).dimshuffle((1, 0, 2))
+        layers.append(rnn_fw)
+        layers.append(rnn_rv)
 
-        if args.bilinear:
-            bilinear_l = Bilinear(n_d, x.shape[1], args.n)
-            inp_dot_hl = bilinear_l.forward(gen_h_final, h_concat_y)
+        if not args.qa_hl_only:
+            self.x = x = T.imatrix('x')
+            mask_x = T.cast(T.neq(x, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
+            tiled_x_mask = T.tile(mask_x, (args.n, 1)).dimshuffle((1, 0, 2))
 
-            layers.append(bilinear_l)
+            embs = embedding_layer.forward(x.ravel())
+
+            embs = embs.reshape((x.shape[0], x.shape[1], n_e))
+            self.embs = embs = apply_dropout(embs, dropout)
+
+            flipped_embs_x = embs[::-1]
+            flipped_mask_x = mask_x[::-1]
+
+            h_f_x = rnn_fw.forward_all_doc(embs, mask_x)
+            h_r_x = rnn_rv.forward_all_doc(flipped_embs_x, flipped_mask_x)
+
+            h_concat_x = T.concatenate([h_f_x, h_r_x[::-1]], axis=2)
+
+            softmax_mask = T.zeros_like(tiled_x_mask) - 1e8
+            self.softmax_mask = softmax_mask = softmax_mask * (tiled_x_mask - 1)
+
+            # inp_len x batch x n_d -> inp_len x batch x (2 * n_d)
+            # (batch * n) x inp_len x (2 * n_d)
+            gen_h_final = T.tile(h_concat_x, (args.n, 1)).dimshuffle((1, 0, 2))
+
+            if args.bilinear:
+                bilinear_l = Bilinear(n_d, x.shape[1], args.n)
+                inp_dot_hl = bilinear_l.forward(gen_h_final, h_concat_y)
+
+                layers.append(bilinear_l)
+            else:
+                # (batch * n) x inp_len x 1
+                inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
+
+            h_size = n_d * 2
+
+            inp_dot_hl = inp_dot_hl - softmax_mask
+            inp_dot_hl = inp_dot_hl.ravel()
+
+            # (batch * n) x inp_len
+            self.alpha = alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], x.shape[0])))
+
+            # (batch * n) x n_d * 2
+            o = T.batched_dot(alpha, gen_h_final)
+
+            output_size = h_size * 4
+            h_concat_y = h_concat_y.reshape((o.shape[0], o.shape[1]))
+            self.o = o = T.concatenate([o, h_concat_y, T.abs_(o - h_concat_y), o * h_concat_y], axis=1)
         else:
-            # (batch * n) x inp_len x 1
-            inp_dot_hl = T.batched_dot(gen_h_final, h_concat_y)
-
-        h_size = n_d * 2
-
-        inp_dot_hl = inp_dot_hl - softmax_mask
-        inp_dot_hl = inp_dot_hl.ravel()
-
-        # (batch * n) x inp_len
-        self.alpha = alpha = T.nnet.softmax(inp_dot_hl.reshape((args.n * x.shape[1], x.shape[0])))
-
-        # (batch * n) x n_d * 2
-        o = T.batched_dot(alpha, gen_h_final)
-
-        output_size = h_size * 4
-        h_concat_y = h_concat_y.reshape((o.shape[0], o.shape[1]))
-        self.o = o = T.concatenate([o, h_concat_y, T.abs_(o - h_concat_y), o * h_concat_y], axis=1)
+            self.o = o = h_concat_y
+            output_size = n_d * 2
 
         fc7 = Layer(
             n_in=output_size,

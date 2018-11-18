@@ -107,8 +107,12 @@ class Model(object):
         outputs_d = [self.encoder.loss, self.encoder.preds_clipped]
         outputs_t = [self.encoder.loss, self.encoder.loss_vec, self.encoder.preds_clipped]
 
-        inputs_d = [self.x, self.y, self.gold_standard_entities, self.encoder.loss_mask]
-        inputs_t = [self.x, self.y, self.gold_standard_entities, self.encoder.loss_mask]
+        if args.qa_hl_only:
+            inputs_d = [self.x, self.y, self.gold_standard_entities, self.encoder.loss_mask]
+            inputs_t = [self.x, self.y, self.gold_standard_entities, self.encoder.loss_mask]
+        else:
+            inputs_d = [self.y, self.gold_standard_entities, self.encoder.loss_mask]
+            inputs_t = [self.y, self.gold_standard_entities, self.encoder.loss_mask]
 
         eval_generator = theano.function(
             inputs=inputs_d,
@@ -192,7 +196,11 @@ class Model(object):
 
                         be, blm = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
                         # self.x, self.y, self.gold_standard_entities, self.encoder.loss_mask
-                        loss, loss_vec, preds_tr = train_generator(bx, by, be, blm)
+                        if args.qa_hl_only:
+                            loss, loss_vec, preds_tr = train_generator(by, be, blm)
+                        else:
+                            loss, loss_vec, preds_tr = train_generator(bx, by, be, blm)
+
                         acc, f1 = self.eval_qa(be, preds_tr, blm)
 
                         train_acc.append(acc)
@@ -290,7 +298,10 @@ class Model(object):
                 bx, by, be = batches_x[j], batches_y[j], batches_e[j]
 
                 be, ble = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
-                o, preds = eval_func(bx, by, be, ble)
+                if args.qa_hl_only:
+                    o, preds = eval_func(by, be, ble)
+                else:
+                    o, preds = eval_func(bx, by, be, ble)
 
                 tot_obj += o
 

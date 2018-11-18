@@ -48,6 +48,11 @@ def get_args():
                         default=False,
                         help='Create x, using overlapped content only form highlights')
 
+    parser.add_argument('--qa_hl_only',
+                        type='bool',
+                        default=False,
+                        help='Make no use of document for QA performance')
+
     parser.add_argument("--x_sample_percentage",
                         type=float,
                         default=1.0,
