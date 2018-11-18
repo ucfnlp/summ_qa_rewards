@@ -31,7 +31,8 @@ class Model(object):
         self.encoder.ready()
 
         self.dropout = self.encoder.dropout
-        self.x = self.encoder.x
+        if not args.qa_hl_only:
+            self.x = self.encoder.x
         self.y = self.encoder.y
         self.gold_standard_entities = self.encoder.gold_standard_entities
 
