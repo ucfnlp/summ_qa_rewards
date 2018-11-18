@@ -318,7 +318,7 @@ class QAEncoder(object):
         self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
 
         cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
-        loss_mat = cross_entropy.reshape((x.shape[1], args.n))
+        loss_mat = cross_entropy.reshape((loss_mask.shape[0], args.n))
 
         loss_mat = loss_mat * loss_mask
 
