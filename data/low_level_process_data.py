@@ -1,6 +1,5 @@
 import json
 import numpy as np
-import matplotlib.pyplot as plt
 
 import data_args
 
@@ -38,7 +37,8 @@ def prune_hl(args):
     re_map_entities(updated_train_e, e_map_new)
     re_map_entities(updated_dev_e, e_map_new)
     re_map_entities(updated_test_e, e_map_new)
-
+    # determine_usable_entities(args, updated_train_e, updated_dev_e, updated_test_e, updated_train_y, updated_dev_y,
+    #                           updated_test_y, e_map_new, args.ent_cutoff)
     save_updated_e(args, e_map_new, entity_map)
 
     return (updated_train_x, updated_train_y, updated_train_e, updated_train_ve, updated_train_cly, updated_train_ma, updated_train_sha, updated_train_ch, sent_cut_train), \
@@ -280,11 +280,29 @@ def determine_usable_entities(args, train_e, dev_e, test_e, train_y, dev_y, test
                     used_e[highlight[0][0]] = 1
 
                 total_entries += 1
+            elif args.use_obj_subj:
+
+                flat_hl = [item for item in highlight[1]]
+
+                for j in xrange(len(flat_hl)):
+                    if flat_hl[j] in used_e:
+                        used_e[flat_hl[j]] = used_e[flat_hl[j]] + 1
+                    else:
+                        used_e[flat_hl[j]] = 1
+
+                total_entries += 1
+            elif args.use_ner:
+                flat_hl = [item for item in highlight[2]]
+
+                for j in xrange(len(flat_hl)):
+                    if flat_hl[j] in used_e:
+                        used_e[flat_hl[j]] = used_e[flat_hl[j]] + 1
+                    else:
+                        used_e[flat_hl[j]] = 1
+
+                total_entries += 1
             else:
-                if args.skip_root:
-                    flat_hl = [item for group in highlight[1:] for item in group]
-                else:
-                    flat_hl = [item for group in highlight for item in group]
+                flat_hl = [item for group in highlight for item in group]
 
                 if len(flat_hl) > 0:
                     empty_article = False
