@@ -129,6 +129,8 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, chunk_freq, used_e, usabl
         updated_y_ls = []
         updated_e_ls = []
 
+        no_usable_hl = True
+
         for highlight in e[i]:
 
             if total_entries >= args.n:
@@ -144,14 +146,12 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, chunk_freq, used_e, usabl
                 used_e.add(highlight[0][0])
 
                 total_entries += 1
-            else:
-                index_offset = 0
+                no_usable_hl = False
 
-                if args.skip_root:
-                    flat_hl = [item for group in highlight[1:] for item in group]
-                    index_offset = 1
-                else:
-                    flat_hl = [item for group in highlight for item in group]
+            elif args.use_obj_subj:
+                index_offset = 1
+
+                flat_hl = [item for item in highlight[1]]
 
                 for j in xrange(len(flat_hl)):
 
@@ -162,10 +162,48 @@ def prune_type(args, x, y, e, ve, cy, rx, ma, sha, ch, chunk_freq, used_e, usabl
                     updated_e_ls.append(flat_hl[j])
 
                     used_e.add(flat_hl[j])
+                    no_usable_hl = False
+
+                total_entries += 1
+            elif args.use_ner:
+                index_offset = 1 + len([item for item in highlight[1]])
+
+                flat_hl = [item for item in highlight[2]]
+
+                for j in xrange(len(flat_hl)):
+
+                    if flat_hl[j] not in usable_e:
+                        continue
+
+                    updated_y_ls.append(y[i][y_idx + j + index_offset])
+                    updated_e_ls.append(flat_hl[j])
+
+                    used_e.add(flat_hl[j])
+                    no_usable_hl = False
+
+                total_entries += 1
+            else: # USE all QA content
+                index_offset = 0
+
+                flat_hl = [item for group in highlight for item in group]
+
+                for j in xrange(len(flat_hl)):
+
+                    if flat_hl[j] not in usable_e:
+                        continue
+
+                    updated_y_ls.append(y[i][y_idx + j + index_offset])
+                    updated_e_ls.append(flat_hl[j])
+
+                    used_e.add(flat_hl[j])
+                    no_usable_hl = False
 
                 total_entries += 1
 
             y_idx += num_perms
+
+        if no_usable_hl:
+            invalid_articles += 1
 
         if total_entries == 0:
             invalid_articles += 1

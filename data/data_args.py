@@ -123,6 +123,16 @@ def get_args():
                         default=False,
                         help='Whether to use the ROOT based entity in the data.')
 
+    parser.add_argument('--use_obj_subj',
+                        type='bool',
+                        default=False,
+                        help='Whether to use the XOBJ or XSUBJ based entity in the data.')
+
+    parser.add_argument('--use_ner',
+                        type='bool',
+                        default=False,
+                        help='Whether to use the NER based entity in the data.')
+
     parser.add_argument('--pad_repeat',
                         type='bool',
                         default=False,
@@ -132,11 +142,6 @@ def get_args():
                         type='bool',
                         default=True,
                         help='Use all entity types in the data.')
-
-    # parser.add_argument('--use_hl_once',
-    #                     type='bool',
-    #                     default=True,
-    #                     help='Whether to use a given highlight only once, or all its permutations.')
 
     parser.add_argument("--model_summ_path",
                         type=str,
