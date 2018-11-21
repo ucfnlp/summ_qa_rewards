@@ -93,6 +93,57 @@ class Model(object):
         myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
         myio.get_rouge(self.args)
 
+    def test(self):
+        outputs = [self.encoder.loss, self.encoder.preds_clipped]
+
+        if args.qa_hl_only:
+            inputs = [self.y, self.gold_standard_entities, self.encoder.loss_mask]
+        else:
+            inputs = [self.x, self.y, self.gold_standard_entities, self.encoder.loss_mask]
+
+        eval_model = theano.function(
+            inputs=inputs,
+            outputs=outputs,
+            on_unused_input='ignore'
+        )
+
+        self.dropout.set_value(0.0)
+
+        tot_obj = 0.0
+        N = 0
+
+        acc = []
+        f1 = []
+
+        num_files = self.args.num_files_test
+
+        for i in xrange(num_files):
+
+            batches_x, batches_y, batches_e, _ = myio.load_batches(
+                self.args.batch_dir + self.args.source + 'test', i)
+
+            cur_len = len(batches_x)
+
+            for j in xrange(cur_len):
+                bx, by, be = batches_x[j], batches_y[j], batches_e[j]
+
+                be, ble = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
+                if args.qa_hl_only:
+                    o, preds = eval_model(by, be, ble)
+                else:
+                    o, preds = eval_model(bx, by, be, ble)
+
+                tot_obj += o
+
+                acc_, f1_ = self.eval_qa(be, preds, ble)
+                acc.append(acc_)
+                f1.append(f1_)
+
+            N += cur_len
+
+        print 'TEST set results:'
+        print ' Accuracy :', np.mean(acc)
+
     def train(self):
         args = self.args
 
@@ -114,7 +165,6 @@ class Model(object):
         else:
             inputs_d = [self.x, self.y, self.gold_standard_entities, self.encoder.loss_mask]
             inputs_t = [self.x, self.y, self.gold_standard_entities, self.encoder.loss_mask]
-
 
         eval_generator = theano.function(
             inputs=inputs_d,
@@ -355,8 +405,10 @@ def main():
         model.dev_full()
 
     elif args.test:
-        model.load_model(args.save_model + args.load_model, True)
+        model.load_model(args.save_model + args.load_model)
         model.test()
+    else:
+        raise NotImplementedError
 
 
 if __name__ == "__main__":
