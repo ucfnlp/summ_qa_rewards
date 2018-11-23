@@ -166,8 +166,8 @@ class Encoder(object):
         self.zsum = zsum = T.abs_(generator.zsum / z_totals - args.z_perc)
         self.zdiff = zdiff = generator.zdiff / z_totals
 
-        self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (
-                    1 - word_overlap_loss) + args.coeff_zs * zsum + self.args.coeff_zd * zdiff
+        self.cost_vec = cost_vec = loss_vec + args.coeff_adequacy * (1 - word_overlap_loss) + args.coeff_z * (
+                    2 * zsum + zdiff)
 
         self.logpz = logpz = T.sum(logpz, axis=0)
         self.cost_logpz = cost_logpz = T.mean(cost_vec * logpz)

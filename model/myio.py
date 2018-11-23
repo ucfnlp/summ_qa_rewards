@@ -144,8 +144,7 @@ def create_fname_identifier(args):
            '_q' + str(args.n) + \
            '_root_' + str(args.is_root) + \
            '_ch_t_' + chunk_typ + \
-           '_zs_' + str(args.coeff_zs) + \
-           '_zd_' + str(args.coeff_zd) + \
+           '_z_' + str(args.coeff_z) + \
            '_adq_' + str(args.coeff_adequacy) + \
            '_c_scl_' + str(args.coeff_cost_scale) + \
            '_zp_' + str(args.z_perc)

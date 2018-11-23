@@ -402,13 +402,7 @@ def get_args():
                         help="whether to use the states of all layers"
                         )
 
-    parser.add_argument("--coeff_zs",
-                        type=float,
-                        default=1.0,
-                        help="Scaling in encoder loss"
-                        )
-
-    parser.add_argument("--coeff_zd",
+    parser.add_argument("--coeff_z",
                         type=float,
                         default=1.0,
                         help="Scaling in encoder loss"
