@@ -810,14 +810,14 @@ def bigram_vectorize(lstx, lsty, padding_id):
 
 
 def create_1h(lste, n):
-    loss_mask = np.zeros((len(lste), n), dtype='int32')
+    loss_mask = [[] for _ in xrange(n)]
     e_processed = [[] for _ in xrange(n)]
     for i in xrange(len(lste)):
         for j in xrange(len(lste[i])):
             if j == n:
                 break
             e_processed[j].append(lste[i][j])
-            loss_mask[i, j] = 1
+            loss_mask[j].append(1)
 
         # For the case of not having padded y
         if len(lste[i]) < n:
@@ -825,10 +825,14 @@ def create_1h(lste, n):
                 e_processed[j].append(0)
 
     be = []
-    for i in xrange(len(e_processed)):
-        be.extend(e_processed[i])
+    lm = []
 
-    return be, loss_mask
+    for i in xrange(len(e_processed)):
+        assert len(e_processed[i]) == len(loss_mask[i])
+        be.extend(e_processed[i])
+        lm.extend(loss_mask[i])
+
+    return be, lm
 
 
 def total_words(z):

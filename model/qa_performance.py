@@ -406,7 +406,8 @@ class Model(object):
 
     def eval_qa(self, gs, preds, valid_mask):
         system = np.argmax(preds, axis=1)
-        valid_mask = np.ndarray.flatten(valid_mask)
+
+        assert len(system) == len(valid_mask)
 
         valid_gs = []
         valid_sy = []

@@ -318,12 +318,9 @@ class QAEncoder(object):
         preds = output_layer.forward(fc7_out)
         self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
 
-        cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
-        loss_mat = cross_entropy.reshape((loss_mask.shape[0], args.n))
+        cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities) * loss_mask
 
-        loss_mat = loss_mat * loss_mask
-
-        self.loss_vec = loss_vec = T.mean(loss_mat, axis=1)
+        self.loss_vec = loss_vec = T.mean(cross_entropy, axis=1)
 
         loss = self.loss = T.mean(loss_vec)
 
