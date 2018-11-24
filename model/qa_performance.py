@@ -147,14 +147,14 @@ class Model(object):
 
                 tot_obj += o
 
-                acc_, f1_, preds_masked = self.eval_qa(be, preds, ble)
+                acc_, f1_, preds_argmax = self.eval_qa(be, preds, ble)
 
                 acc.append(acc_)
                 f1.append(f1_)
 
-                if args.qa_entity_output and j % 6 == 0:
+                if args.qa_entity_output:
                     json_test['sha'].extend([item for item in batches_sha[j]])
-                    json_test['pred'].extend([item for item in np.ndarray.tolist(preds_masked)])
+                    json_test['pred'].extend([item for item in np.ndarray.tolist(preds_argmax)])
 
             N += cur_len
 
@@ -279,7 +279,11 @@ class Model(object):
                         else:
                             loss, loss_vec, preds_tr = train_generator(bx, by, be, blm)
 
-                        acc, f1 = self.eval_qa(be, preds_tr, blm)
+                        acc, f1, preds_argmax = self.eval_qa(be, preds_tr, blm)
+
+                        if args.qa_entity_output:
+                            cur_train_output['sha'].extend([item for item in train_batches_sha[j]])
+                            cur_train_output['pred'].extend([item for item in np.ndarray.tolist(preds_argmax)])
 
                         train_acc.append(acc)
                         train_f1.append(f1)
@@ -415,7 +419,7 @@ class Model(object):
         accuracy_score = sk.accuracy_score(valid_gs, valid_sy)
         f1_score = sk.f1_score(valid_gs, valid_sy, average='micro')
 
-        return accuracy_score, f1_score, system * valid_mask
+        return accuracy_score, f1_score, system
 
 
 def main():
