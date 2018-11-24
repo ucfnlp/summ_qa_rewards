@@ -148,8 +148,6 @@ class Model(object):
                 if args.qa_entity_output:
                     json_test['sha'].append(batches_sha[j])
                     json_test['pred'].append(np.ndarray.tolist(preds))
-                    json_test['loss_mask'].append(np.ndarray.tolist(ble))
-                    json_test['ground_truth'].append(be)
 
                 tot_obj += o
 
@@ -247,13 +245,6 @@ class Model(object):
                 num_files = args.num_files_train
                 N = args.online_batch_size * num_files
 
-                cur_train_output = dict()
-
-                cur_train_output['sha'] = []
-                cur_train_output['pred'] = []
-                cur_train_output['loss_mask'] = []
-                cur_train_output['ground_truth'] = []
-
                 for i in xrange(num_files):
 
                     train_batches_x, train_batches_y, train_batches_e, train_batches_sha = myio.load_batches(
@@ -268,6 +259,13 @@ class Model(object):
                     train_batches_y = [train_batches_y[k] for k in perm2]
                     train_batches_e = [train_batches_e[k] for k in perm2]
                     train_batches_sha = [train_batches_sha[k] for k in perm2]
+
+                    cur_train_output = dict()
+
+                    cur_train_output['sha'] = []
+                    cur_train_output['pred'] = []
+                    cur_train_output['loss_mask'] = []
+                    cur_train_output['ground_truth'] = []
 
                     for j in xrange(cur_len):
                         if args.full_test:
@@ -286,8 +284,12 @@ class Model(object):
                         if args.qa_entity_output:
                             cur_train_output['sha'].append(train_batches_sha[j])
                             cur_train_output['pred'].append(np.ndarray.tolist(preds_tr))
-                            cur_train_output['loss_mask'].append(np.ndarray.tolist(blm))
-                            cur_train_output['ground_truth'].append(be)
+
+                        if args.qa_entity_output:
+                            json_train['TRAIN_ENTITY_OUTPUT'] = best_train_output
+
+                        json.dump(json_train, ofp_train)
+                        ofp_train.close()
 
                         acc, f1 = self.eval_qa(be, preds_tr, blm)
 
@@ -356,7 +358,7 @@ class Model(object):
                             self.save_model(filename, args)
 
                             json_train['BEST_DEV_EPOCH'] = epoch
-                            best_train_output = deepcopy(cur_train_output)
+
 
             if more_count > 5:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
