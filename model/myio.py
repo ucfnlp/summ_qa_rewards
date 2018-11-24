@@ -810,20 +810,19 @@ def bigram_vectorize(lstx, lsty, padding_id):
 
 
 def create_1h(lste, n_classes, n, pad_repeat):
-    loss_mask = np.ones((len(lste), n), dtype='int32')
+    loss_mask = np.zeros((len(lste), n), dtype='int32')
     e_processed = [[] for _ in xrange(n)]
     for i in xrange(len(lste)):
         for j in xrange(len(lste[i])):
             if j == n:
                 break
             e_processed[j].append(lste[i][j])
+            loss_mask[i,j] = 1
 
         # For the case of not having padded y
-        if not pad_repeat and len(lste[i]) < n:
+        if len(lste[i]) < n:
             for j in range(len(lste[i]), n):
-
                 e_processed[j].append(0)
-                loss_mask[i, j] = 0
 
     be = []
     for i in xrange(len(e_processed)):

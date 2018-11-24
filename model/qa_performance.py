@@ -396,7 +396,7 @@ class Model(object):
 
                 tot_obj += o
 
-                acc, f1 = self.eval_qa(be, preds, ble)
+                acc, f1, _ = self.eval_qa(be, preds, ble)
                 dev_acc.append(acc)
                 dev_f1.append(f1)
 
