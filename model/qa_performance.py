@@ -145,15 +145,16 @@ class Model(object):
                 else:
                     o, preds = eval_model(bx, by, be, ble)
 
-                if args.qa_entity_output:
-                    json_test['sha'].extend([item for ls in batches_sha[j] for item in ls])
-                    json_test['pred'].extend([item for item in np.ndarray.tolist(preds)])
-
                 tot_obj += o
 
-                acc_, f1_ = self.eval_qa(be, preds, ble)
+                acc_, f1_, preds_masked = self.eval_qa(be, preds, ble)
+
                 acc.append(acc_)
                 f1.append(f1_)
+
+                if args.qa_entity_output and j % 6 == 0:
+                    json_test['sha'].extend([item for item in batches_sha[j]])
+                    json_test['pred'].extend([item for item in np.ndarray.tolist(preds_masked)])
 
             N += cur_len
 
@@ -414,7 +415,7 @@ class Model(object):
         accuracy_score = sk.accuracy_score(valid_gs, valid_sy)
         f1_score = sk.f1_score(valid_gs, valid_sy, average='micro')
 
-        return accuracy_score, f1_score
+        return accuracy_score, f1_score, system * valid_mask
 
 
 def main():
