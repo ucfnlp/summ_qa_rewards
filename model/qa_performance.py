@@ -5,6 +5,7 @@ import os
 import time
 import random
 from datetime import datetime
+from copy import deepcopy
 
 import numpy as np
 import sklearn.metrics as sk
@@ -96,6 +97,17 @@ class Model(object):
     def test(self):
         outputs = [self.encoder.loss, self.encoder.preds_clipped]
 
+        if args.qa_entity_output:
+            filename = myio.create_json_filename_qa(args).replace('.json', '_test.json')
+            ofp_test = open(filename, 'w+')
+
+        json_test = dict()
+
+        json_test['sha'] = []
+        json_test['pred'] = []
+        json_test['loss_mask'] = []
+        json_test['ground_truth'] = []
+
         if args.qa_hl_only:
             inputs = [self.y, self.gold_standard_entities, self.encoder.loss_mask]
         else:
@@ -119,7 +131,7 @@ class Model(object):
 
         for i in xrange(num_files):
 
-            batches_x, batches_y, batches_e, _ = myio.load_batches(
+            batches_x, batches_y, batches_e, batches_sha = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'test', i)
 
             cur_len = len(batches_x)
@@ -133,6 +145,12 @@ class Model(object):
                 else:
                     o, preds = eval_model(bx, by, be, ble)
 
+                if args.qa_entity_output:
+                    json_test['sha'].extend(batches_sha[j])
+                    json_test['pred'].extend(preds)
+                    json_test['loss_mask'].extend(ble)
+                    json_test['ground_truth'].extend(be)
+
                 tot_obj += o
 
                 acc_, f1_ = self.eval_qa(be, preds, ble)
@@ -143,6 +161,10 @@ class Model(object):
 
         print 'TEST set results:'
         print ' Accuracy :', np.mean(acc)
+
+        if args.qa_entity_output:
+            json.dump(json_test, ofp_test)
+            ofp_test.close()
 
     def train(self):
         args = self.args
@@ -192,6 +214,7 @@ class Model(object):
         ofp_train = open(filename, 'w+')
 
         json_train = dict()
+        best_train_output = None
 
         random.seed(datetime.now())
 
@@ -224,6 +247,13 @@ class Model(object):
                 num_files = args.num_files_train
                 N = args.online_batch_size * num_files
 
+                cur_train_output = dict()
+
+                cur_train_output['sha'] = []
+                cur_train_output['pred'] = []
+                cur_train_output['loss_mask'] = []
+                cur_train_output['ground_truth'] = []
+
                 for i in xrange(num_files):
 
                     train_batches_x, train_batches_y, train_batches_e, train_batches_sha = myio.load_batches(
@@ -252,6 +282,12 @@ class Model(object):
                             loss, loss_vec, preds_tr = train_generator(by, be, blm)
                         else:
                             loss, loss_vec, preds_tr = train_generator(bx, by, be, blm)
+
+                        if args.qa_entity_output:
+                            cur_train_output['sha'].extend(train_batches_sha[j])
+                            cur_train_output['pred'].extend(preds_tr)
+                            cur_train_output['loss_mask'].extend(blm)
+                            cur_train_output['ground_truth'].extend(be)
 
                         acc, f1 = self.eval_qa(be, preds_tr, blm)
 
@@ -311,12 +347,16 @@ class Model(object):
                 if args.dev:
                     last_dev_avg_cost = cur_dev_avg_cost
                     if dev_obj < best_dev:
+
                         best_dev = dev_obj
                         unchanged = 0
+
                         if args.save_model:
                             filename = args.save_model + myio.create_fname_identifier_qa(args)
                             self.save_model(filename, args)
+
                             json_train['BEST_DEV_EPOCH'] = epoch
+                            best_train_output = deepcopy(cur_train_output)
 
             if more_count > 5:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
@@ -326,6 +366,9 @@ class Model(object):
 
         if unchanged > 20:
             json_train['UNCHANGED'] = unchanged
+
+        if args.qa_entity_output:
+            json_train['TRAIN_ENTITY_OUTPUT'] = best_train_output
 
         json.dump(json_train, ofp_train)
         ofp_train.close()
