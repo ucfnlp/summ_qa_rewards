@@ -146,8 +146,8 @@ class Model(object):
                     o, preds = eval_model(bx, by, be, ble)
 
                 if args.qa_entity_output:
-                    json_test['sha'].append(batches_sha[j])
-                    json_test['pred'].append(np.ndarray.tolist(preds))
+                    json_test['sha'].extend([item for ls in batches_sha[j] for item in ls])
+                    json_test['pred'].extend([item for item in np.ndarray.tolist(preds)])
 
                 tot_obj += o
 
@@ -277,10 +277,6 @@ class Model(object):
                             loss, loss_vec, preds_tr = train_generator(by, be, blm)
                         else:
                             loss, loss_vec, preds_tr = train_generator(bx, by, be, blm)
-
-                        if args.qa_entity_output:
-                            cur_train_output['sha'].extend([item for ls in train_batches_sha[j] for item in ls])
-                            cur_train_output['pred'].extend([item for item in np.ndarray.tolist(preds_tr)])
 
                         acc, f1 = self.eval_qa(be, preds_tr, blm)
 
