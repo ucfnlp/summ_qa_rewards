@@ -280,8 +280,8 @@ class Model(object):
                             loss, loss_vec, preds_tr = train_generator(bx, by, be, blm)
 
                         if args.qa_entity_output:
-                            cur_train_output['sha'].append(train_batches_sha[j])
-                            cur_train_output['pred'].append(np.ndarray.tolist(preds_tr))
+                            cur_train_output['sha'].extend([item for ls in train_batches_sha[j] for item in ls])
+                            cur_train_output['pred'].extend([item for item in np.ndarray.tolist(preds_tr)])
 
                         acc, f1 = self.eval_qa(be, preds_tr, blm)
 
@@ -353,7 +353,6 @@ class Model(object):
 
                             if args.qa_entity_output:
                                 best_train_output = cur_train_output
-
 
             if more_count > 5:
                 json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
