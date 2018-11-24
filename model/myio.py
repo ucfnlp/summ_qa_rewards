@@ -259,7 +259,7 @@ def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_di
     ofp_json['e' + str(epoch)] = epoch_data
 
 
-def record_observations_verbose_qa(ofp_json, epoch, loss, loss_vec, dev_acc,
+def record_observations_verbose_qa(ofp_json, epoch, loss, dev_acc,
                                 dev_f1, train_acc, train_f1):
     epoch_data = dict()
 
@@ -268,7 +268,6 @@ def record_observations_verbose_qa(ofp_json, epoch, loss, loss_vec, dev_acc,
     epoch_data['dev_f1'] = dev_f1
     epoch_data['train_acc'] = train_acc
     epoch_data['train_f1'] = train_f1
-    epoch_data['loss_vec'] = float(np.mean(loss_vec))
 
     ofp_json['e' + str(epoch)] = epoch_data
 

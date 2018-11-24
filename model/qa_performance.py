@@ -178,7 +178,7 @@ class Model(object):
         )[:3]
 
         outputs_d = [self.encoder.loss, self.encoder.preds_clipped]
-        outputs_t = [self.encoder.loss, self.encoder.loss_vec, self.encoder.preds_clipped]
+        outputs_t = [self.encoder.loss, self.encoder.preds_clipped]
 
         if args.qa_hl_only:
             inputs_d = [self.y, self.gold_standard_entities, self.encoder.loss_mask]
@@ -239,7 +239,6 @@ class Model(object):
                 start_time = time.time()
 
                 loss_all = []
-                loss_vec_all = []
                 train_acc = []
                 train_f1 = []
 
@@ -275,9 +274,9 @@ class Model(object):
                         be, blm = myio.create_1h(be, args.n)
                         # self.x, self.y, self.gold_standard_entities, self.encoder.loss_mask
                         if args.qa_hl_only:
-                            loss, loss_vec, preds_tr = train_generator(by, be, blm)
+                            loss, preds_tr = train_generator(by, be, blm)
                         else:
-                            loss, loss_vec, preds_tr = train_generator(bx, by, be, blm)
+                            loss, preds_tr = train_generator(bx, by, be, blm)
 
                         acc, f1, preds_argmax = self.eval_qa(be, preds_tr, blm)
 
@@ -323,7 +322,7 @@ class Model(object):
                         p.set_value(v)
                     continue
 
-                myio.record_observations_verbose_qa(json_train, epoch + 1, loss_all, loss_vec_all,
+                myio.record_observations_verbose_qa(json_train, epoch + 1, loss_all,
                                                  dev_acc, dev_f1, np.mean(train_acc), np.mean(train_f1))
 
                 last_train_avg_cost = cur_train_avg_cost
@@ -415,8 +414,6 @@ class Model(object):
             if mask > 0:
                 valid_gs.append(gold_standard_val)
                 valid_sy.append(system_pred)
-
-        print len(valid_gs), len(valid_sy)
 
         accuracy_score = sk.accuracy_score(valid_gs, valid_sy)
         f1_score = sk.f1_score(valid_gs, valid_sy, average='micro')
