@@ -823,6 +823,7 @@ def create_1h(lste, n):
         if len(lste[i]) < n:
             for j in range(len(lste[i]), n):
                 e_processed[j].append(0)
+                loss_mask[j].append(0)
 
     be = []
     lm = []

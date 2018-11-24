@@ -288,7 +288,6 @@ class Model(object):
                         train_acc.append(acc)
                         train_f1.append(f1)
                         loss_all.append(loss)
-                        loss_vec_all.append(np.mean(loss_vec))
 
                         train_loss += loss
 
