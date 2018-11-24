@@ -245,6 +245,10 @@ class Model(object):
                 num_files = args.num_files_train
                 N = args.online_batch_size * num_files
 
+                cur_train_output = dict()
+                cur_train_output['sha'] = []
+                cur_train_output['pred'] = []
+
                 for i in xrange(num_files):
 
                     train_batches_x, train_batches_y, train_batches_e, train_batches_sha = myio.load_batches(
@@ -259,11 +263,6 @@ class Model(object):
                     train_batches_y = [train_batches_y[k] for k in perm2]
                     train_batches_e = [train_batches_e[k] for k in perm2]
                     train_batches_sha = [train_batches_sha[k] for k in perm2]
-
-                    cur_train_output = dict()
-
-                    cur_train_output['sha'] = []
-                    cur_train_output['pred'] = []
 
                     for j in xrange(cur_len):
                         if args.full_test:
