@@ -416,6 +416,8 @@ class Model(object):
                 valid_gs.append(gold_standard_val)
                 valid_sy.append(system_pred)
 
+        print len(valid_gs), len(valid_sy)
+
         accuracy_score = sk.accuracy_score(valid_gs, valid_sy)
         f1_score = sk.f1_score(valid_gs, valid_sy, average='micro')
 
