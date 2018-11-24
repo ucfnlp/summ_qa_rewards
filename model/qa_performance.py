@@ -139,7 +139,7 @@ class Model(object):
             for j in xrange(cur_len):
                 bx, by, be = batches_x[j], batches_y[j], batches_e[j]
 
-                be, ble = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
+                be, ble = myio.create_1h(be, args.n)
                 if args.qa_hl_only:
                     o, preds = eval_model(by, be, ble)
                 else:
@@ -272,7 +272,7 @@ class Model(object):
 
                         bx, by, be = train_batches_x[j], train_batches_y[j], train_batches_e[j]
 
-                        be, blm = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
+                        be, blm = myio.create_1h(be, args.n)
                         # self.x, self.y, self.gold_standard_entities, self.encoder.loss_mask
                         if args.qa_hl_only:
                             loss, loss_vec, preds_tr = train_generator(by, be, blm)
@@ -388,7 +388,7 @@ class Model(object):
             for j in xrange(cur_len):
                 bx, by, be = batches_x[j], batches_y[j], batches_e[j]
 
-                be, ble = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
+                be, ble = myio.create_1h(be, args.n)
                 if args.qa_hl_only:
                     o, preds = eval_func(by, be, ble)
                 else:
