@@ -149,7 +149,7 @@ class Model(object):
                     json_test['sha'].append(batches_sha[j])
                     json_test['pred'].append(np.ndarray.tolist(preds))
                     json_test['loss_mask'].append(np.ndarray.tolist(ble))
-                    json_test['ground_truth'].append(np.ndarray.tolist(be))
+                    json_test['ground_truth'].append(be)
 
                 tot_obj += o
 
@@ -287,7 +287,7 @@ class Model(object):
                             cur_train_output['sha'].append(train_batches_sha[j])
                             cur_train_output['pred'].append(np.ndarray.tolist(preds_tr))
                             cur_train_output['loss_mask'].append(np.ndarray.tolist(blm))
-                            cur_train_output['ground_truth'].append(np.ndarray.tolist(be))
+                            cur_train_output['ground_truth'].append(be)
 
                         acc, f1 = self.eval_qa(be, preds_tr, blm)
 
