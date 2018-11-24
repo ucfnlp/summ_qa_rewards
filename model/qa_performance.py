@@ -264,8 +264,6 @@ class Model(object):
 
                     cur_train_output['sha'] = []
                     cur_train_output['pred'] = []
-                    cur_train_output['loss_mask'] = []
-                    cur_train_output['ground_truth'] = []
 
                     for j in xrange(cur_len):
                         if args.full_test:
@@ -284,12 +282,6 @@ class Model(object):
                         if args.qa_entity_output:
                             cur_train_output['sha'].append(train_batches_sha[j])
                             cur_train_output['pred'].append(np.ndarray.tolist(preds_tr))
-
-                        if args.qa_entity_output:
-                            json_train['TRAIN_ENTITY_OUTPUT'] = best_train_output
-
-                        json.dump(json_train, ofp_train)
-                        ofp_train.close()
 
                         acc, f1 = self.eval_qa(be, preds_tr, blm)
 
@@ -358,6 +350,9 @@ class Model(object):
                             self.save_model(filename, args)
 
                             json_train['BEST_DEV_EPOCH'] = epoch
+
+                            if args.qa_entity_output:
+                                best_train_output = cur_train_output
 
 
             if more_count > 5:
