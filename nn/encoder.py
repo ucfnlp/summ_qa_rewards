@@ -34,7 +34,7 @@ class Encoder(object):
         # inp_len x batch
         bm = self.bm = generator.bm
 
-        loss_mask = self.loss_mask = T.imatrix('loss_mask')
+        loss_mask = self.loss_mask = T.ivector('loss_mask')
 
         # inp_len x batch
         x = generator.x
@@ -144,10 +144,8 @@ class Encoder(object):
         preds = output_layer.forward(fc7_out)
         self.preds_clipped = preds_clipped = T.clip(preds, 1e-7, 1.0 - 1e-7)
 
-        cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities)
+        cross_entropy = T.nnet.categorical_crossentropy(preds_clipped, gold_standard_entities) * loss_mask
         loss_mat = cross_entropy.reshape((x.shape[1], args.n))
-
-        loss_mat = loss_mat * loss_mask
 
         word_ol = z * bm
 
@@ -160,7 +158,7 @@ class Encoder(object):
 
         logpz = generator.logpz
 
-        loss = self.loss = T.mean(loss_vec)
+        loss = self.loss = T.mean(cross_entropy)
 
         z_totals = T.sum(T.neq(x, padding_id), axis=0, dtype=theano.config.floatX)
         self.zsum = zsum = T.abs_(generator.zsum / z_totals - args.z_perc)

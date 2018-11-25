@@ -389,18 +389,13 @@ class Model(object):
 
                         bx, by, be, bm, bfw, bcsz, bpi = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
                                                   train_batches_bm[j], train_batches_fw[j], train_batches_csz[j], train_batches_bpi[j]
-                        be, blm = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
+                        be, blm = myio.create_1h(be, args.n)
 
                         cost, loss, z, zsum, zdiff, bigram_loss, loss_vec, cost_logpz, logpz, cost_vec, preds_tr, cost_g, l2_enc, l2_gen, soft_mask = train_generator(
                                 bx, bpi, by, bm, be, bfw, bcsz, blm)
 
                         mask = bx != padding_id
-                        acc, f1 = self.eval_qa(be, preds_tr, blm)
-
-                        if j == 3:
-                            soft_mask_ls.append(np.ndarray.tolist(soft_mask))
-                            z_pred_ls.append(np.ndarray.tolist(z))
-                            mask_pred_ls.append(np.ndarray.tolist(mask))
+                        acc, f1, _ = self.eval_qa(be, preds_tr, blm)
 
                         train_acc.append(acc)
                         train_f1.append(f1)
@@ -951,7 +946,7 @@ class Model(object):
                 bx, by, be, bm, sha, rx, fw, csz, bpi = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], \
                                                         batches_sha[j], batches_rx[j], batches_fw[j], \
                                                         batches_csz[j], batches_bpi[j]
-                be, ble = myio.create_1h(be, args.nclasses, args.n, args.pad_repeat)
+                be, ble = myio.create_1h(be, args.n)
                 bz, o, e, preds = eval_func(bx, bpi, by, bm, be, fw, csz, ble)
 
                 tot_obj += o
@@ -960,7 +955,7 @@ class Model(object):
                 dev_z.append(bz)
                 sha_ls.append(sha)
 
-                acc, f1 = self.eval_qa(be, preds, ble)
+                acc, f1, _ = self.eval_qa(be, preds, ble)
                 dev_acc.append(acc)
                 dev_f1.append(f1)
 
@@ -987,7 +982,7 @@ class Model(object):
 
             for j in xrange(cur_len):
                 bx, bm, sha, rx, bfw, bpi, bsc, by, be = batches_x[j], batches_bm[j], batches_sha[j], batches_rx[j], batches_fw[j], batches_bpi[j], batches_cs[j],batches_y[j],batches_e[j]
-                be, _ = myio.create_1h(be, self.nclasses, args.n, self.args.pad_repeat)
+                be, _ = myio.create_1h(be, self.args.n)
                 bz = eval_func(bx, bpi, bm, bfw, bsc)
 
                 x.append(rx)
@@ -1003,7 +998,8 @@ class Model(object):
 
     def eval_qa(self, gs, preds, valid_mask):
         system = np.argmax(preds, axis=1)
-        valid_mask = np.ndarray.flatten(valid_mask)
+
+        assert len(system) == len(valid_mask)
 
         valid_gs = []
         valid_sy = []
@@ -1016,7 +1012,7 @@ class Model(object):
         accuracy_score = sk.accuracy_score(valid_gs, valid_sy)
         f1_score = sk.f1_score(valid_gs, valid_sy, average='micro')
 
-        return accuracy_score, f1_score
+        return accuracy_score, f1_score, system
 
 
 def main():
