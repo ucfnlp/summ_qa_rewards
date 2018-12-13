@@ -163,7 +163,7 @@ class Model(object):
         for x, v in zip(self.generator.params, gparams):
             x.set_value(v)
 
-    def load_model_pretrain(self, path, inference):
+    def load_model_pretrain(self, path, path_qa, inference):
         if not os.path.exists(path):
             if path.endswith(".pkl"):
                 path += ".gz"
@@ -185,9 +185,22 @@ class Model(object):
                 self.ready_rl_no_qa()
         else:
             self.ready()
+        if args.load_model_pretrain_gen:
+            for x, v in zip(self.generator.params, gparams):
+                x.set_value(v)
 
-        for x, v in zip(self.generator.params, gparams):
-            x.set_value(v)
+        if args.load_model_pretrain_qa:
+            param_map = self.create_param_map()
+
+            with gzip.open(path, "rb") as fin2:
+                eparams, args = pickle.load(fin2)
+
+            for from_, to_ in param_map:
+                x_ls = self.encoder.params[to_[0]:to_[1]]
+                e_ls = eparams[from_[0]:from_[1]]
+
+                for x, v in zip(x_ls, e_ls):
+                    x.set_value(v)
 
     def load_model_no_qa(self, path):
         if not os.path.exists(path):
@@ -204,6 +217,17 @@ class Model(object):
 
         for x, v in zip(self.generator.params, gparams):
             x.set_value(v)
+
+    def create_param_map(self):
+        ranges = []
+
+        ranges.append(((0, 8), (0, 8)))  # FW LSTM
+        ranges.append(((8, 16), (8, 16)))  # BW LSTM
+
+        ranges.append(((16, 18), (37, 39)))  # FC7
+        ranges.append(((18, 20), (39, 41)))  # OUTUP LAYER
+
+        return ranges
 
     def test(self):
         args = self.args
@@ -1074,14 +1098,14 @@ def main():
             model.ready_pretrain()
             model.pretrain()
         elif args.rl_no_qa:
-            if args.load_model_pretrain:
-                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=False)
+            if args.load_model_pretrain_gen:
+                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, None, inference=False)
             else:
                 model.ready_rl_no_qa()
             model.rl_no_qa()
         else:
-            if args.load_model_pretrain:
-                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=False)
+            if args.load_model_pretrain_gen or args.load_model_pretrain_qa:
+                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, args.save_model + args.load_model_qa, inference=False)
             else:
                 model.ready()
 
@@ -1089,7 +1113,7 @@ def main():
 
     elif args.dev:
         if args.pretrain:
-            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=True)
+            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, None,  inference=True)
             model.dev()
         elif args.rl_no_qa:
             model.load_model_no_qa(args.save_model + args.load_model)
@@ -1100,7 +1124,10 @@ def main():
 
     elif args.test:
         if args.pretrain:
-            model.load_model_pretrain(args.save_model + args.load_model, inference=True)
+            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, None, inference=True)
+            model.test()
+        elif args.rl_no_qa:
+            model.load_model_no_qa(args.save_model + args.load_model)
             model.test()
         else:
             model.load_model(args.save_model + args.load_model, True)

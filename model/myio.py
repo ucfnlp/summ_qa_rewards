@@ -128,7 +128,8 @@ def create_fname_identifier(args):
 
     return 'src_' + str(args.source) + \
            '_pretr_' + str(args.pretrain) + \
-           '_load_pre_' + str(args.load_model_pretrain) + \
+           '_load_pre_gen_' + str(args.load_model_pretrain_gen) + \
+           '_qa_' + str(args.load_model_pretrain_qa) + \
            '_edim_' + str(args.embedding_dim) + \
            '_batch_' + str(args.batch) + \
            '_inp_' + str(args.inp_len) + \
@@ -549,8 +550,8 @@ def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
 
             raw_and_mask['r'] = x[i][j][:]
             # raw_and_mask['y'] = []
-            raw_and_mask['y'] = create_eval_questions(args, y[i], e[i], index_to_e_map, embedding_layer, start_hl_idx,
-                                                      end_hl_idx, hl_step)
+            # raw_and_mask['y'] = create_eval_questions(args, y[i], e[i], index_to_e_map, embedding_layer, start_hl_idx,
+            #                                           end_hl_idx, hl_step)
 
             ofp_m[sha[i][j]] = raw_and_mask
 
@@ -708,6 +709,7 @@ def get_rouge(args):
 
 def create_eval_questions(args, y, e, index_to_e_map, embedding_layer, start_hl_idx, end_hl_idx, step):
     num_samples = len(y)
+    print e
     questions = []
 
     for i in range(start_hl_idx, end_hl_idx, step):

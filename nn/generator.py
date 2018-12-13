@@ -197,8 +197,8 @@ class Generator(object):
         self.zsum = T.abs_(self.zsum / self.z_totals - self.args.z_perc)
 
         self.zdiff = self.zdiff / self.z_totals
-        cost_vec = self.args.coeff_adequacy * (
-                    1 - bigram_loss) + self.args.coeff_zs * self.zsum + self.args.coeff_zd * self.zdiff
+        self.cost_vec = cost_vec = self.args.coeff_adequacy * (1 - bigram_loss) + self.args.coeff_z * (
+                2 * self.zsum + self.zdiff)
 
         self.cost_vec = cost_vec
 
