@@ -196,9 +196,6 @@ class Model(object):
             with gzip.open(path_qa, "rb") as fin2:
                 eparams, args = pickle.load(fin2)
 
-            print len(self.encoder.params)
-            print len(eparams)
-
             for from_, to_ in param_map:
                 x_ls = self.encoder.params[to_[0]:to_[1]]
                 e_ls = eparams[from_[0]:from_[1]]
@@ -228,8 +225,10 @@ class Model(object):
         ranges.append(((0, 8), (0, 8)))  # FW LSTM
         ranges.append(((8, 16), (8, 16)))  # BW LSTM
 
-        ranges.append(((16, 18), (33, 35)))  # FC7
-        ranges.append(((18, 20), (35, 37)))  # OUTUP LAYER
+        ranges.append(((16, 17), (32, 33)))  # Bilinear
+
+        ranges.append(((17, 19), (33, 35)))  # FC7
+        ranges.append(((19, 21), (35, 37)))  # OUTPUT LAYER
 
         return ranges
 
