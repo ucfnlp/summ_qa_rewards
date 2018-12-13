@@ -268,6 +268,11 @@ def get_args():
                         default="",
                         help="path to load model"
                         )
+    parser.add_argument("--load_model_qa",
+                       type=str,
+                       default="",
+                       help="path to load model"
+                       )
 
     parser.add_argument("--load_model_pretrain_gen",
                         type='bool',

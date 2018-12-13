@@ -1105,7 +1105,8 @@ def main():
             model.rl_no_qa()
         else:
             if args.load_model_pretrain_gen or args.load_model_pretrain_qa:
-                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, args.save_model + args.load_model_qa, inference=False)
+                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model,
+                                          args.save_model + args.load_model_qa, inference=False)
             else:
                 model.ready()
 
