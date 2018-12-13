@@ -185,14 +185,15 @@ class Model(object):
                 self.ready_rl_no_qa()
         else:
             self.ready()
-        if args.load_model_pretrain_gen:
+
+        if self.args.load_model_pretrain_gen:
             for x, v in zip(self.generator.params, gparams):
                 x.set_value(v)
 
-        if args.load_model_pretrain_qa:
+        if self.args.load_model_pretrain_qa:
             param_map = self.create_param_map()
 
-            with gzip.open(path, "rb") as fin2:
+            with gzip.open(path_qa, "rb") as fin2:
                 eparams, args = pickle.load(fin2)
 
             for from_, to_ in param_map:
