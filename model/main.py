@@ -49,6 +49,8 @@ class Model(object):
         if args.qa_performance:
             self.encoder.ready_qa()
             self.params = self.encoder.params
+            self.generator.params = []
+
             for l in self.generator.layers + [self.embedding_layer] + [self.embedding_layer_posit]:
                 for p in l.params:
                     self.generator.params.append(p)
