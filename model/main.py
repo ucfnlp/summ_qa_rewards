@@ -49,8 +49,10 @@ class Model(object):
 
         if args.qa_performance:
             self.encoder.ready_qa()
+            self.params = self.encoder.params
         else:
             self.encoder.ready()
+            self.params = self.encoder.params + self.generator.params
 
         self.dropout = self.generator.dropout
         self.x = self.generator.x
@@ -62,8 +64,6 @@ class Model(object):
         self.gold_standard_entities = self.encoder.gold_standard_entities
 
         self.z = self.generator.z_pred
-
-        self.params = self.encoder.params + self.generator.params
 
     def ready_test(self):
         args, embedding_layer, embedding_layer_posit = self.args, self.embedding_layer, self.embedding_layer_posit
