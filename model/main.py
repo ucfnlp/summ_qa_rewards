@@ -9,6 +9,7 @@ from datetime import datetime
 import numpy as np
 import sklearn.metrics as sk
 import theano
+import theano.tensor as T
 
 import myio
 import summarization_args
@@ -33,8 +34,22 @@ class Model(object):
         self.encoder = Encoder(args, nclasses, self.generator)
 
         self.generator.ready()
-        self.generator.sample(inference)
-        self.encoder.ready()
+
+        if args.qa_performance == 'none':
+            self.generator.z_pred = T.zeros(shape=self.generator.x.shape)
+        elif args.qa_performance == 'rl' or args.qa_performance == '':
+            self.generator.sample(inference)
+        elif args.qa_performance == 'full':
+            self.generator.z_pred = T.ones(shape=self.generator.x.shape)
+        elif args.qa_performance == 'ov':
+            self.generator.z_pred = self.generator.bm
+        else:
+            raise NotImplementedError
+
+        if args.qa_performance:
+            self.encoder.ready_qa()
+        else:
+            self.encoder.ready()
 
         self.dropout = self.generator.dropout
         self.x = self.generator.x
@@ -186,22 +201,22 @@ class Model(object):
         else:
             self.ready()
 
-        if self.args.load_model_pretrain_gen:
+        if self.args.load_model_pretrain:
             for x, v in zip(self.generator.params, gparams):
                 x.set_value(v)
 
-        if self.args.load_model_pretrain_qa:
-            param_map = self.create_param_map()
-
-            with gzip.open(path_qa, "rb") as fin2:
-                eparams, args = pickle.load(fin2)
-
-            for from_, to_ in param_map:
-                x_ls = self.encoder.params[to_[0]:to_[1]]
-                e_ls = eparams[from_[0]:from_[1]]
-
-                for x, v in zip(x_ls, e_ls):
-                    x.set_value(v)
+        # if self.args.load_model_pretrain_qa:
+        #     param_map = self.create_param_map()
+        #
+        #     with gzip.open(path_qa, "rb") as fin2:
+        #         eparams, args = pickle.load(fin2)
+        #
+        #     for from_, to_ in param_map:
+        #         x_ls = self.encoder.params[to_[0]:to_[1]]
+        #         e_ls = eparams[from_[0]:from_[1]]
+        #
+        #         for x, v in zip(x_ls, e_ls):
+        #             x.set_value(v)
 
     def load_model_no_qa(self, path):
         if not os.path.exists(path):
@@ -278,6 +293,206 @@ class Model(object):
 
         myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
         myio.get_rouge(self.args)
+
+    def train_qa(self):
+        args = self.args
+
+        updates_e, lr_e, gnorm_e = create_optimization_updates(
+            cost=self.encoder.cost_e,
+            params=self.encoder.params,
+            method=args.learning,
+            beta1=args.beta1,
+            beta2=args.beta2,
+            lr=args.learning_rate
+        )[:3]
+
+        outputs_d = [self.encoder.loss, self.encoder.preds_clipped]
+        outputs_t = [self.encoder.loss, self.encoder.preds_clipped]
+
+        inputs_d = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask,
+                    self.chunk_sizes, self.encoder.loss_mask]
+        inputs_t = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask,
+                    self.chunk_sizes, self.encoder.loss_mask]
+
+        eval_generator = theano.function(
+            inputs=inputs_d,
+            outputs=outputs_d,
+            on_unused_input='ignore'
+        )
+        updates = updates_e.items()
+        if args.qa_performance == 'rl':
+            updates += self.generator.sample_updates
+        train_generator = theano.function(
+            inputs=inputs_t,
+            outputs=outputs_t,
+            updates=updates,
+            on_unused_input='ignore'
+        )
+
+        say("Model Built Full (QA)\n\n")
+
+        unchanged = 0
+        best_dev = 1e+2
+        last_train_avg_cost = None
+        last_dev_avg_cost = None
+        tolerance = 0.10 + 1e-3
+        dropout_prob = np.float64(args.dropout).astype(theano.config.floatX)
+
+        filename = myio.create_json_filename_qa(args)
+        ofp_train = open(filename, 'w+')
+
+        json_train = dict()
+        best_train_output = None
+
+        random.seed(datetime.now())
+
+        for epoch in xrange(args.max_epochs):
+            unchanged += 1
+            more_count = 0
+
+            say("Unchanged : {}\n".format(unchanged))
+
+            if unchanged > 25:
+                break
+
+            more = True
+            if args.decay_lr:
+                param_bak = [p.get_value(borrow=False) for p in self.params]
+
+            while more:
+                train_loss = 0.0
+                more_count += 1
+
+                if more_count > 5:
+                    break
+                start_time = time.time()
+
+                loss_all = []
+                train_acc = []
+                train_f1 = []
+
+                num_files = args.num_files_train
+                N = args.online_batch_size * num_files
+
+                cur_train_output = dict()
+                cur_train_output['sha'] = []
+                cur_train_output['pred'] = []
+
+                for i in xrange(num_files):
+
+                    train_batches_x, train_batches_y, train_batches_e, train_batches_bm, _, train_batches_fw, train_batches_csz, train_batches_bpi = myio.load_batches(
+                        args.batch_dir + args.source + 'train', i)
+
+                    cur_len = len(train_batches_x)
+
+                    perm2 = range(cur_len)
+                    random.shuffle(perm2)
+
+                    train_batches_x = [train_batches_x[k] for k in perm2]
+                    train_batches_y = [train_batches_y[k] for k in perm2]
+                    train_batches_e = [train_batches_e[k] for k in perm2]
+                    train_batches_bm = [train_batches_bm[k] for k in perm2]
+                    train_batches_fw = [train_batches_fw[k] for k in perm2]
+                    train_batches_csz = [train_batches_csz[k] for k in perm2]
+                    train_batches_bpi = [train_batches_bpi[k] for k in perm2]
+
+                    for j in xrange(cur_len):
+                        if args.full_test:
+                            if (i * args.online_batch_size + j + 1) % 10 == 0:
+                                say("\r{}/{}       ".format(i * args.online_batch_size + j + 1, N))
+
+                        bx, by, be, bm, bfw, bcsz, bpi = train_batches_x[j], train_batches_y[j], train_batches_e[j], \
+                                                         train_batches_bm[j], train_batches_fw[j], train_batches_csz[j], \
+                                                         train_batches_bpi[j]
+                        be, blm = myio.create_1h(be, args.n)
+
+                        loss, preds_tr = train_generator(bx, bpi, by, bm, be, bfw, bcsz, blm)
+
+                        acc, f1, preds_argmax = self.eval_qa(be, preds_tr, blm)
+
+
+                        train_acc.append(acc)
+                        train_f1.append(f1)
+                        loss_all.append(loss)
+
+                        train_loss += loss
+
+                cur_train_avg_cost = train_loss / N
+
+                if args.dev:
+                    self.dropout.set_value(0.0)
+                    dev_obj, dev_acc, dev_f1 = self.evaluate_data_qa(eval_generator)
+                    self.dropout.set_value(dropout_prob)
+                    cur_dev_avg_cost = dev_obj
+
+                more = False
+
+                if args.decay_lr and last_train_avg_cost is not None:
+                    if cur_train_avg_cost > last_train_avg_cost * (1 + tolerance):
+                        more = True
+                        say("\nTrain cost {} --> {}\n".format(
+                            last_train_avg_cost, cur_train_avg_cost
+                        ))
+                    if args.dev and cur_dev_avg_cost > last_dev_avg_cost * (1 + tolerance):
+                        more = True
+                        say("\nDev cost {} --> {}\n".format(
+                            last_dev_avg_cost, cur_dev_avg_cost
+                        ))
+
+                if more:
+                    lr_val = lr_e.get_value() * 0.5
+                    lr_val = np.float64(lr_val).astype(theano.config.floatX)
+
+                    lr_e.set_value(lr_val)
+                    say("Decrease learning rate to {}\n".format(float(lr_val)))
+                    for p, v in zip(self.params, param_bak):
+                        p.set_value(v)
+                    continue
+
+                myio.record_observations_verbose_qa(json_train, epoch + 1, loss_all,
+                                                    dev_acc, dev_f1, np.mean(train_acc), np.mean(train_f1))
+
+                last_train_avg_cost = cur_train_avg_cost
+
+                say("\n")
+                say(("Generator Epoch {:.2f} lossg={:.4f}  " +
+                     "\t[{:.2f}m / {:.2f}m]\n").format(
+                    epoch + 1,
+                    train_loss / N,
+                    (time.time() - start_time) / 60.0,
+                    (time.time() - start_time) / 60.0 / (i * args.online_batch_size + j + 1) * N
+                ))
+
+                if args.dev:
+                    last_dev_avg_cost = cur_dev_avg_cost
+                    if dev_obj < best_dev:
+
+                        best_dev = dev_obj
+                        unchanged = 0
+
+                        if args.save_model:
+                            filename = args.save_model + myio.create_fname_identifier_qa(args)
+                            self.save_model(filename, args)
+
+                            json_train['BEST_DEV_EPOCH'] = epoch
+
+                            if args.qa_entity_output:
+                                best_train_output = cur_train_output
+
+            if more_count > 5:
+                json_train['ERROR'] = 'Stuck reducing error rate, at epoch ' + str(epoch + 1) + '. LR = ' + str(lr_val)
+                json.dump(json_train, ofp_train)
+                ofp_train.close()
+                return
+
+        if unchanged > 20:
+            json_train['UNCHANGED'] = unchanged
+
+        if args.qa_entity_output:
+            json_train['TRAIN_ENTITY_OUTPUT'] = best_train_output
+
+        json.dump(json_train, ofp_train)
+        ofp_train.close()
 
     def train(self):
         args = self.args
@@ -949,6 +1164,40 @@ class Model(object):
 
         return tot_obj / float(N), dev_z
 
+    def evaluate_data_qa(self, eval_func):
+        tot_obj = 0.0
+        N = 0
+
+        dev_acc = []
+        dev_f1 = []
+
+        num_files = self.args.num_files_dev
+
+        for i in xrange(num_files):
+
+            batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_fw, batches_csz, batches_bpi = myio.load_batches(
+                self.args.batch_dir + self.args.source + 'dev', i)
+
+            cur_len = len(batches_x)
+
+            for j in xrange(cur_len):
+                bx, by, be, bm, sha, rx, fw, csz, bpi = batches_x[j], batches_y[j], batches_e[j], batches_bm[j], \
+                                                        batches_sha[j], batches_rx[j], batches_fw[j], \
+                                                        batches_csz[j], batches_bpi[j]
+                be, ble = myio.create_1h(be, args.n)
+
+                o, preds = eval_func(bx, bpi, by, bm, be, fw, csz, ble)
+
+                tot_obj += o
+
+                acc, f1, _ = self.eval_qa(be, preds, ble)
+                dev_acc.append(acc)
+                dev_f1.append(f1)
+
+            N += cur_len
+
+        return tot_obj / float(N), np.mean(dev_acc), np.mean(dev_f1)
+
     def evaluate_data(self, eval_func):
         tot_obj = 0.0
         N = 0
@@ -1101,13 +1350,17 @@ def main():
             model.ready_pretrain()
             model.pretrain()
         elif args.rl_no_qa:
-            if args.load_model_pretrain_gen:
+            if args.load_model_pretrain:
                 model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, None, inference=False)
             else:
                 model.ready_rl_no_qa()
             model.rl_no_qa()
+        elif args.qa_performance:
+            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, None, inference=False)
+
+            model.train_qa()
         else:
-            if args.load_model_pretrain_gen or args.load_model_pretrain_qa:
+            if args.load_model_pretrain:
                 model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model,
                                           args.save_model + args.load_model_qa, inference=False)
             else:

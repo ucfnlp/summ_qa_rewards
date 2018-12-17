@@ -128,8 +128,7 @@ def create_fname_identifier(args):
 
     return 'src_' + str(args.source) + \
            '_pretr_' + str(args.pretrain) + \
-           '_load_pre_gen_' + str(args.load_model_pretrain_gen) + \
-           '_qa_' + str(args.load_model_pretrain_qa) + \
+           '_load_pre_' + str(args.load_model_pretrain) + \
            '_edim_' + str(args.embedding_dim) + \
            '_batch_' + str(args.batch) + \
            '_inp_' + str(args.inp_len) + \

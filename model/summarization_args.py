@@ -274,13 +274,13 @@ def get_args():
                        help="path to load model"
                        )
 
-    parser.add_argument("--load_model_pretrain_gen",
-                        type='bool',
-                        default=False,
-                        help="Train full model with pre-trained Generator"
+    parser.add_argument("--qa_performance",
+                        type=str,
+                        default="",
+                        help="path to load model"
                         )
 
-    parser.add_argument("--load_model_pretrain_qa",
+    parser.add_argument("--load_model_pretrain",
                         type='bool',
                         default=False,
                         help="Train full model with pre-trained Generator"
