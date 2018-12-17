@@ -50,7 +50,7 @@ class Model(object):
             self.encoder.ready_qa()
             self.params = self.encoder.params
             self.generator.params = []
-            print len(self.generator.embedding_layer.params), len(self.generator.embedding_layer_posit.params)
+
             for l in self.generator.layers + [self.generator.embedding_layer] + [self.generator.embedding_layer_posit]:
                 for p in l.params:
                     self.generator.params.append(p)
@@ -210,7 +210,7 @@ class Model(object):
         if self.args.load_model_pretrain:
             if len(self.generator.params) != len(gparams):
                 print len(self.generator.params), len(gparams)
-                gparams = gparams[:len(self.generator.params)] + gparams[-2:]
+                gparams = gparams[:len(self.generator.params) - 2] + gparams[-2:]
             for x, v in zip(self.generator.params, gparams):
                 x.set_value(v)
 
