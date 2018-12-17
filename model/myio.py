@@ -127,6 +127,7 @@ def create_fname_identifier(args):
         chunk_typ = 'chnk'
 
     return 'src_' + str(args.source) + \
+           '_qa_' + args.qa_performance + \
            '_pretr_' + str(args.pretrain) + \
            '_load_pre_' + str(args.load_model_pretrain) + \
            '_edim_' + str(args.embedding_dim) + \
