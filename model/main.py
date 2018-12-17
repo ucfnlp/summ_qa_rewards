@@ -182,7 +182,7 @@ class Model(object):
         for x, v in zip(self.generator.params, gparams):
             x.set_value(v)
 
-    def load_model_pretrain(self, path, path_qa, inference):
+    def load_model_pretrain(self, path, inference):
         if not os.path.exists(path):
             if path.endswith(".pkl"):
                 path += ".gz"
@@ -206,6 +206,9 @@ class Model(object):
             self.ready()
 
         if self.args.load_model_pretrain:
+            if len(self.generator.params) != len(gparams):
+                print len(self.generator.params), len(gparams)
+                gparams = gparams[:len(self.generator.params)]
             for x, v in zip(self.generator.params, gparams):
                 x.set_value(v)
 
