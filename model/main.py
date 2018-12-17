@@ -349,7 +349,7 @@ class Model(object):
         tolerance = 0.10 + 1e-3
         dropout_prob = np.float64(args.dropout).astype(theano.config.floatX)
 
-        filename = myio.create_json_filename_qa(args)
+        filename = myio.create_json_filename(args)
         ofp_train = open(filename, 'w+')
 
         json_train = dict()
@@ -482,7 +482,7 @@ class Model(object):
                         unchanged = 0
 
                         if args.save_model:
-                            filename = args.save_model + myio.create_fname_identifier_qa(args)
+                            filename = args.save_model + myio.create_fname_identifier(args)
                             self.save_model(filename, args)
 
                             json_train['BEST_DEV_EPOCH'] = epoch
