@@ -1357,18 +1357,17 @@ def main():
             model.pretrain()
         elif args.rl_no_qa:
             if args.load_model_pretrain:
-                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, None, inference=False)
+                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=False)
             else:
                 model.ready_rl_no_qa()
             model.rl_no_qa()
         elif args.qa_performance:
-            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, None, inference=False)
+            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=False)
 
             model.train_qa()
         else:
             if args.load_model_pretrain:
-                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model,
-                                          args.save_model + args.load_model_qa, inference=False)
+                model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=False)
             else:
                 model.ready()
 
@@ -1376,7 +1375,7 @@ def main():
 
     elif args.dev:
         if args.pretrain:
-            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, None,  inference=True)
+            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=True)
             model.dev()
         elif args.rl_no_qa:
             model.load_model_no_qa(args.save_model + args.load_model)
@@ -1387,7 +1386,7 @@ def main():
 
     elif args.test:
         if args.pretrain:
-            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, None, inference=True)
+            model.load_model_pretrain(args.save_model + 'pretrain/' + args.load_model, inference=True)
             model.test()
         elif args.rl_no_qa:
             model.load_model_no_qa(args.save_model + args.load_model)
