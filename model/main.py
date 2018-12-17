@@ -51,7 +51,7 @@ class Model(object):
             self.params = self.encoder.params
             self.generator.params = []
 
-            for l in self.generator.layers + [self.embedding_layer] + [self.embedding_layer_posit]:
+            for l in self.generator.layers:
                 for p in l.params:
                     self.generator.params.append(p)
         else:
@@ -329,8 +329,10 @@ class Model(object):
             on_unused_input='ignore'
         )
         updates = updates_e.items()
+
         if args.qa_performance == 'rl':
             updates += self.generator.sample_updates
+
         train_generator = theano.function(
             inputs=inputs_t,
             outputs=outputs_t,
