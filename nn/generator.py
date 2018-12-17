@@ -30,6 +30,7 @@ class Generator(object):
         fw_mask = self.fw_mask = T.imatrix('fw')
         chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
         self.bm = T.imatrix('bm')
+        self.posit_x = T.imatrix('pos')
 
         rv_mask = T.concatenate([T.ones((1, fw_mask.shape[1])), fw_mask[:-1]], axis=0)
         self.z_totals = T.sum(T.neq(self.x, self.padding_id), axis=0, dtype=theano.config.floatX)
@@ -56,13 +57,12 @@ class Generator(object):
         self.size = size
         self.h_final = apply_dropout(h_final, dropout)
 
-
     def pretrain(self, inference):
 
         embedding_layer_posit = self.embedding_layer_posit
 
         bm = self.bm
-        posit_x = self.posit_x = T.imatrix('pos')
+        posit_x = self.posit_x
 
         embs_p = embedding_layer_posit.forward(posit_x.ravel())
         self.embs_p = embs_p = embs_p.reshape((bm.shape[0], bm.shape[1], embedding_layer_posit.n_d))
@@ -130,7 +130,7 @@ class Generator(object):
     def sample(self, inference):
         embedding_layer_posit = self.embedding_layer_posit
         bm = self.bm
-        posit_x = self.posit_x = T.imatrix('pos')
+        posit_x = self.posit_x
 
         embs_p = embedding_layer_posit.forward(posit_x.ravel())
         self.embs_p = embs_p = embs_p.reshape((bm.shape[0], bm.shape[1], embedding_layer_posit.n_d))
