@@ -39,7 +39,6 @@ class Model(object):
             self.generator.z_pred = T.zeros(shape=self.generator.x.shape)
         elif args.qa_performance == 'rl' or args.qa_performance == '':
             self.generator.sample(inference)
-            self.bm = self.generator.bm
         elif args.qa_performance == 'full':
             self.generator.z_pred = T.ones(shape=self.generator.x.shape)
         elif args.qa_performance == 'ov':
@@ -61,6 +60,7 @@ class Model(object):
         self.x = self.generator.x
         self.fw_mask = self.generator.fw_mask
         self.chunk_sizes = self.generator.chunk_sizes
+        self.bm = self.generator.bm
 
         self.y = self.encoder.y
 
