@@ -50,8 +50,8 @@ class Model(object):
             self.encoder.ready_qa()
             self.params = self.encoder.params
             self.generator.params = []
-
-            for l in self.generator.layers + [self.embedding_layer] + [self.embedding_layer_posit]:
+            print len(self.generator.embedding_layer.params), len(self.generator.embedding_layer_posit.params)
+            for l in self.generator.layers + [self.generator.embedding_layer] + [self.generator.embedding_layer_posit]:
                 for p in l.params:
                     self.generator.params.append(p)
         else:
