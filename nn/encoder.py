@@ -289,6 +289,9 @@ class Encoder(object):
         # (batch * n) x n_d * 2
         o = T.batched_dot(alpha, gen_h_final)
 
+        if args.qa_performance == 'none':
+            o = T.zeros_like(o)
+
         output_size = h_size * 4
         h_concat_y = h_concat_y.reshape((o.shape[0], o.shape[1]))
         self.o = o = T.concatenate([o, h_concat_y, T.abs_(o - h_concat_y), o * h_concat_y], axis=1)
