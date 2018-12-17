@@ -29,6 +29,7 @@ class Generator(object):
         x = self.x = T.imatrix('x')
         fw_mask = self.fw_mask = T.imatrix('fw')
         chunk_sizes = self.chunk_sizes = T.imatrix('sizes')
+        self.bm = T.imatrix('bm')
 
         rv_mask = T.concatenate([T.ones((1, fw_mask.shape[1])), fw_mask[:-1]], axis=0)
         self.z_totals = T.sum(T.neq(self.x, self.padding_id), axis=0, dtype=theano.config.floatX)
@@ -58,7 +59,7 @@ class Generator(object):
 
         embedding_layer_posit = self.embedding_layer_posit
 
-        bm = self.bm = T.imatrix('bm')
+        bm = self.bm
         posit_x = self.posit_x = T.imatrix('pos')
 
         embs_p = embedding_layer_posit.forward(posit_x.ravel())
@@ -127,8 +128,7 @@ class Generator(object):
 
     def sample(self, inference):
         embedding_layer_posit = self.embedding_layer_posit
-
-        bm = self.bm = T.imatrix('bm')
+        bm = self.bm
         posit_x = self.posit_x = T.imatrix('pos')
 
         embs_p = embedding_layer_posit.forward(posit_x.ravel())

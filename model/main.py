@@ -39,6 +39,7 @@ class Model(object):
             self.generator.z_pred = T.zeros(shape=self.generator.x.shape)
         elif args.qa_performance == 'rl' or args.qa_performance == '':
             self.generator.sample(inference)
+            self.bm = self.generator.bm
         elif args.qa_performance == 'full':
             self.generator.z_pred = T.ones(shape=self.generator.x.shape)
         elif args.qa_performance == 'ov':
@@ -57,7 +58,7 @@ class Model(object):
         self.chunk_sizes = self.generator.chunk_sizes
 
         self.y = self.encoder.y
-        self.bm = self.generator.bm
+
         self.gold_standard_entities = self.encoder.gold_standard_entities
 
         self.z = self.generator.z_pred
@@ -737,7 +738,6 @@ class Model(object):
         json.dump(json_train_leaks, ofp_train_leaks)
         ofp_train_leaks.close()
         ofp_train.close()
-
 
     def pretrain(self):
         args = self.args
