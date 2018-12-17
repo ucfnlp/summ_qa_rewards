@@ -34,6 +34,7 @@ class Generator(object):
         rv_mask = T.concatenate([T.ones((1, fw_mask.shape[1])), fw_mask[:-1]], axis=0)
         self.z_totals = T.sum(T.neq(self.x, self.padding_id), axis=0, dtype=theano.config.floatX)
         self.layers = []
+        self.params = []
 
         n_d = args.hidden_dimension
         n_e = embedding_layer.n_d
@@ -54,6 +55,7 @@ class Generator(object):
 
         self.size = size
         self.h_final = apply_dropout(h_final, dropout)
+
 
     def pretrain(self, inference):
 
@@ -107,8 +109,7 @@ class Generator(object):
         self.layers.append(output_rnn)
         self.layers.append(output_rnn.fc_layer)
         self.layers.append(output_rnn.fc_layer_final)
-
-        params = self.params = []
+        params = self.params
         for l in self.layers + [self.embedding_layer] + [self.embedding_layer_posit]:
             for p in l.params:
                 params.append(p)
@@ -170,7 +171,7 @@ class Generator(object):
         self.layers.append(output_rnn.fc_layer)
         self.layers.append(output_rnn.fc_layer_final)
 
-        params = self.params = []
+        params = self.params
         for l in self.layers + [self.embedding_layer] + [self.embedding_layer_posit]:
             for p in l.params:
                 params.append(p)
