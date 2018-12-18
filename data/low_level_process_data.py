@@ -28,8 +28,8 @@ def prune_hl(args):
         args, test_x, test_y, test_e, None, test_cy, test_rx, test_m, test_sha, test_ch, chunk_freq, used_e, usable_e)
 
     print 'used/total entities = ', len(used_e) / float(len(entity_map))
-
-    print_chunk_info(chunk_freq)
+    if not args.word_level_c:
+        print_chunk_info(chunk_freq)
 
     print 'pruning entities'
     e_map_new = re_map(used_e)

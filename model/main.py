@@ -37,7 +37,9 @@ class Model(object):
 
         if args.qa_performance == 'none':
             self.generator.z_pred = T.zeros(shape=self.generator.x.shape)
-        elif args.qa_performance == 'rl' or args.qa_performance == '':
+        elif args.qa_performance == 'rl':
+            self.generator.sample(True)
+        elif args.qa_performance == '':
             self.generator.sample(inference)
         elif args.qa_performance == 'full':
             self.generator.z_pred = T.ones(shape=self.generator.x.shape)
@@ -366,7 +368,7 @@ class Model(object):
 
             say("Unchanged : {}\n".format(unchanged))
 
-            if unchanged > 25:
+            if unchanged > args.max_epochs:
                 break
 
             more = True
