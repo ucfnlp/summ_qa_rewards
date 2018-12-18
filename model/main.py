@@ -325,23 +325,16 @@ class Model(object):
         inputs_t = [self.x, self.generator.posit_x, self.y, self.bm, self.gold_standard_entities, self.fw_mask,
                     self.chunk_sizes, self.encoder.loss_mask]
 
-        updates = updates_e.items()
-        updates_d = None
-        if args.qa_performance == 'rl':
-            updates += self.generator.sample_updates
-            updates_d = self.generator.sample_updates
-
         eval_generator = theano.function(
             inputs=inputs_d,
             outputs=outputs_d,
-            updates=updates_d,
             on_unused_input='ignore'
         )
 
         train_generator = theano.function(
             inputs=inputs_t,
             outputs=outputs_t,
-            updates=updates,
+            updates=updates_e.items(),
             on_unused_input='ignore'
         )
 
