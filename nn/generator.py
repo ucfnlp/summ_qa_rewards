@@ -145,7 +145,7 @@ class Generator(object):
                              n_out=128,
                              fc_in=final_concat_d,
                              fc_out=128,
-                             sample=True)
+                             sample=(not inference))
         if inference:
             probs = output_rnn.s_forward_all(self.h_final, reduced_p_embs, inference)
             samples = T.cast(T.round(probs, mode='half_away_from_zero'), theano.config.floatX)
