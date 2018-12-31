@@ -208,7 +208,7 @@ class Encoder(object):
 
         # inp_len x batch
         x = generator.x
-        z = generator.z_pred
+        z = theano.gradient.disconnected_grad(generator.z_pred)
 
         mask_y = T.cast(T.neq(y, padding_id), theano.config.floatX).dimshuffle((0, 1, 'x'))
 
