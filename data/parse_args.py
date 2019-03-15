@@ -29,30 +29,15 @@ def get_args():
                         default="lists/all_val.txt",
                         help='Dev Set URLs')
 
-    parser.add_argument('--raw_data_cnn',
+    parser.add_argument('--raw_data',
                         type=str,
                         default='cnn/stories/',
                         help='Raw data CNN')
 
     parser.add_argument('--parsed_output_loc',
                         type=str,
-                        default='parse/dm/',
+                        default='parse/cnn/',
                         help='File path for parsed data')
-
-    parser.add_argument('--cp',
-                        type=str,
-                        default='',
-                        help='CLASSPATH')
-
-    parser.add_argument('--sp',
-                        type=str,
-                        default='',
-                        help='STANFORD_PARSER')
-
-    parser.add_argument('--sm',
-                        type=str,
-                        default='',
-                        help='STANFORD_MODEL')
 
     parser.add_argument('--vocab_size',
                         type=int,
@@ -81,7 +66,7 @@ def get_args():
 
     parser.add_argument('--source',
                         type=str,
-                        default='dm',
+                        default='cnn',
                         help='Data source')
 
     return parser.parse_args()

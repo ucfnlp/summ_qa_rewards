@@ -78,7 +78,6 @@ def sha_ls(args):
 
 
 def process_data(args):
-
     raw_data = args.raw_data
 
     counter = 1
