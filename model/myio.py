@@ -125,7 +125,8 @@ def create_fname_identifier(args):
         chunk_typ = 'word'
     else:
         chunk_typ = 'chnk'
-
+    if not hasattr(args, 'qa_performance'):
+        args.qa_performance = ""
     return 'src_' + str(args.source) + \
            '_qap_' + args.qa_performance + \
            '_pretr_' + str(args.pretrain) + \
@@ -350,7 +351,7 @@ def save_dev_results_s(args, epoch, dev_z, dev_batches_x, dev_sha):
     ofp_samples.close()
 
 
-def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
+def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha, dev_chunks=None):
     s_num = 0
 
     filename_ = get_readable_file(args, epoch)
@@ -376,6 +377,11 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
 
             ofp_for_rouge = open(filename, 'w+')
             ofp_system_output = []
+            post_proc = set()
+
+            continue_index = 0
+            continue_count = 0
+            skip_word = False
 
             for k in xrange(len(dev_z[i])):
                 if k >= len(dev_batches_x[i][j]):
@@ -383,7 +389,23 @@ def save_dev_results(args, epoch, dev_z, dev_batches_x, dev_sha):
 
                 word = dev_batches_x[i][j][k].encode('utf-8')
 
+                if hasattr(args, 'post_proc'): # TODO: fix this asap
+                    # print 'error'
+                    if continue_count == 0:
+                        continue_count = dev_chunks[i][continue_index][j]
+                        next_chunk = retrieve_chunk(dev_batches_x[i][j], k, continue_count)
+                        continue_index += 1
+
+                        skip_word = next_chunk in post_proc
+
+                        if dev_z[i][k][j] >= 0.5:
+                            post_proc.add(next_chunk)
+
+                continue_count -= 1
                 if dev_z[i][k][j] < 0.5:
+                    continue
+
+                if skip_word:
                     continue
 
                 ofp_for_rouge.write(word + ' ')
@@ -490,7 +512,11 @@ def eval_baseline(args, bm, rx, type_):
     shutil.rmtree(tmp_dir)
 
 
-def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
+def retrieve_chunk(x, begin, end):
+    return ' '.join(x[begin:begin + end]).encode('utf-8').lower()
+
+
+def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer, chunks=None):
     tempfile.tempdir = '/scratch/'
     s_num = 0
     epoch = None
@@ -517,8 +543,6 @@ def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
     for i in xrange(len(z)):
 
         start_hl_idx = 1
-        end_hl_idx = len(y[i][0])
-        hl_step = end_hl_idx / args.n
 
         for j in xrange(len(z[i][0])):
             filename = rouge_fname + 'sum.' + str(s_num).zfill(6) + '.txt'
@@ -527,6 +551,14 @@ def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
 
             word_idx = 0
             sent_idx = 0
+
+            post_proc = set()
+            raw_and_mask = dict()
+            raw_and_mask_m = [0.0] * args.inp_len
+
+            continue_index = 0
+            continue_count = 0
+            skip_word = False
 
             for k in xrange(len(z[i])):
                 if word_idx >= len(x[i][j][sent_idx]):
@@ -539,14 +571,29 @@ def save_test_results_rouge(args, z, x, y, e, sha, embedding_layer):
                 word = x[i][j][sent_idx][word_idx].encode('utf-8')
                 word_idx += 1
 
+                if not hasattr(args, 'post_proc'): # TODO: fix this asap
+                    if continue_count == 0:
+                        continue_count = chunks[i][continue_index][j]
+                        next_chunk = retrieve_chunk(x[i][j][sent_idx], word_idx, continue_count)
+
+                        continue_index += 1
+                        skip_word = next_chunk in post_proc
+
+                        if z[i][k][j] >= 0.5:
+                            post_proc.add(next_chunk)
+
+                continue_count -= 1
                 if z[i][k][j] < 0.5:
                     continue
 
+                if skip_word:
+                    continue
+
+                raw_and_mask_m[k] = 1.0
                 ofp_for_rouge.write(word + ' ')
                 ofp_system_output.append(word)
 
-            raw_and_mask = dict()
-            raw_and_mask['m'] = z[i][:, j].tolist()
+            raw_and_mask['m'] = raw_and_mask_m
 
             raw_and_mask['r'] = x[i][j][:]
             # raw_and_mask['y'] = []

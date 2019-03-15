@@ -269,9 +269,9 @@ class Model(object):
         )
 
         self.dropout.set_value(0.0)
-        z, x, y, e, sha = self.evaluate_test_data(test_generator)
+        z, x, y, e, sha, chunks = self.evaluate_test_data(test_generator)
 
-        myio.save_test_results_rouge(args, z, x, y, e, sha, self.embedding_layer)
+        myio.save_test_results_rouge(args, z, x, y, e, sha, self.embedding_layer, chunks)
 
     def dev(self):
         inputs_d = [self.x, self.generator.posit_x, self.bm, self.fw_mask, self.generator.chunk_sizes]
@@ -300,9 +300,9 @@ class Model(object):
 
         self.dropout.set_value(0.0)
 
-        dev_obj, dev_z, dev_x, dev_sha, dev_acc, _ = self.evaluate_data(eval_generator)
+        dev_obj, dev_z, dev_x, dev_sha, dev_acc, _, chunks = self.evaluate_data(eval_generator)
 
-        myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha)
+        myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha, dev_chunks=chunks)
         myio.get_rouge(self.args)
 
     def train_qa(self):
@@ -1215,6 +1215,7 @@ class Model(object):
         sha_ls = []
         dev_acc = []
         dev_f1 = []
+        chunks = []
 
         num_files = self.args.num_files_dev
 
@@ -1238,6 +1239,7 @@ class Model(object):
                 x.append(rx)
                 dev_z.append(bz)
                 sha_ls.append(sha)
+                chunks.append(csz)
 
                 acc, f1, _ = self.eval_qa(be, preds, ble)
                 dev_acc.append(acc)
@@ -1245,7 +1247,7 @@ class Model(object):
 
             N += cur_len
 
-        return tot_obj / float(N), dev_z, x, sha_ls, np.mean(dev_acc), np.mean(dev_f1)
+        return tot_obj / float(N), dev_z, x, sha_ls, np.mean(dev_acc), np.mean(dev_f1), chunks
 
     def evaluate_test_data(self, eval_func):
         N = 0
@@ -1255,10 +1257,12 @@ class Model(object):
         y = []
         e =[]
         sha_ls = []
+        chunk_ls= []
 
         num_files = self.args.num_files_test
 
         for i in xrange(num_files):
+            print i, 'out of', num_files
             batches_x, batches_y, batches_e, batches_bm, batches_sha, batches_rx, batches_fw, batches_cs, batches_bpi = myio.load_batches(
                 self.args.batch_dir + self.args.source + 'test', i)
 
@@ -1272,13 +1276,14 @@ class Model(object):
                 x.append(rx)
                 y.append(by)
                 e.append(be)
+                chunk_ls.append(bsc)
 
                 test_z.append(bz)
                 sha_ls.append(sha)
 
             N += len(batches_x)
 
-        return test_z, x, y, e, sha_ls
+        return test_z, x, y, e, sha_ls, chunk_ls
 
     def eval_qa(self, gs, preds, valid_mask):
         system = np.argmax(preds, axis=1)
