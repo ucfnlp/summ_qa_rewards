@@ -94,7 +94,6 @@ def process_data(args):
         for file_in in files:
 
             current_highlights = []
-            current_article = []
 
             if file_in.startswith('.'):
                 continue
@@ -123,16 +122,13 @@ def process_data(args):
                 if incoming_hl:
                     current_highlights.append(line)
                     incoming_hl = False
-                else:
-                    current_article.append(line)
 
-            if len(current_article) == 0:
-                # print 'Problem with :', sha
+            if len(current_highlights) == 0:
                 continue
 
             sha = str(sha)
-            fname = 'articles/' + sha + '.txt'
-            cm = (len(current_article), len(current_highlights), sha, fname)
+            fname = 'highlights/' + sha + '.txt'
+            cm = (len(current_highlights), sha, fname)
 
             mapping.append(cm)
             highlights.append(current_highlights)
@@ -141,52 +137,17 @@ def process_data(args):
             ofp_filelist.write(fname +'\n')
 
             for i in xrange(cm[0]):
-                ofp_articles.write(current_article[i] + '\n')
+                ofp_articles.write(current_highlights[i] + '\n')
             ofp_articles.close()
             output_file_count += 1
 
-    _len = len(highlights)
     ofp_filelist.close()
-
-    total_hl = 0
-    file_count = 1
-    ofp_highlights = open(args.parsed_output_loc + 'highlights'+str(file_count)+'.txt', 'w+')
-    ofp_lookup = open(args.parsed_output_loc + 'lookup.txt', 'w+')
-    ofp_list_hl = open(args.parsed_output_loc + 'list_hl.txt', 'w+')
-
-    for i in xrange(_len):
-        num_s_in_art = mapping[i][0]
-        num_s_in_hl = mapping[i][1]
-        sha = mapping[i][2]
-
-        ofp_lookup.write(str(num_s_in_art) + ' ' + str(num_s_in_hl) + ' ' + sha + '\n')
-
-        for j in xrange(num_s_in_hl):
-            ofp_highlights.write(highlights[i][j] + ' .\n')
-            total_hl += 1
-
-        if total_hl > 30000:
-            ofp_highlights.close()
-
-            ofp_list_hl.write('highlights'+str(file_count)+'.txt'+'\n')
-
-            file_count += 1
-            total_hl = 0
-
-            ofp_highlights = open(args.parsed_output_loc + 'highlights' + str(file_count) + '.txt', 'w+')
-
-    ofp_list_hl.write('highlights' + str(file_count) + '.txt' + '\n')
-
-    ofp_list_hl.close()
-    ofp_highlights.close()
-    ofp_lookup.close()
 
 
 def recombine_scnlp_data(args):
     ifp_lookup = open(args.parsed_output_loc + 'lookup.txt', 'r')
 
     article_info = dict()
-    pos_set = set()
 
     stopwords = create_stopwords(args)
 
