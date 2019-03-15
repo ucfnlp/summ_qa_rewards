@@ -14,9 +14,72 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 
+def get_set(file_in, train_urls, dev_urls, test_urls):
+    if file_in in train_urls:
+        return 1
+    elif file_in in dev_urls:
+        return 2
+    elif file_in in test_urls:
+        return 3
+    else:
+        return -1
+
+
+def get_url_sets():
+    sha1 = hashlib.sha1
+
+    train_urls = set()
+    dev_urls = set()
+    test_urls = set()
+
+    train_ofp = open('lists/all_train.txt', 'r')
+    dev_ofp = open('lists/all_val.txt', 'r')
+    test_ofp = open('lists/all_test.txt', 'r')
+
+    for line in train_ofp:
+        train_urls.add(sha1(line.rstrip()).hexdigest())
+
+    for line in dev_ofp:
+        dev_urls.add(sha1(line.rstrip()).hexdigest())
+
+    for line in test_ofp:
+        test_urls.add(sha1(line.rstrip()).hexdigest())
+
+    train_ofp.close()
+    dev_ofp.close()
+    test_ofp.close()
+
+    return train_urls, dev_urls, test_urls
+
+
+def sha_ls(args):
+    ofp_train = open('all_' + args.source + '_sha_train.out', 'w+')
+    ofp_dev = open('all_' + args.source + '_sha_dev.out', 'w+')
+    ofp_test = open('all_' + args.source + '_sha_test.out', 'w+')
+
+    train_urls, dev_urls, test_urls = get_url_sets()
+
+    for subdir, dirs, files in os.walk(args.raw_data):
+        for file_in in files:
+
+            sha = file_in.split('.')[0]
+            catg = get_set(sha, train_urls, dev_urls, test_urls)
+
+            if catg == 1:
+                ofp_train.write(sha + '\n')
+            elif catg == 2:
+                ofp_dev.write(sha + '\n')
+            else:
+                ofp_test.write(sha + '\n')
+
+    ofp_train.close()
+    ofp_dev.close()
+    ofp_test.close()
+
+
 def process_data(args):
 
-    raw_data = args.raw_data_cnn
+    raw_data = args.raw_data
 
     counter = 1
     start_time = time.time()
@@ -64,7 +127,7 @@ def process_data(args):
                     current_article.append(line)
 
             if len(current_article) == 0:
-                print 'Problem with :', sha
+                # print 'Problem with :', sha
                 continue
 
             sha = str(sha)
@@ -191,22 +254,22 @@ def tree2dict(tree):
     return {tree.label(): [tree2dict(t) if isinstance(t, ParentedTree) else t.lower() for t in tree]}
 
 
-def get_order():
+def get_order(args):
     train_ls, dev_ls, test_ls = [], [], []
 
-    ifp = open('all_dm_sha_train.out', 'rb')
+    ifp = open('all_' + args.source + '_sha_train.out', 'rb')
 
     for line in ifp:
         train_ls.append(line.rstrip())
 
     ifp.close()
-    ifp = open('all_dm_sha_dev.out', 'rb')
+    ifp = open('all_' + args.source + '_sha_dev.out', 'rb')
 
     for line in ifp:
         dev_ls.append(line.rstrip())
 
     ifp.close()
-    ifp = open('all_dm_sha_test.out', 'rb')
+    ifp = open('all_' + args.source + '_sha_test.out', 'rb')
 
     for line in ifp:
         test_ls.append(line.rstrip())
@@ -402,4 +465,5 @@ if __name__ == '__main__':
     if args.process:
         process_data(args)
     else:
+        sha_ls(args)
         recombine_scnlp_data(args)
