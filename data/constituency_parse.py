@@ -87,7 +87,8 @@ def process_data(args):
     mapping = []
     output_file_count = 1
 
-    ofp_filelist = open(args.parsed_output_loc + 'list_art.txt', 'w+')
+    ofp_filelist_art = open('list_art.txt', 'w+')
+    ofp_filelist_hl = open('list_hl.txt', 'w+')
 
     intermediate_dir_art = args.parsed_output_loc + '/articles/'
     intermediate_dir_hl = args.parsed_output_loc + '/highlights/'
@@ -150,7 +151,8 @@ def process_data(args):
             ofp_art = open(fname_art, 'w+')
             ofp_hl = open(fname_hl, 'w+')
 
-            ofp_filelist.write(sha + '\n')
+            ofp_filelist_art.write(fname_art + '\n')
+            ofp_filelist_hl.write(fname_hl + '\n')
 
             for i in xrange(cm[0]):
                 ofp_art.write(current_articel_sent[i] + '\n')
@@ -162,7 +164,8 @@ def process_data(args):
             ofp_hl.close()
             output_file_count += 1
 
-    ofp_filelist.close()
+    ofp_filelist_art.close()
+    ofp_filelist_hl.close()
 
 
 def recombine_scnlp_data(args):
