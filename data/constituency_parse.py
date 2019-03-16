@@ -93,11 +93,20 @@ def process_data(args):
     intermediate_dir_art = args.parsed_output_loc + '/articles/'
     intermediate_dir_hl = args.parsed_output_loc + '/highlights/'
 
+    intermediate_dir_art_scnlp = args.parsed_output_loc + '/articles_scnlp/'
+    intermediate_dir_hl_scnlp = args.parsed_output_loc + '/highlights_scnlp/'
+
     if not os.path.exists(intermediate_dir_art):
         os.makedirs(intermediate_dir_art)
 
     if not os.path.exists(intermediate_dir_hl):
         os.makedirs(intermediate_dir_hl)
+
+    if not os.path.exists(intermediate_dir_art_scnlp):
+        os.makedirs(intermediate_dir_art_scnlp)
+
+    if not os.path.exists(intermediate_dir_hl_scnlp):
+        os.makedirs(intermediate_dir_hl_scnlp)
 
     for subdir, dirs, files in os.walk(raw_data):
         for file_in in files:
