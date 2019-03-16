@@ -111,6 +111,8 @@ def process_data(args):
     for subdir, dirs, files in os.walk(raw_data):
         for file_in in files:
 
+            if counter > 50:
+                break
             current_highlights = []
             current_articel_sent = []
 
@@ -167,7 +169,7 @@ def process_data(args):
                 ofp_art.write(current_articel_sent[i] + '\n')
 
             for i in xrange(cm[1]):
-                ofp_hl.write(current_highlights[i] + '\n')
+                ofp_hl.write(current_highlights[i] + ' .\n')
 
             ofp_art.close()
             ofp_hl.close()
