@@ -25,7 +25,7 @@ def get_set(file_in, train_urls, dev_urls, test_urls):
         return -1
 
 
-def get_url_sets():
+def get_url_ls():
     sha1 = hashlib.sha1
 
     train_urls = set()
@@ -57,7 +57,7 @@ def sha_ls(args):
     ofp_dev = open('all_' + args.source + '_sha_dev.out', 'w+')
     ofp_test = open('all_' + args.source + '_sha_test.out', 'w+')
 
-    train_urls, dev_urls, test_urls = get_url_sets()
+    train_urls, dev_urls, test_urls = get_url_ls()
 
     for subdir, dirs, files in os.walk(args.raw_data):
         for file_in in files:
@@ -89,10 +89,20 @@ def process_data(args):
 
     ofp_filelist = open(args.parsed_output_loc + 'list_art.txt', 'w+')
 
+    intermediate_dir_art = args.parsed_output_loc + '/articles/'
+    intermediate_dir_hl = args.parsed_output_loc + '/highlights/'
+
+    if not os.path.exists(intermediate_dir_art):
+        os.makedirs(intermediate_dir_art)
+
+    if not os.path.exists(intermediate_dir_hl):
+        os.makedirs(intermediate_dir_hl)
+
     for subdir, dirs, files in os.walk(raw_data):
         for file_in in files:
 
             current_highlights = []
+            current_articel_sent = []
 
             if file_in.startswith('.'):
                 continue
@@ -121,23 +131,35 @@ def process_data(args):
                 if incoming_hl:
                     current_highlights.append(line)
                     incoming_hl = False
+                else:
+                    current_articel_sent.append(line)
 
             if len(current_highlights) == 0:
                 continue
 
             sha = str(sha)
-            fname = 'highlights/' + sha + '.txt'
-            cm = (len(current_highlights), sha, fname)
+
+            fname_hl = intermediate_dir_hl + sha + '.txt'
+            fname_art = intermediate_dir_art + sha + '.txt'
+
+            cm = (len(current_articel_sent), len(current_highlights), sha)
 
             mapping.append(cm)
             highlights.append(current_highlights)
 
-            ofp_articles = open(args.parsed_output_loc + fname, 'w+')
-            ofp_filelist.write(fname +'\n')
+            ofp_art = open(fname_art, 'w+')
+            ofp_hl = open(fname_hl, 'w+')
+
+            ofp_filelist.write(sha + '\n')
 
             for i in xrange(cm[0]):
-                ofp_articles.write(current_highlights[i] + '\n')
-            ofp_articles.close()
+                ofp_art.write(current_articel_sent[i] + '\n')
+
+            for i in xrange(cm[1]):
+                ofp_hl.write(current_highlights[i] + '\n')
+
+            ofp_art.close()
+            ofp_hl.close()
             output_file_count += 1
 
     ofp_filelist.close()
@@ -160,12 +182,11 @@ def recombine_scnlp_data(args):
 
     print 'Combining..'
 
-    train_order, dev_order, test_order = get_order()
+    train_order, dev_order, test_order = get_order(args)
     all_order = [train_order, dev_order, test_order]
     types = ['train', 'dev', 'test']
-    limits = [512, 128, 128]
 
-    for ls, type_, limit in zip(all_order, types, limits):
+    for ls, type_ in zip(all_order, types):
         print 'Loading HL for', type_
 
         annotated_hl_fp = open(args.intermediate + '_' + type_ + '.txt.json', 'r')
@@ -177,17 +198,13 @@ def recombine_scnlp_data(args):
         print 'loaded..'
 
         counter = 0
-        hl_idx_end = 0
 
         for sha in ls:
-            hl_idx_start = hl_idx_end
-
             if sha not in article_info:
                 continue
 
             if counter % 1000 == 0:
                 print 'at', counter
-            hl_idx_end += int(article_info[sha])
 
             ifp_article = open(args.parsed_output_loc + 'scnlp/' + sha + '.txt.json', 'rb')
             ofp_combined = open(args.parsed_output_loc + 'processed/' + sha + '.json', 'w+')
