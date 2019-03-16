@@ -111,8 +111,6 @@ def process_data(args):
     for subdir, dirs, files in os.walk(raw_data):
         for file_in in files:
 
-            if counter > 50:
-                break
             current_highlights = []
             current_articel_sent = []
 
