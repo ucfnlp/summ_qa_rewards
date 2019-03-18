@@ -93,20 +93,11 @@ def process_data(args):
     intermediate_dir_art = args.parsed_output_loc + '/articles/'
     intermediate_dir_hl = args.parsed_output_loc + '/highlights/'
 
-    intermediate_dir_art_scnlp = args.parsed_output_loc + '/articles_scnlp/'
-    intermediate_dir_hl_scnlp = args.parsed_output_loc + '/highlights_scnlp/'
-
     if not os.path.exists(intermediate_dir_art):
         os.makedirs(intermediate_dir_art)
 
     if not os.path.exists(intermediate_dir_hl):
         os.makedirs(intermediate_dir_hl)
-
-    if not os.path.exists(intermediate_dir_art_scnlp):
-        os.makedirs(intermediate_dir_art_scnlp)
-
-    if not os.path.exists(intermediate_dir_hl_scnlp):
-        os.makedirs(intermediate_dir_hl_scnlp)
 
     for subdir, dirs, files in os.walk(raw_data):
         for file_in in files:
@@ -192,6 +183,11 @@ def recombine_scnlp_data(args):
 
     ifp_lookup.close()
 
+    combined_dir = args.parsed_output_loc + '/processed/'
+
+    if not os.path.exists(combined_dir):
+        os.makedirs(combined_dir)
+
     print 'Combining..'
 
     train_order, dev_order, test_order = get_order(args)
@@ -200,12 +196,6 @@ def recombine_scnlp_data(args):
 
     for ls, type_ in zip(all_order, types):
         print 'Loading HL for', type_
-
-        annotated_hl_fp = open(args.intermediate + '_' + type_ + '.txt.json', 'r')
-        annotated_hl_json = json.load(annotated_hl_fp)
-        sentences = annotated_hl_json['sentences']
-
-        annotated_hl_fp.close()
 
         print 'loaded..'
 
@@ -218,13 +208,16 @@ def recombine_scnlp_data(args):
             if counter % 1000 == 0:
                 print 'at', counter
 
-            ifp_article = open(args.parsed_output_loc + 'scnlp/' + sha + '.txt.json', 'rb')
-            ofp_combined = open(args.parsed_output_loc + 'processed/' + sha + '.json', 'w+')
+            ifp_article = open(args.parsed_output_loc + '/articles_scnlp/' + sha + '.txt.json', 'rb')
+            ifp_hl = open(args.parsed_output_loc + '/highlights_scnlp/' + sha + '.txt.json', 'rb')
 
-            document = json.load(ifp_article)['sentences']
+            ofp_combined = open(combined_dir + sha + '.json', 'w+')
+
+            document = json.load(ifp_hl)['sentences']
+            cur_hl = json.load(ifp_article)['sentences']
+
             ifp_article.close()
-
-            cur_hl = sentences[hl_idx_start:hl_idx_end]
+            ifp_hl.close()
 
             process_pos(cur_hl, document, stopwords)
 
