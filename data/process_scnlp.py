@@ -47,66 +47,72 @@ def split_data(args):
 
     train_urls, dev_urls, test_urls = get_url_sets(args)
 
-    data_dirs = [args.raw_data_cnn if args.source == 'cnn' else args.raw_data_dm]
+    sha_ls = get_sha()
 
-    for raw_data in data_dirs:
-        for subdir, dirs, files in os.walk(raw_data):
-            for file_in in files:
+    for sha in sha_ls:
 
-                if file_in.startswith('.'):
-                    continue
+        ifp_article = open(args.parsed_output_loc + '/articles_scnlp/' + sha + '.txt.json', 'rb')
+        ifp_hl = open(args.parsed_output_loc + '/highlights_scnlp/' + sha + '.txt.json', 'rb')
 
-                sha = file_in.split('.')[0]
-                file_in = open(subdir + file_in, 'r')
+        document = json.load(ifp_hl)['sentences']
+        cur_hl = json.load(ifp_article)['sentences']
 
-                inp_json = json.load(file_in)
+        # Here current_article is a list containing tuples (sentence, mask, chunk_ls)
+        current_article = extract_tokens(args, document, cur_hl, unique_words)
 
-                # Here current_article is a list containing tuples (sentence, mask, chunk_ls)
-                current_article = extract_tokens(args, inp_json['document'], inp_json['highlights'], unique_words)
+        if current_article is None:
+            print sha
+            continue
 
-                if current_article is None:
-                    print sha
-                    continue
+        for c in current_article:
+            sentence_lengths.append(len(c[0]))
 
-                for c in current_article:
-                    sentence_lengths.append(len(c[0]))
-                current_highlights = inp_json['highlights']
+        if len(current_article) == 0:
+            continue
 
-                if len(current_article) == 0:
-                    continue
+        catg = get_set(sha, train_urls, dev_urls, test_urls)
+        sha = str(sha)
 
-                catg = get_set(sha, train_urls, dev_urls, test_urls)
-                sha = str(sha)
+        if catg < 0:
+            print 'Problem with : ' + str(sha)
+            continue
 
-                if catg < 0:
-                    print 'Problem with : ' + str(sha)
-                    continue
+        if catg == 1: #TRAIN
+            highlights_train.append(cur_hl)
+            articles_train.append(current_article)
+            hashes_train.append(sha)
+        elif catg == 2: #DEV
+            highlights_dev.append(cur_hl)
+            articles_dev.append(current_article)
+            hashes_dev.append(sha)
+        else:#TEST
+            highlights_test.append(cur_hl)
+            articles_test.append(current_article)
+            hashes_test.append(sha)
 
-                if catg == 1: #TRAIN
-                    highlights_train.append(current_highlights)
-                    articles_train.append(current_article)
-                    hashes_train.append(sha)
-                elif catg == 2: #DEV
-                    highlights_dev.append(current_highlights)
-                    articles_dev.append(current_article)
-                    hashes_dev.append(sha)
-                else:#TEST
-                    highlights_test.append(current_highlights)
-                    articles_test.append(current_article)
-                    hashes_test.append(sha)
+        small_size_counter += 1
 
-                small_size_counter += 1
-
-                if not args.full_test and small_size_counter >= args.small_limit:
-                    return (highlights_train, articles_train, hashes_train), \
-                           (highlights_dev, articles_dev, hashes_dev), \
-                           (highlights_test, articles_test, hashes_test), \
-                           unique_words
+        if not args.full_test and small_size_counter >= args.small_limit:
+            return (highlights_train, articles_train, hashes_train), \
+                   (highlights_dev, articles_dev, hashes_dev), \
+                   (highlights_test, articles_test, hashes_test), \
+                   unique_words
 
     return (highlights_train, articles_train, hashes_train), \
            (highlights_dev, articles_dev, hashes_dev), \
            (highlights_test, articles_test, hashes_test), \
            unique_words
+
+
+def get_sha():
+    ifp = open('list_hl.txt', 'r')
+
+    ls = []
+
+    for item in ifp:
+        ls.append(item.rstrip().split('.')[0].split('/')[-1])
+
+    return ls
 
 
 def prepare_rouge(args, inp, type):

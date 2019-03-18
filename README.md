@@ -32,7 +32,6 @@ We process CNN and Daily Mail separately.  The following details the data proces
     ```bash
     python constituency_parse.py 
            --parsed_output_loc <PATH_TO_OUTPUT> \
-           --process True \
            --source cnn \
            --raw_data <path to input data>
     ```
@@ -65,13 +64,7 @@ We process CNN and Daily Mail separately.  The following details the data proces
          -outputDirectory <PATH_TO_OUTPUT>/articles_scnlp/ \
          -ssplit.eolonly
     ```
-    Finally recombine the two.  Afterwards you may disregard the intermediate JSON output.
-    ```bash
-    python constituency_parse.py \
-           --parsed_output_loc <PATH_TO_OUTPUT> \
-           --process False \
-           --source cnn
-    ```
+   
 3. The next processing step is the last general processing step.  This will:
     * Determine all entities present (SUBJ/OBJ, NER, and ROOT)
     * Determine text chunks. 

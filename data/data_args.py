@@ -59,9 +59,9 @@ def get_args():
                         default=5,
                         help='Vocab size')
 
-    parser.add_argument('--raw_data_cnn',
+    parser.add_argument('--parsed_output_loc',
                         type=str,
-                        default='/data1/corpora/cnn_dailymail/cnn-dailymail/cnn_stories_tokenized/',
+                        default='',
                         # default='cnn/stories/',
                         help='Raw data CNN')
 

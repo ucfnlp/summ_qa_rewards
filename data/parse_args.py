@@ -39,30 +39,10 @@ def get_args():
                         default='parse/cnn/',
                         help='File path for parsed data')
 
-    parser.add_argument('--vocab_size',
-                        type=int,
-                        default=150000,
-                        help='Vocab size')
-
     parser.add_argument('--stopwords',
                         type=str,
                         default='stopwords.txt',
                         help='List of stopwords')
-
-    parser.add_argument('--out_limit',
-                        type=int,
-                        default=5000,
-                        help='Max sentences per file')
-
-    parser.add_argument('--process',
-                        type='bool',
-                        default=False,
-                        help='Process raw input for SCNLP')
-
-    parser.add_argument('--intermediate',
-                        type=str,
-                        default="stanford_nlp",
-                        help='file location for StanfordCoreNLP input')
 
     parser.add_argument('--source',
                         type=str,

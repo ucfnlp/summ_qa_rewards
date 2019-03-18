@@ -168,43 +168,6 @@ def process_data(args):
     ofp_filelist_hl.close()
 
 
-def recombine_scnlp_data(args):
-    combined_dir = args.parsed_output_loc + '/processed/'
-
-    if not os.path.exists(combined_dir):
-        os.makedirs(combined_dir)
-
-    sha_ls = get_sha()
-
-    counter = 1
-
-    for sha in sha_ls:
-
-        if counter % 1000 == 0:
-            print 'at', counter
-
-        ifp_article = open(args.parsed_output_loc + '/articles_scnlp/' + sha + '.txt.json', 'rb')
-        ifp_hl = open(args.parsed_output_loc + '/highlights_scnlp/' + sha + '.txt.json', 'rb')
-
-        ofp_combined = open(combined_dir + sha + '.json', 'w+')
-
-        document = json.load(ifp_hl)['sentences']
-        cur_hl = json.load(ifp_article)['sentences']
-
-        ifp_article.close()
-        ifp_hl.close()
-
-        combined_json_out = dict()
-
-        combined_json_out['highlights'] = cur_hl
-        combined_json_out['document'] = document
-
-        json.dump(combined_json_out, ofp_combined)
-        ofp_combined.close()
-
-        counter += 1
-
-
 def tree2dict(tree):
     return {tree.label(): [tree2dict(t) if isinstance(t, ParentedTree) else t.lower() for t in tree]}
 
@@ -237,21 +200,7 @@ def get_url_sets(args):
     return train_urls, dev_urls, test_urls
 
 
-def get_sha():
-    ifp = open('list_hl.txt', 'r')
-
-    ls = []
-
-    for item in ifp:
-        ls.append(item.rstrip().split('.')[0].split('/')[-1])
-
-    return ls
-
-
 if __name__ == '__main__':
     args = parse_args.get_args()
 
-    if args.process:
-        process_data(args)
-    else:
-        recombine_scnlp_data(args)
+    process_data(args)
