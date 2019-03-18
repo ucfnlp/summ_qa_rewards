@@ -174,150 +174,39 @@ def recombine_scnlp_data(args):
     if not os.path.exists(combined_dir):
         os.makedirs(combined_dir)
 
-    print 'Combining..'
+    sha_ls = get_sha()
 
-    train_order, dev_order, test_order = get_order(args)
-    all_order = [train_order, dev_order, test_order]
-    types = ['train', 'dev', 'test']
+    counter = 1
 
-    for ls, type_ in zip(all_order, types):
-        print 'Loading HL for', type_
+    for sha in sha_ls:
 
-        print 'loaded..'
+        if counter % 1000 == 0:
+            print 'at', counter
 
-        counter = 0
+        ifp_article = open(args.parsed_output_loc + '/articles_scnlp/' + sha + '.txt.json', 'rb')
+        ifp_hl = open(args.parsed_output_loc + '/highlights_scnlp/' + sha + '.txt.json', 'rb')
 
-        for sha in ls:
+        ofp_combined = open(combined_dir + sha + '.json', 'w+')
 
-            if counter % 1000 == 0:
-                print 'at', counter
+        document = json.load(ifp_hl)['sentences']
+        cur_hl = json.load(ifp_article)['sentences']
 
-            ifp_article = open(args.parsed_output_loc + '/articles_scnlp/' + sha + '.txt.json', 'rb')
-            ifp_hl = open(args.parsed_output_loc + '/highlights_scnlp/' + sha + '.txt.json', 'rb')
+        ifp_article.close()
+        ifp_hl.close()
 
-            ofp_combined = open(combined_dir + sha + '.json', 'w+')
+        combined_json_out = dict()
 
-            document = json.load(ifp_hl)['sentences']
-            cur_hl = json.load(ifp_article)['sentences']
+        combined_json_out['highlights'] = cur_hl
+        combined_json_out['document'] = document
 
-            ifp_article.close()
-            ifp_hl.close()
+        json.dump(combined_json_out, ofp_combined)
+        ofp_combined.close()
 
-            combined_json_out = dict()
-
-            combined_json_out['highlights'] = cur_hl
-            combined_json_out['document'] = document
-
-            json.dump(combined_json_out, ofp_combined)
-            ofp_combined.close()
-
-            counter += 1
+        counter += 1
 
 
 def tree2dict(tree):
     return {tree.label(): [tree2dict(t) if isinstance(t, ParentedTree) else t.lower() for t in tree]}
-
-
-def get_order(args):
-    train_ls, dev_ls, test_ls = [], [], []
-
-    ifp = open('all_' + args.source + '_sha_train.out', 'rb')
-
-    for line in ifp:
-        train_ls.append(line.rstrip())
-
-    ifp.close()
-    ifp = open('all_' + args.source + '_sha_dev.out', 'rb')
-
-    for line in ifp:
-        dev_ls.append(line.rstrip())
-
-    ifp.close()
-    ifp = open('all_' + args.source + '_sha_test.out', 'rb')
-
-    for line in ifp:
-        test_ls.append(line.rstrip())
-
-    return train_ls, dev_ls, test_ls
-
-
-def dfs_nltk_tree(tree, paths, leaves, s_idx):
-    stack = []
-
-    stack.append(tree)
-    cur_path = ['S' + str(s_idx)]
-
-    while len(stack) > 0:
-
-        item = stack.pop()
-
-        if type(item) == int:
-            cur_path.pop()
-            continue
-
-        if type(item[0]) == ParentedTree:
-            cur_path.append(item.label())
-
-            stack.append(-1)
-
-            for sub_t in item:
-                stack.append(sub_t)
-        else:
-            cur_path.append(item.label())
-            paths.append((item[0], cur_path[:]))
-            cur_path.pop()
-
-            leaves.append(item)
-
-
-def create_subtree_mask(leaves, mask, hl_token_set):
-    i = 0
-    l = len(mask)
-
-    while i < l:
-        w = leaves[i][0].lower()
-
-        if w in hl_token_set:
-            cur_root = leaves[i].parent()
-
-            begin, end = get_subtree_bounds(cur_root, leaves, i)
-
-            for k in range(begin,  end):
-                if k >= len(mask):
-                    print ''
-                mask[k] = 1
-
-            i = end
-        else:
-            i += 1
-
-
-def get_subtree_bounds(cur_root, leaves, i):
-    c_idx = 0
-
-    for c in cur_root:
-        if c == leaves[i]:
-            break
-        c_idx += len(c.leaves())
-
-    begin = i - c_idx
-    end = begin + len(cur_root.leaves())
-
-    return begin, end
-
-
-def get_unigrams(cur_hl, hl_token_set, stopwords):
-    sw = stopwords[0]
-    punct = stopwords[1]
-
-    for highlight in cur_hl:
-        tokens = highlight['tokens']
-
-        for token in tokens:
-            word = token['originalText'].lower()
-
-            if word not in sw and word not in punct:
-                hl_token_set.add(word)
 
 
 def get_url_sets(args):
@@ -348,49 +237,15 @@ def get_url_sets(args):
     return train_urls, dev_urls, test_urls
 
 
-def create_stopwords(args):
-    stopwords = set()
-    punctuation = set()
+def get_sha():
+    ifp = open('list_hl.txt', 'r')
 
-    lst_words = []
+    ls = []
 
-    ifp = open(str(args.source) + '_vocab_' + str(args.vocab_size) + '.txt', 'r')
+    for item in ifp:
+        ls.append(item.rstrip().split('.')[0].split('/')[-1])
 
-    for line in ifp:
-        w = line.rstrip()
-        lst_words.append(w)
-
-    ifp.close()
-    ifp = open(args.stopwords, 'r')
-
-    # Add stopwords
-    for line in ifp:
-        w = line.rstrip()
-        stopwords.add(w)
-
-    ifp.close()
-
-    tokenizer = RegexpTokenizer(r'\w+')
-
-    # add punctuation
-    for i in xrange(len(lst_words)):
-        w = lst_words[i]
-
-        if len(tokenizer.tokenize(w)) == 0:
-            punctuation.add(w)
-
-    return stopwords, punctuation
-
-
-def get_set(file_in, train_urls, dev_urls, test_urls):
-    if file_in in train_urls:
-        return 'train/'
-    elif file_in in dev_urls:
-        return 'dev/'
-    elif file_in in test_urls:
-        return 'test/'
-    else:
-        return ''
+    return ls
 
 
 if __name__ == '__main__':
@@ -399,5 +254,4 @@ if __name__ == '__main__':
     if args.process:
         process_data(args)
     else:
-        sha_ls(args)
         recombine_scnlp_data(args)
