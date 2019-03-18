@@ -169,19 +169,7 @@ def process_data(args):
 
 
 def recombine_scnlp_data(args):
-    ifp_lookup = open(args.parsed_output_loc + 'lookup.txt', 'r')
-
-    article_info = dict()
-
     stopwords = create_stopwords(args)
-
-    print 'Input sha1, hl idx'
-    for line in ifp_lookup:
-        items = line.rstrip().split()
-
-        article_info[items[2]] = items[1]
-
-    ifp_lookup.close()
 
     combined_dir = args.parsed_output_loc + '/processed/'
 
@@ -202,8 +190,6 @@ def recombine_scnlp_data(args):
         counter = 0
 
         for sha in ls:
-            if sha not in article_info:
-                continue
 
             if counter % 1000 == 0:
                 print 'at', counter
