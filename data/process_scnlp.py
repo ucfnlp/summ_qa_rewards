@@ -466,15 +466,13 @@ def extract_tokens(args, document, hl, unique_words):
     for sent in document:
         tokens = sent['tokens']
         tree = ParentedTree.fromstring(sent['parse'])
-        s, mask, chunk_ls = [], [], []
+        s,  chunk_ls = [], []
 
         for token in tokens:
             text = token['originalText']
             text_l = text.lower()
-            pretrain = token['pretrain']
 
             s.append(text)
-            mask.append(pretrain)
 
             if text_l in unique_words:
                 unique_words[text_l] += 1
@@ -494,7 +492,6 @@ def extract_tokens(args, document, hl, unique_words):
                 k = s.index('-RRB-')
                 if k < 10:
                     s = s[k + 1:]
-                    mask = mask[k + 1:]
 
                     chunk_ls = trim_chunk_ls(k + 1, chunk_ls)
 
@@ -502,7 +499,6 @@ def extract_tokens(args, document, hl, unique_words):
                 k = s.index('--')
                 if k < 10:
                     s = s[k + 1:]
-                    mask = mask[k + 1:]
 
                     chunk_ls = trim_chunk_ls(k + 1, chunk_ls)
 
@@ -510,13 +506,12 @@ def extract_tokens(args, document, hl, unique_words):
                 k = s.index('-rrb-')
                 if k < 10:
                     s = s[k + 1:]
-                    mask = mask[k + 1:]
 
                     chunk_ls = trim_chunk_ls(k + 1, chunk_ls)
 
         assert sum(chunk_ls) == len(s)
 
-        article.append((s, mask, chunk_ls))
+        article.append((s, None, chunk_ls))
 
     for sent in hl:
         tokens = sent['tokens']
