@@ -169,8 +169,6 @@ def process_data(args):
 
 
 def recombine_scnlp_data(args):
-    stopwords = create_stopwords(args)
-
     combined_dir = args.parsed_output_loc + '/processed/'
 
     if not os.path.exists(combined_dir):
@@ -204,8 +202,6 @@ def recombine_scnlp_data(args):
 
             ifp_article.close()
             ifp_hl.close()
-
-            process_pos(cur_hl, document, stopwords)
 
             combined_json_out = dict()
 
@@ -243,36 +239,6 @@ def get_order(args):
         test_ls.append(line.rstrip())
 
     return train_ls, dev_ls, test_ls
-
-
-def process_pos(cur_hl, document, stopwords):
-    num_sent = len(document)
-    hl_token_set = set()
-    get_unigrams(cur_hl, hl_token_set, stopwords)
-
-    for i in xrange(num_sent):
-
-        sentence = document[i]
-        tokens = sentence['tokens']
-        num_tok = len(tokens)
-
-        # tree = ParentedTree.fromstring(sentence['parse'])
-
-        paths = []
-        leaves = []
-        # mask = [0]*num_tok
-        #
-        # dfs_nltk_tree(tree, paths, leaves, i + 1)
-        # leaves = leaves[::-1]
-        #
-        # create_subtree_mask(leaves, mask, hl_token_set)
-        #
-        # assert num_tok == len(paths)
-        # paths = paths[::-1]
-
-        for j in xrange(num_tok):
-            tokens[j]['trace'] = paths
-            tokens[j]['pretrain'] = 0
 
 
 def dfs_nltk_tree(tree, paths, leaves, s_idx):
