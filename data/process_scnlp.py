@@ -48,6 +48,7 @@ def split_data(args):
     train_urls, dev_urls, test_urls = get_url_sets(args)
 
     sha_ls = get_sha()
+    item_total = len(sha_ls)
 
     counter = 1
     start_time = time.time()
@@ -55,7 +56,7 @@ def split_data(args):
     for sha in sha_ls:
 
         if counter % 1000 == 0:
-            print 'Processing', counter
+            print 'Processing', counter, '/', item_total
             print (time.time() - start_time), 'seconds'
             start_time = time.time()
 
@@ -64,8 +65,8 @@ def split_data(args):
         ifp_article = open(args.parsed_output_loc + '/articles_scnlp/' + sha + '.txt.json', 'rb')
         ifp_hl = open(args.parsed_output_loc + '/highlights_scnlp/' + sha + '.txt.json', 'rb')
 
-        document = json.load(ifp_hl)['sentences']
-        cur_hl = json.load(ifp_article)['sentences']
+        cur_hl = json.load(ifp_hl)['sentences']
+        document = json.load(ifp_article)['sentences']
 
         ifp_article.close()
         ifp_hl.close()
