@@ -15,7 +15,7 @@ def read_docs(args, type_):
     with open(filename, 'rb') as data_file:
         data = json.load(data_file)
 
-    ret_data = [data['x'], data['y'], data['e'], data['clean_y'], data['sha'], data['mask'], data['chunk'], data['scut']]
+    ret_data = [data['x'], data['y'], data['e'], data['clean_y'], data['sha'], None, data['chunk'], data['scut']]
 
     if type_ != 'train':
         ret_data.append(data['raw_x'])
