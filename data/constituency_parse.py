@@ -3,10 +3,8 @@ from nltk import ParentedTree
 import sys
 import os
 import hashlib
-import json
 import time
 import codecs
-from nltk.tokenize import RegexpTokenizer
 
 import parse_args
 

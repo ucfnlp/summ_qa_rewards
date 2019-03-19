@@ -4,7 +4,7 @@ import sys
 
 import hashlib
 from nltk import ParentedTree
-import numpy as np
+import time
 
 import data_args
 
@@ -49,7 +49,17 @@ def split_data(args):
 
     sha_ls = get_sha()
 
+    counter = 1
+    start_time = time.time()
+
     for sha in sha_ls:
+
+        if counter % 1000 == 0:
+            print 'Processing', counter
+            print (time.time() - start_time), 'seconds'
+            start_time = time.time()
+
+        counter += 1
 
         ifp_article = open(args.parsed_output_loc + '/articles_scnlp/' + sha + '.txt.json', 'rb')
         ifp_hl = open(args.parsed_output_loc + '/highlights_scnlp/' + sha + '.txt.json', 'rb')
