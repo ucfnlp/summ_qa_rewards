@@ -100,7 +100,6 @@ def create_fname_identifier(args):
            '_rl_nqa_' + str(args.rl_no_qa) + \
            '_ncl_' + str(args.nclasses) + \
            '_q' + str(args.n) + \
-           '_root_' + str(args.is_root) + \
            '_ch_t_' + chunk_typ + \
            '_z_' + str(args.coeff_z) + \
            '_adq_' + str(args.coeff_adequacy) + \

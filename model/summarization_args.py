@@ -89,17 +89,7 @@ def get_args():
                         default=False,
                         help='Toggle bigram masks and parse tree masks')
 
-    parser.add_argument('--is_root',
-                        type='bool',
-                        default=False,
-                        help='Entities are root words only')
-
     parser.add_argument('--bigram_toggle',
-                        type='bool',
-                        default=False,
-                        help='')
-
-    parser.add_argument('--self_critical',
                         type='bool',
                         default=False,
                         help='')
@@ -123,18 +113,6 @@ def get_args():
                         type='bool',
                         default=False,
                         help='Include Bigram Loss inside objective')
-
-    parser.add_argument("--sanity_check",
-                        type='bool',
-                        default=False,
-                        help="Test overfitting on a single/few samples"
-                        )
-
-    parser.add_argument("--single_n_repeat_doc",
-                        type='bool',
-                        default=False,
-                        help=""
-                        )
 
     parser.add_argument('--embedding_dim',
                         type=int,
@@ -199,11 +177,6 @@ def get_args():
                         default=False,
                         help='take hidden states from Generator')
 
-    parser.add_argument('--qa_entity_output',
-                        type='bool',
-                        default=False,
-                        help='save training output')
-
     parser.add_argument('--pad_repeat',
                         type='bool',
                         default=False,
@@ -215,22 +188,10 @@ def get_args():
                         help="Rouge Outputs"
                         )
 
-    parser.add_argument("--rouge_tmp",
-                        type=str,
-                        default="../data/results/tmp/",
-                        help="Rouge Tmp"
-                        )
-
     parser.add_argument("--save_model",
                         type=str,
                         default="save_models/",
                         help="path to save model parameters"
-                        )
-
-    parser.add_argument("--weight_eval",
-                        type=str,
-                        default="../data/results/weights/",
-                        help="path to save model parameters, for encoder weights"
                         )
 
     parser.add_argument("--batch_dir",
@@ -302,18 +263,6 @@ def get_args():
                         type=str,
                         default="../data/dev_model.json",
                         help="path to development data"
-                        )
-
-    parser.add_argument("--dev_baseline",
-                        type='bool',
-                        default=False,
-                        help="Get baseline ROUGE for dev set, based on BG."
-                        )
-
-    parser.add_argument("--test_baseline",
-                        type='bool',
-                        default=False,
-                        help="Get baseline ROUGE for test set, based on BG."
                         )
 
     parser.add_argument("--test",
