@@ -427,7 +427,6 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     final_json_train['sha'] = train[2]
     final_json_train['valid_e'] = seq_train_art_ents
     final_json_train['clean_y'] = seqs_clean_train
-    final_json_train['mask'] = seq_train_art_m
     final_json_train['chunk'] = seq_train_chunks
 
     json.dump(final_json_train, ofp_train)
@@ -446,7 +445,6 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     final_json_dev['sha'] = dev[2]
     final_json_dev['valid_e'] = seq_dev_art_ents
     final_json_dev['clean_y'] = seqs_clean_dev
-    final_json_dev['mask'] = seq_dev_art_m
     final_json_dev['chunk'] = seq_dev_chunks
 
     json.dump(final_json_dev, ofp_dev)
@@ -464,7 +462,6 @@ def machine_ready(args, train, dev, test, vocab, count, placeholder, unk):
     final_json_test['sha'] = test[2]
     final_json_test['raw_x'] = seq_test_art_raw
     final_json_test['clean_y'] = seqs_clean_test
-    final_json_test['mask'] = seq_test_art_m
     final_json_test['chunk'] = seq_test_chunks
 
     json.dump(final_json_test, ofp_test)

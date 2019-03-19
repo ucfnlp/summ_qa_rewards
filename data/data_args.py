@@ -24,11 +24,6 @@ def get_args():
                         default=True,
                         help='Process full selection of CNN data')
 
-    parser.add_argument('--skip_root',
-                        type='bool',
-                        default=False,
-                        help='Use all entities except root')
-
     parser.add_argument('--enhanced_root',
                         type='bool',
                         default=True,
