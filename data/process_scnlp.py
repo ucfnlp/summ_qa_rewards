@@ -119,6 +119,9 @@ def prepare_rouge(args, inp, type):
     file_part = args.model_summ_path + type + '_'
     rouge_counter = 0
 
+    if not os.path.exists(args.model_summ_path):
+        os.makedirs(args.model_summ_path)
+
     for item in inp:
         ofp = open(file_part + args.source + '_' + str(rouge_counter).zfill(6) + '.txt', 'w+')
 
