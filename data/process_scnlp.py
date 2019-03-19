@@ -57,6 +57,9 @@ def split_data(args):
         document = json.load(ifp_hl)['sentences']
         cur_hl = json.load(ifp_article)['sentences']
 
+        ifp_article.close()
+        ifp_hl.close()
+
         # Here current_article is a list containing tuples (sentence, mask, chunk_ls)
         current_article = extract_tokens(args, document, cur_hl, unique_words)
 
