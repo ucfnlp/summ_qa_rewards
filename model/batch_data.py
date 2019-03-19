@@ -3,7 +3,7 @@ from nltk.tokenize import RegexpTokenizer
 import numpy as np
 import random
 from datetime import datetime
-import copy
+import os
 
 import summarization_args
 
@@ -500,6 +500,9 @@ def flatten_data(args, cur_data):
 def main(args):
     vocab_map, lst_words = create_vocab(args)
     stopwords = create_stopwords(args, vocab_map, lst_words)
+
+    if not os.path.exists(args.batch_dir):
+        os.makedirs(args.batch_dir)
 
     pad_id = vocab_map["<padding>"]
 
