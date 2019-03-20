@@ -109,6 +109,10 @@ def create_fname_identifier(args):
 
 def create_json_filename(args):
     path = '../data/results/'
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
     filename = ('pretrain_' if args.pretrain else '') + create_fname_identifier(args) + '.json'
 
     return path + filename
@@ -116,6 +120,10 @@ def create_json_filename(args):
 
 def get_readable_file(args, epoch, test=False):
     path = args.train_output_readable
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
     filename = create_fname_identifier(args) + ('_e_' + str(epoch + 1)  if epoch is not None else '') + ('_TEST' if test else '') + '.out'
 
     return path + filename
@@ -123,6 +131,10 @@ def get_readable_file(args, epoch, test=False):
 
 def get_mask_file(args, epoch, test=False):
     path = "../data/results/masks/"
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
     filename = create_fname_identifier(args) + ('_e_' + str(epoch + 1)  if epoch is not None else '') + ('_TEST' if test else '') + '.out'
 
     return path + filename
