@@ -140,29 +140,21 @@ def record_observations_pretrain(ofp_json, epoch , obj, zsum, z_diff, z_pred):
 
 
 def record_observations_verbose(ofp_json, epoch, loss, obj, zsum, loss_vec, z_diff, cost_logpz,
-                                logpz, z_pred, cost_vec, bigram_loss, dev_acc, dev_f1, train_acc,
-                                train_f1, l2_enc, l2_gen, cost_g):
+                                logpz, z_pred, cost_vec, cost_g):
     epoch_data = dict()
 
     epoch_data['loss'] = float(np.mean(loss))
     epoch_data['obj'] = float(np.mean(obj))
-    epoch_data['dev_acc'] = dev_acc
-    epoch_data['dev_f1'] = dev_f1
-    epoch_data['train_acc'] = train_acc
-    epoch_data['train_f1'] = train_f1
+
     epoch_data['zsum'] = float(np.mean(zsum))
     epoch_data['loss_vec'] = float(np.mean(loss_vec))
     epoch_data['zdiff'] = float(np.mean(z_diff))
-    epoch_data['bigram_loss'] = float(np.mean(bigram_loss))
 
     epoch_data['cost_logpz'] = float(np.mean(cost_logpz))
     epoch_data['logpz'] = float(np.mean(logpz))
     epoch_data['z_pred'] = float(np.mean(z_pred))
     epoch_data['cost_vec'] = float(np.mean(cost_vec))
     epoch_data['cost_g'] = float(cost_g)
-
-    epoch_data['l2_gen'] = float(l2_gen)
-    epoch_data['l2_enc'] = float(l2_enc)
 
     ofp_json['e' + str(epoch)] = epoch_data
 

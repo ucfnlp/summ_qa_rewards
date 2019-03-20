@@ -315,14 +315,8 @@ class Model(object):
                 logpz_all = []
                 z_pred_all = []
                 cost_vec_all = []
-                train_acc = []
-                train_f1 = []
                 l2_generator = []
                 l2_encoder = []
-
-                soft_mask_ls = []
-                z_pred_ls = []
-                mask_pred_ls = []
 
                 num_files = args.num_files_train
                 N = args.online_batch_size * num_files
@@ -360,10 +354,7 @@ class Model(object):
                                 bx, bpi, by, bm, be, bfw, bcsz, blm)
 
                         mask = bx != padding_id
-                        acc, f1, _ = self.eval_qa(be, preds_tr, blm)
 
-                        train_acc.append(acc)
-                        train_f1.append(f1)
                         obj_all.append(cost)
                         loss_all.append(loss)
                         zsum_all.append(np.mean(zsum))
@@ -417,8 +408,7 @@ class Model(object):
 
                 myio.record_observations_verbose(json_train, epoch + 1, loss_all, obj_all, zsum_all, loss_vec_all,
                                                  z_diff_all, cost_logpz_all, logpz_all, z_pred_all, cost_vec_all,
-                                                 bigram_loss_all, dev_acc, dev_f1, np.mean(train_acc), np.mean(train_f1),
-                                                 np.mean(l2_encoder), np.mean(l2_generator), np.mean(cost_generator_ls))
+                                                 np.mean(cost_generator_ls))
 
                 last_train_avg_cost = cur_train_avg_cost
 
