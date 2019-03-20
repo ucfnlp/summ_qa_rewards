@@ -130,7 +130,13 @@ def get_sha():
 
 
 def prepare_rouge(args, inp, type):
-    file_part = args.model_summ_path + type + '_'
+    file_part = args.model_summ_path + '/' + type + '/' + type + '_'
+
+    if not os.path.exists(args.model_summ_path):
+        os.mkdir(args.model_summ_path)
+    if not os.path.exists(args.model_summ_path + '/' + type + '/'):
+        os.mkdir(args.model_summ_path + '/' + type + '/')
+
     rouge_counter = 0
 
     if not os.path.exists(args.model_summ_path):
@@ -140,8 +146,8 @@ def prepare_rouge(args, inp, type):
         ofp = open(file_part + args.source + '_' + str(rouge_counter).zfill(6) + '.txt', 'w+')
 
         for i in xrange(len(item)):
-
-            text = ' '.join(item[i]) + ' .'
+            sent_hl = extract_sentence(item[i]['tokens'])
+            text = ' '.join(sent_hl)
 
             ofp.write(text)
 
@@ -150,6 +156,16 @@ def prepare_rouge(args, inp, type):
 
         ofp.close()
         rouge_counter += 1
+
+
+def extract_sentence(hl):
+    sentence = []
+
+    for token in hl:
+        word = token['originalText']
+        sentence.append(word)
+
+    return sentence
 
 
 def seqs_art(args, inp, vocab, entity_set, raw_entity_mapping, first_word_map, unk, return_r=False):
