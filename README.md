@@ -29,7 +29,9 @@ To the best of our abilities we have cleaned the code to remove superfluous func
 #### Data Pre-Processing
 We process CNN and Daily Mail separately.  The following details the data processing pipeline for CNN.
 
-*NOTE*: Some data processing steps are very memory (RAM) heavy (~50GB).  It is recommended that for machines with limited hardware capabilities only a small subsection of data be processed.
+*NOTE 1*: Some data processing steps are very memory (RAM) heavy (~50GB).  It is recommended that for machines with limited hardware capabilities only a small subsection of data be processed.
+
+*NOTE 2*: We provide the end result of this section as a downloadable [here](HOSTLINK).
 1. Map and pre-process data for Stanford CoreNLP input. This separates highlights and articles. 
     ```bash
     python constituency_parse.py 
@@ -78,7 +80,7 @@ We process CNN and Daily Mail separately.  The following details the data proces
     ```bash
     python process_scnlp.py \
                 --full_test True \
-                --raw_data_cnn <PATH_TO_OUTPUT> \
+                --parsed_output_loc <PATH_TO_OUTPUT> \
                 --vocab_size 150000 \
                 --chunk_threshold 5 \
                 --source cnn
@@ -114,35 +116,68 @@ We process CNN and Daily Mail separately.  The following details the data proces
     ```
  
 #### Training
+We provide instructions for training our full model using the data we generated above as an example.  The repository has been refactored for readability, and other modeling has been removed.  
 
+1. To provide the Reinforcment Learning model stability we pretrain the extractive portion.
+    ```bash
+    PYTHONPATH=<PATH_TO_REPO> \
+    THEANO_FLAGS=allow_gc=True,device=<CUDA_DEVICE>,floatX=float32 \
+    python main.py \
+                --load_model_pretrain False \
+                --pretrain True \
+                --full_test True \
+                --embedding <PATH_TO_GLOVE>/glove.6B.100d.txt \
+                --embedding_dim 100 \
+                --source cnn \
+                --max_epochs 25 \
+                --coeff_cost_scale 1.0 \
+                --coeff_adequacy 1.0 \
+                --coeff_z 1.0 \
+                --nclasses 0  \
+                --num_files_train 36 \
+                --num_files_dev 1 \
+                --num_files_test 1 \
+                --batch_dir ../data/batches/ \
+                --inp_len 400 \
+                --generator_encoding lstm \
+                --word_level_c False \
+                --batch 128 \
+                --use_generator_h True \
+                --online_batch_size 20 \
+                --rl_no_qa False \
+                --z_perc 0.0 \
+                --n 0
+    ```
+2. Train the full model.
 ```bash
-PYTHONPATH=<PATH_TO_REPO> \ 
-THEANO_FLAGS=device=cuda0,floatX=float32 \ 
-python main.py \
-               --load_model_pretrain True \  
-               --pretrain False \
-               --full_test True \  
-               --load_model \  
-               --source cnn \
-               --max_epochs 25 \
-               --coeff_cost_scale 1.0 \
-               --coeff_adequacy 8 \
-               --coeff_z 50 \
-               --nclasses 15342 \
-               --num_files_train 77 \  
-               --num_files_dev 5 \
-               --num_files_test 5 \ 
-               --batch_dir ../data/batches_dm_400_ch_ner_cutoff_5/ \  
-               --inp_len 400 \
-               --generator_encoding lstm \  
-               --word_level_c False \
-               --batch 128 \
-               --use_generator_h True \  
-               --online_batch_size 20 \
-               --rl_no_qa False \
-               --z_perc 0.15 \
-               --is_root False \ 
-               --n 10
-```
+    PYTHONPATH=<PATH_TO_REPO> \
+    THEANO_FLAGS=allow_gc=True,device=<CUDA_DEVICE>,floatX=float32 \
+    python main.py \
+                --load_model_pretrain False \
+                --pretrain False \
+                --load_model \
+                --full_test True \
+                --embedding <PATH_TO_GLOVE>/glove.6B.100d.txt \
+                --embedding_dim 100 \
+                --source cnn \
+                --max_epochs 25 \
+                --coeff_cost_scale 1.0 \
+                --coeff_adequacy 1.0 \
+                --coeff_z 1.0 \
+                --nclasses 9723  \
+                --num_files_train 36 \
+                --num_files_dev 1 \
+                --num_files_test 1 \
+                --batch_dir ../data/batches/ \
+                --inp_len 400 \
+                --generator_encoding lstm \
+                --word_level_c False \
+                --batch 128 \
+                --use_generator_h True \
+                --online_batch_size 20 \
+                --rl_no_qa False \
+                --z_perc 0.0 \
+                --n 0
+    ```
 
 #### Example Output
