@@ -212,7 +212,7 @@ class Model(object):
 
         self.dropout.set_value(0.0)
 
-        dev_obj, dev_z, dev_x, dev_sha, dev_acc, _, chunks = self.evaluate_data(eval_generator)
+        dev_obj, dev_z, dev_x, dev_sha, chunks = self.evaluate_data(eval_generator)
 
         myio.save_dev_results(self.args, None, dev_z, dev_x, dev_sha, dev_chunks=chunks)
         myio.get_rouge(self.args)
@@ -378,7 +378,7 @@ class Model(object):
 
                 if args.dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_z, dev_x, dev_sha, dev_acc, dev_f1, _ = self.evaluate_data(eval_generator)
+                    dev_obj, dev_z, dev_x, dev_sha, _ = self.evaluate_data(eval_generator)
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
@@ -664,8 +664,6 @@ class Model(object):
         dev_z = []
         x = []
         sha_ls = []
-        dev_acc = []
-        dev_f1 = []
         chunks = []
 
         num_files = self.args.num_files_dev
@@ -692,13 +690,9 @@ class Model(object):
                 sha_ls.append(sha)
                 chunks.append(csz)
 
-                acc, f1, _ = self.eval_qa(be, preds, ble)
-                dev_acc.append(acc)
-                dev_f1.append(f1)
-
             N += cur_len
         # dev_obj, dev_z, dev_x, dev_sha, dev_acc, dev_f1
-        return tot_obj / float(N), dev_z, x, sha_ls, np.mean(dev_acc), np.mean(dev_f1), chunks
+        return tot_obj / float(N), dev_z, x, sha_ls, chunks
 
     def evaluate_test_data(self, eval_func):
         N = 0
