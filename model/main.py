@@ -387,7 +387,7 @@ class Model(object):
 
                 if args.dev:
                     self.dropout.set_value(0.0)
-                    dev_obj, dev_z, dev_x, dev_sha, dev_acc, dev_f1 = self.evaluate_data(eval_generator)
+                    dev_obj, dev_z, dev_x, dev_sha, dev_acc, dev_f1, _ = self.evaluate_data(eval_generator)
                     self.dropout.set_value(dropout_prob)
                     cur_dev_avg_cost = dev_obj
 
@@ -707,7 +707,7 @@ class Model(object):
                 dev_f1.append(f1)
 
             N += cur_len
-
+        # dev_obj, dev_z, dev_x, dev_sha, dev_acc, dev_f1
         return tot_obj / float(N), dev_z, x, sha_ls, np.mean(dev_acc), np.mean(dev_f1), chunks
 
     def evaluate_test_data(self, eval_func):
