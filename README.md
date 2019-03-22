@@ -118,7 +118,7 @@ The steps bellow allow for near duplication of our dataset.
 #### Training
 We provide the training scripts for processed data we provided [here](https://drive.google.com/drive/folders/1s3lIrVgvcfDlk-xMm9a_WyTbUh_P4Awb?usp=sharing).  Specifically for NER.
 
-1. We also provide the pre-initialized extraction model.  If you wish to train this yourself set --pretain to True, do not load in any model, and the parameters --nclasses, and all the coefficients do not matter.
+1. We also provide the [pre-initialized extraction model](https://drive.google.com/open?id=15XigyTlVMHyQzvmxcC7UXGWTZ83X0Wdo).  If you wish to train this yourself set --pretain to True, do not load in any model, and the parameters --nclasses, and all the coefficients do not matter.
 
    The full model training is as follows.
     ```bash
