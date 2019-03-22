@@ -27,11 +27,11 @@ To the best of our abilities we have cleaned the code to remove superfluous func
 * Cuda v9.0
 
 #### Data Pre-Processing
-We process CNN and Daily Mail separately.  The following details the data processing pipeline for CNN.
+The steps bellow allow for near duplication of our dataset.
+
+**For anyone wishing to use the data from the paper, we made available 3 of our fully processed datasets.  [Available here](https://drive.google.com/drive/folders/1s3lIrVgvcfDlk-xMm9a_WyTbUh_P4Awb?usp=sharing).**
 
 *NOTE 1*: Some data processing steps are very memory (RAM) heavy (~50GB).  It is recommended that for machines with limited hardware capabilities only a small subsection of data be processed.
-
-*NOTE 2*: We provide the end result of this section as a downloadable [here](HOSTLINK).
 1. Map and pre-process data for Stanford CoreNLP input. This separates highlights and articles. 
     ```bash
     python constituency_parse.py 
@@ -116,59 +116,32 @@ We process CNN and Daily Mail separately.  The following details the data proces
     ```
  
 #### Training
-We provide instructions for training our full model using the data we generated above as an example.  The repository has been refactored for readability, and other modeling has been removed.  
+We provide the training scripts for processed data we provided [here](https://drive.google.com/drive/folders/1s3lIrVgvcfDlk-xMm9a_WyTbUh_P4Awb?usp=sharing).  Specifically for NER.
 
-1. To provide the Reinforcment Learning model stability we pretrain the extractive portion.
+1. We also provide the pre-initialized extraction model.  If you wish to train this yourself set --pretain to True, do not load in any model, and the parameters --nclasses, and all the coefficients do not matter.
+
+   The full model training is as follows.
     ```bash
     PYTHONPATH=<PATH_TO_REPO> \
     THEANO_FLAGS=allow_gc=True,device=<CUDA_DEVICE>,floatX=float32 \
     python main.py \
-                --load_model_pretrain False \
-                --pretrain True \
-                --full_test True \
-                --embedding <PATH_TO_GLOVE>/glove.6B.100d.txt \
-                --embedding_dim 100 \
-                --source cnn \
-                --max_epochs 25 \
-                --coeff_cost_scale 1.0 \
-                --coeff_adequacy 1.0 \
-                --coeff_z 1.0 \
-                --nclasses 0  \
-                --num_files_train 36 \
-                --num_files_dev 1 \
-                --num_files_test 1 \
-                --batch_dir ../data/batches/ \
-                --inp_len 400 \
-                --generator_encoding lstm \
-                --word_level_c False \
-                --batch 128 \
-                --use_generator_h True \
-                --online_batch_size 20 \
-                --rl_no_qa False \
-                --z_perc 0.0 \
-                --n 0
-    ```
-2. Train the full model.
-```bash
-    PYTHONPATH=<PATH_TO_REPO> \
-    THEANO_FLAGS=allow_gc=True,device=<CUDA_DEVICE>,floatX=float32 \
-    python main.py \
-                --load_model_pretrain False \
+                --load_model_pretrain True \
                 --pretrain False \
-                --load_model \
+                --load_model pretrained_generator.tar.gz \
                 --full_test True \
                 --embedding <PATH_TO_GLOVE>/glove.6B.100d.txt \
                 --embedding_dim 100 \
+                --dropout 0.2 \
                 --source cnn \
                 --max_epochs 25 \
                 --coeff_cost_scale 1.0 \
-                --coeff_adequacy 1.0 \
-                --coeff_z 1.0 \
-                --nclasses 9723  \
+                --coeff_adequacy 9.0 \
+                --coeff_z 10.0 \
+                --nclasses 6167  \
                 --num_files_train 36 \
                 --num_files_dev 1 \
                 --num_files_test 1 \
-                --batch_dir ../data/batches/ \
+                --batch_dir <PATH_TO_DATA>/batches_cnn_400_ch_ner_cutoff_5/ \
                 --inp_len 400 \
                 --generator_encoding lstm \
                 --word_level_c False \
@@ -176,8 +149,6 @@ We provide instructions for training our full model using the data we generated 
                 --use_generator_h True \
                 --online_batch_size 20 \
                 --rl_no_qa False \
-                --z_perc 0.0 \
+                --z_perc 0.15 \
                 --n 0
     ```
-
-#### Example Output
