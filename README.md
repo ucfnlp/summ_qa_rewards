@@ -135,7 +135,7 @@ We provide the training scripts for processed data we provided [here](https://dr
                 --source cnn \
                 --max_epochs 25 \
                 --coeff_cost_scale 1.0 \
-                --coeff_adequacy 9.0 \
+                --coeff_adequacy 8.0 \
                 --coeff_z 10.0 \
                 --nclasses 6167  \
                 --num_files_train 36 \
@@ -153,3 +153,16 @@ We provide the training scripts for processed data we provided [here](https://dr
                 --n 0
     ```
 #### Example Output
+
+We have also created a markup file of overlayed summaries [here](https://drive.google.com/open?id=1hAb8-3Q2fwvRuvpF86YsC1zvtMFW7Pdh).  Download the file and view on your browser. The data can be interpreted using the following:
+
+* Each token is followed by a number indicating the chunk size that token falls into.
+  
+  E.g. The(4) joint(4) Iraqi(4) forces(4) fighting(4) to(4) retake(4) Tikrit(4) include(1) Iraqi(2) troops(2) ,(1) members(1) of(1) the(5) Shia(5) al-Hashed(5) al-Shaabi(5) militia(5) ,(1) members(1) of(1) the(3) Sunni(3) Sons(3) of(3) Salahuddin(3) brigades(3) ,(1) and(1) other(4) Sunni(4) tribal(4) fighters(4) .(1)  
+  
+  The sample above is generated from the constituency parse tree made possible by Stanford CoreNLP.
+  
+  ![scnlp](https://i.imgur.com/HxKMjQa.png)
+  
+* Underlined chunks have overlap with the gold-standard human highlights.
+* Bolded sections are sampled by our system as extraced summary segments.
