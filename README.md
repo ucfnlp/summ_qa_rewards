@@ -1,6 +1,14 @@
 # Guiding Extractive Summarization with Question-Answering Rewards
 
 This repository contains ready to run code for extractive summarization following [our paper](https://arxiv.org/pdf/1904.02321.pdf) from NAACL 2019.  We ask that you please cite our paper if you make use of our findings or code.
+```
+@article{arumae2019guiding,
+  title={Guiding Extractive Summarization with Question-Answering Rewards},
+  author={Arumae, Kristjan and Liu, Fei},
+  journal={arXiv preprint arXiv:1904.02321},
+  year={2019}
+}
+```
 
 The code and instructions allow for the following:
 1. Pre-processing the CNN/Daily Mail dataset for our models.  This includes steps for question generation using NER, SUBJ/OBJ, and ROOT words.  Please refer to our paper for details.
