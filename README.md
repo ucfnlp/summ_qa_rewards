@@ -151,7 +151,7 @@ We provide the training scripts for processed data we provided [here](https://dr
                 --online_batch_size 20 \
                 --rl_no_qa False \
                 --z_perc 0.15 \
-                --n 0
+                --n 10
     ```
 #### Example Output
 
