@@ -2,10 +2,11 @@
 
 This repository contains ready to run code for extractive summarization following [our paper](https://arxiv.org/pdf/1904.02321.pdf) from NAACL 2019.  We ask that you please cite our paper if you make use of our findings or code.
 ```
-@article{arumae2019guiding,
+@inproceedings{arumae2019guiding,
   title={Guiding Extractive Summarization with Question-Answering Rewards},
   author={Arumae, Kristjan and Liu, Fei},
-  journal={arXiv preprint arXiv:1904.02321},
+  booktitle={Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers)},
+  pages={2566--2577},
   year={2019}
 }
 ```
