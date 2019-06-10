@@ -1,6 +1,6 @@
 # Guiding Extractive Summarization with Question-Answering Rewards
 
-This repository contains ready to run code for extractive summarization following [our paper](https://arxiv.org/pdf/1904.02321.pdf) from NAACL 2019.  We ask that you please cite our paper if you make use of our findings or code.
+This repository contains ready to run code for extractive summarization following [our paper](https://www.aclweb.org/anthology/N19-1264) from NAACL 2019.  We ask that you please cite our paper if you make use of our findings or code.
 ```
 @inproceedings{arumae2019guiding,
   title={Guiding Extractive Summarization with Question-Answering Rewards},
